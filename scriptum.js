@@ -10596,6 +10596,15 @@ Rex.normalizeNewline = s => s.replace(/\r\n/g, "\n");
 █████ Matching ████████████████████████████████████████████████████████████████*/
 
 
+// consistent interface
+
+Rex.match = rx => s => {
+  const r = s.match(rx);
+  if (r === null) return [];
+  else return [r];
+};
+
+
 // all matching combinators rely on the global flag and thus return an array
 
 
@@ -10754,7 +10763,7 @@ Rex.i18n = {
       date6: /^(?<d>\d{1,2})(?<m>\d{1,2})(?<y>\d\d)$/,
       date8: /^(?<d>\d{1,2})\.(?<m>\d{1,2})\.(?<y>\d\d)$/,
       date8_: /^(?<d>\d\d)(?<m>\d\d)(?<y>\d{4})$/,
-      date10: /^(?<d>\d{1-2})\.(?<m>\d{1-2})\.(?<y>\d{4})$/,
+      date10: /^(?<d>\d{1,2})\.(?<m>\d{1,2})\.(?<y>\d{4})$/,
       datetime16: /^(?<d>\d\d)\.(?<m>\d\d)\.(?<y>\d{4}) (?<h>\d\d):(?<min>\d\d)$/,
       datetime18: /^(?<d>\d\d)\.(?<m>\d\d)\.(?<y>\d{4}) (?<h>\d\d):(?<min>\d\d):(?<s>\d\d)$/,
       dateLong: /^(?<d>\d{1,2})\.? +(?<m>[A-Z][a-zä]+)\.? +(?<y>\d{2,4})$/
@@ -10765,7 +10774,7 @@ Rex.i18n = {
     },
 
     months: /(\b(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\b)/,
-    months_: /(\b(Jan|Feb|Mär|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\b)\.?/
+    monthAbbrs: /(\b(Jan|Feb|Mär|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\b)\.?/
   }
 };
 
@@ -11369,22 +11378,53 @@ Str.distance = a => b => {
 
 // convert to ISO date fragment/string
 
-Str.normalizeDate = (locale, century = 20) => s => {
+Str.normalizeDate = (locale, century = "20") => s => {
   switch (locale) {
     case "de-DE": {
       for (const r of O.values(Rex.i18n.deDE.dates)) {
         if (r.test(s)) {
           const rx = s.match(r);
-          let yearPrefix = "";
+          let yearPrefix = "", monthDays = 0;
 
           if (rx.groups.y.length === 2) yearPrefix = century;
+          
+          else if (rx.groups.y.slice(0, 2) !== century)
+            throw new Err(`invalid date string "${s}"`);
 
-          if (rx.groups.m.length > 2) {
+          if (rx.groups.m.length === 2) {
+            const m = Number(rx.groups.m);
+
+            if (m === 0 || m > 12)
+              throw new Err(`invalid date string "${s}"`);
+
+            else monthDays = D.lastDayOfMonth(
+              {m, y: Number(yearPrefix + rx.groups.y)});
+          }
+
+          else if (rx.groups.m.length > 2) {
             if (Rex.i18n.deDE.months.test(rx.groups.m))
               rx.groups.m = _Map.monthsFullDe.get(rx.groups.m);
 
-            else if (Rex.i18n.deDE.months_.test(rx.groups.m))
-              rx.groups.m = _Map.monthsShortDe.get(rx.groups.m);            
+            else if (Rex.i18n.deDE.monthAbbrs.test(rx.groups.m))
+              rx.groups.m = _Map.monthsShortDe.get(rx.groups.m);
+
+            else throw new Err(`invalid date string "${s}"`);
+
+            monthDays = D.lastDayOfMonth({
+              m: Number(rx.groups.m),
+              y: Number(yearPrefix + rx.groups.y)
+            });
+          }
+
+          if (Number(rx.groups.d) === 0
+            Number(rx.groups.d) > 31)
+              throw new Err(`invalid date string "${s}"`);
+
+          else {
+            const d = Number(rx.groups.d);
+
+            if (d > monthDays)
+              throw new Err(`invalid date string "${s}"`);
           }
 
           return Str.cat(
@@ -11422,7 +11462,7 @@ Str.normalizeNum = locale => s => {
         }
       }
 
-      throw new Err(`invalid date string "${s}"`);
+      throw new Err(`invalid number string "${s}"`);
     }
 
     default: throw new Err(`unknown locale "${locale}"`);
