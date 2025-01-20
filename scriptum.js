@@ -10770,7 +10770,7 @@ Rex.i18n = {
     },
 
     numbers : {
-      num: /^(?<sign>\+|\-)?(?<int>\d+(?:\.\d{3})*),(?<frac>\d+)$/
+      num: /^(?<presign>\+|\-)?(?<int>\d+(?:\.\d{3})*),(?<frac>\d+)(?<postsign>\+|\-)?$/
     },
 
     months: /(\b(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\b)/,
@@ -11389,13 +11389,13 @@ Str.normalizeDate = (locale, century = "20") => s => {
           if (rx.groups.y.length === 2) yearPrefix = century;
           
           else if (rx.groups.y.slice(0, 2) !== century)
-            throw new Err(`invalid date string "${s}"`);
+            throw new Err(`invalid year in date string "${s}"`);
 
           if (rx.groups.m.length === 2) {
             const m = Number(rx.groups.m);
 
             if (m === 0 || m > 12)
-              throw new Err(`invalid date string "${s}"`);
+              throw new Err(`invalid month in date string "${s}"`);
 
             else monthDays = D.lastDayOfMonth(
               {m, y: Number(yearPrefix + rx.groups.y)});
@@ -11408,7 +11408,7 @@ Str.normalizeDate = (locale, century = "20") => s => {
             else if (Rex.i18n.deDE.monthAbbrs.test(rx.groups.m))
               rx.groups.m = _Map.monthsShortDe.get(rx.groups.m);
 
-            else throw new Err(`invalid date string "${s}"`);
+            else throw new Err(`invalid month in date string "${s}"`);
 
             monthDays = D.lastDayOfMonth({
               m: Number(rx.groups.m),
@@ -11417,14 +11417,14 @@ Str.normalizeDate = (locale, century = "20") => s => {
           }
 
           if (Number(rx.groups.d) === 0
-            Number(rx.groups.d) > 31)
-              throw new Err(`invalid date string "${s}"`);
+            || Number(rx.groups.d) > 31)
+              throw new Err(`invalid day in date string "${s}"`);
 
           else {
             const d = Number(rx.groups.d);
 
             if (d > monthDays)
-              throw new Err(`invalid date string "${s}"`);
+              throw new Err(`invalid day in date string "${s}"`);
           }
 
           return Str.cat(
@@ -11450,15 +11450,17 @@ Str.normalizeNum = locale => s => {
       for (const r of O.values(Rex.i18n.deDE.numbers)) {
         if (r.test(s)) {
           const rx = s.match(r);
-          let decPoint = "";
+          let decPoint = "", sign = "";
 
-          if (rx.groups.sign === undefined) rx.groups.sign = "";
+          if (rx.groups.presign) sign = rx.groups.presign;
+          else if (rx.groups.postsign) sign = rx.groups.postsign;
+
           if (rx.groups.int.length > 3) rx.groups.int = rx.groups.int.replace(/[^\d]/g, "");
 
           if (rx.groups.frac === undefined) rx.groups.frac = "";
           else decPoint = ".";
 
-          return rx.groups.sign + rx.groups.int + decPoint + rx.groups.frac;
+          return sign + rx.groups.int + decPoint + rx.groups.frac;
         }
       }
 
