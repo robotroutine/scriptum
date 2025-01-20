@@ -10569,9 +10569,11 @@ Pred.Disjunct.Monoid = {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Regexes work best with complex strings using a divide & conquer strategy that
-avoids a strict order of subpatterns but matches substrings independently from
-each other and leaves it to a downstream function to consider the context. */
+/* Regular expresions work best with complex strings using a divide & conquer
+strategy. First, determine the bounds of the region of interest in the string
+and than extract individual subpatterns within this region independently of
+each other. Accumulate all necessary subpatterns and feed them to a downstream
+function along with the original string to take the context into account. */
 
 
 export const Rex = {};
@@ -10600,10 +10602,51 @@ Rex.normalizeNewline = s => s.replace(/\r\n/g, "\n");
 Rex.matchAll = rx => s => Array.from(s.matchAll(rx));
 
 
+// variant that recognizes overlapping patterns
+
+Rex.matchAll_ = rx => s => {
+  const xs = [];
+  let offset = 1;
+
+  if (rx.flags.includes("g")) throw new Err("unexpected global flag");
+
+  for (let i = 0; i < s.length; i++) {
+    const o = s.slice(i).match(rx);
+
+    if (o === null) break;
+    
+    else if (xs.length) {
+      const i2 = xs[xs.length - 1].index
+        + xs[xs.length - 1] [0].length;
+
+      const i3 = o.index + o[0].length + offset;
+
+      if (i3 <= i2) {
+        offset++;
+        continue;
+      }
+
+      else {
+        offset = 1;
+        xs.push(o);
+      }
+    }
+
+    else xs.push(o);
+  }
+
+  return xs;
+};
+
+
 Rex.matchAllWith = p => rx => s => Rex.matchAll(rx) (s).filter(p);
 
 
-// used with either `matchAll` or `matchAllWith`
+Rex.matchAllWith_ = p => rx => s => Rex.matchAll_(rx) (s).filter(p);
+
+
+/* Match beginning and end of an repetitive region of interest. Pass either
+`matchAll` or `matchAllWith`. */
 
 Rex.matchBound = f => s => {
   const xs = f(s);
@@ -10613,7 +10656,7 @@ Rex.matchBound = f => s => {
 };
 
 
-// used with all matching combinators
+// match beginning and end of a region of interest using two different matchers
 
 Rex.matchBounds = (f, g) => s => {
   const xs = f(s), ys = g(s);
@@ -10624,7 +10667,7 @@ Rex.matchBounds = (f, g) => s => {
 };
 
 
-// pefer a unified interface over performance
+// prefer a unified interface over performance
 
 Rex.matchFirst = rx => s => Rex.matchAll(rx) (s).slice(0, 1);
 
@@ -10635,7 +10678,13 @@ Rex.matchFirstWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(0, 1);
 Rex.matchLast = rx => s => Rex.matchAll(rx) (s).slice(-1);
 
 
+Rex.matchLast_ = rx => s => Rex.matchAll_(rx) (s).slice(-1);
+
+
 Rex.matchLastWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(-1);
+
+
+Rex.matchLastWith_ = p => rx => s => Rex.matchAllWith_(p) (rx) (s).slice(-1);
 
 
 // considers negatives indices like slice
@@ -10647,10 +10696,24 @@ Rex.matchNth = (rx, i) => s => {
 };
 
 
+Rex.matchNth_ = (rx, i) => s => {
+  const xs = Rex.matchAll_(rx) (s);
+  if (i >= 0) return xs.slice(i, i + 1);
+  else return [xs.slice(i) [0]];
+};
+
+
 // considers negatives indices like slice
 
 Rex.matchNthWith = p => rx => s => {
   const xs = Rex.matchAllWith(rx) (s), o = xs[i];
+  if (i >= 0) return xs.slice(i, i + 1);
+  else return [xs.slice(i) [0]];
+};
+
+
+Rex.matchNthWith_ = p => rx => s => {
+  const xs = Rex.matchAllWith_(rx) (s), o = xs[i];
   if (i >= 0) return xs.slice(i, i + 1);
   else return [xs.slice(i) [0]];
 };
@@ -10711,20 +10774,7 @@ Rex.i18n = {
 █████ Splitting ███████████████████████████████████████████████████████████████*/
 
 
-// keeps the separator by default (requires the g-flag)
-
-Rex.split = rx => s => {
-  const xs = s.split(rx), ys = Array.from(s.matchAll(rx));
-
-  return xs.reduce((acc, s2, i) => {
-    if (ys.length <= i) acc.push(s2);
-    else acc.push(s2, ys[i] [0]);
-    return acc;
-  }, []);
-};
-
-
-// more general variant of split
+// combines matches with their separators in a mainingful way
 
 Rex.splitWith = f => rx => s => {
   const xs = s.split(rx), ys = Array.from(s.matchAll(rx));
