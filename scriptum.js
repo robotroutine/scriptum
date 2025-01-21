@@ -10112,55 +10112,55 @@ Parser.latin1CodeSet = {
 Parser.utf8Codeset = {
   get letter() {
     delete this.letter;
-    this.letter = new RegExp(/\p{L}/, "u");
+    this.letter = new RegExp(/\p{L}/, "v");
     return this.letter;
   },
 
   get ucl() {
     delete this.ucl;
-    this.ucl = new RegExp(/\p{Lu}/, "u");
+    this.ucl = new RegExp(/\p{Lu}/, "v");
     return this.ucl;
   },
 
   get lcl() {
     delete this.lcl;
-    this.lcl = new RegExp(/\p{Lu}/, "u");
+    this.lcl = new RegExp(/\p{Lu}/, "v");
     return this.lcl;
   },
 
   get digit() {
     delete this.digit;
-    this.digit = new RegExp(/\p{N}/, "u");
+    this.digit = new RegExp(/\p{N}/, "v");
     return this.digit;
   },
 
   get alnum() {
     delete this.alnum;
-    this.alnum = new RegExp(`${this.digit.source}|${this.letter.source}`, "u");
+    this.alnum = new RegExp(`${this.digit.source}|${this.letter.source}`, "v");
     return this.alnum;
   },
 
   get control() {
     delete this.control;
-    this.control = new RegExp(/[\p{C}\p{Zl}\p{Zp}]/, "u");
+    this.control = new RegExp(/[\p{C}\p{Zl}\p{Zp}]/, "v");
     return this.control;
   },
 
   get punct() {
     delete this.punct;
-    this.punct = new RegExp(/[\p{P}\p{S}\p{F}]/, "u");
+    this.punct = new RegExp(/[\p{P}\p{S}\p{F}]/, "v");
     return this.punct;
   },
 
   get currency() {
     delete this.currency;
-    this.currency = new RegExp(/\p{Sc}/, "u");
+    this.currency = new RegExp(/\p{Sc}/, "v");
     return this.currency;
   },
 
   get space() {
     delete this.space;
-    this.space = new RegExp(/\p{Zs}/, "u");
+    this.space = new RegExp(/\p{Zs}/, "v");
     return this.space;
   },
 
@@ -10168,7 +10168,7 @@ Parser.utf8Codeset = {
     delete this.nonAlnum;
     
     this.nonAlnum = new RegExp(
-      `${this.control.source}|${this.punct.source}|${this.currency.source}|${this.space.source}`, "u");
+      `${this.control.source}|${this.punct.source}|${this.currency.source}|${this.space.source}`, "v");
 
     return this.nonAlnum;
   }
