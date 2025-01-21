@@ -10580,16 +10580,138 @@ export const Rex = {};
 
 
 /*
-█████ Combinators █████████████████████████████████████████████████████████████*/
+█████ Boundary ████████████████████████████████████████████████████████████████*/
 
 
-Rex.count = rx => s => Array.from(s.matchAll(rx)).length;
+/* Combine the supplied `pattern` with its `left` and `right` boundaries and
+create a regular expression out of it. All patterns must be string encoded
+regular expressions. Character classes like `\p{P}` or `\d` are most suitable
+as boundaries. */
+
+Rex.bound = flags => (...left) => (...right) => pattern => {
+  return new RegExp(
+    `(?<=^|[${left.join("")}])${pattern}(?=$|[${right.join("")}])`,
+    flags);
+};
 
 
-Rex.escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+// create only a left boundary
+
+Rex.leftBound = flags => (...left) => pattern =>
+  new RegExp(`(?<=^|[${left.join("")}])${pattern}`, flags);
 
 
-Rex.normalizeNewline = s => s.replace(/\r\n/g, "\n");
+// create only a right boundary
+
+Rex.rightBound = flags => (...right) => pattern =>
+  new RegExp(`${pattern}(?=$|[${right.join("")}])`, flags);
+
+
+/*
+█████ Character Classes ███████████████████████████████████████████████████████*/
+
+
+Rex.classes = {};
+
+
+Rex.classes.letter = {
+  rex: "\\p{L}",
+  kind: "operand",
+  parent: null,
+  split: "(?<=\\p{L})(?!\\p{L})|(?<!\\p{L})(?=\\p{L})",
+};
+
+
+// lower-case letter
+
+Rex.classes.lcl = {
+  rex: "\\p{Ll}",
+  kind: "operand",
+  parent: Rex.classes.letter,
+  split: "(?<=\\p{Ll})(?!\\p{Ll})|(?<!\\p{Ll})(?=\\p{Ll})",
+};
+    
+
+// upper-case letter
+
+Rex.classes.ucl = {
+  rex: "\\p{Lu}",
+  kind: "operand",
+  parent: Rex.classes.letter,
+  split: "(?<=\\p{Lu})(?!\\p{Lu})|(?<!\\p{Lu})(?=\\p{Lu})",
+};
+
+
+Rex.classes.digit = {
+  rex: "\\p{N}",
+  kind: "operand",
+  parent: null,
+  split: "(?<=\\p{N})(?!\\p{N})|(?<!\\p{N})(?=\\p{N})",
+};
+
+
+// punctuation
+
+Rex.classes.punct = {
+  rex: "\\p{P}",
+  kind: "operator",
+  parent: null,
+  split: "(?<=\\p{P})(?!\\p{P})|(?<!\\p{P})(?=\\p{P})",
+};
+
+
+Rex.classes.space = {
+  rex: "\\p{Z}",
+  kind: "operator",
+  parent: null,
+  split: "(?<=\\p{Z})(?!\\p{Z})|(?<!\\p{Z})(?=\\p{Z})",
+};
+
+
+// symbol
+
+Rex.classes.sym = {
+  rex: "\\p{S}",
+  kind: "operator",
+  parent: null,
+  split: "(?<=\\p{S})(?!\\p{S})|(?<!\\p{S})(?=\\p{S})",
+};
+
+
+// currency
+
+Rex.classes.curr = {
+  rex: "\\p{Sc}",
+  kind: "operator",
+  parent: Rex.classes.sym,
+  split: "(?<=\\p{Sc})(?!\\p{Sc})|(?<!\\p{Sc})(?=\\p{Sc})",
+};
+
+
+Rex.classes.ctrl = {
+  rex: "\\p{C}",
+  kind: "operator",
+  parent: null,
+  split: "(?<=\\p{C})(?!\\p{C})|(?<!\\p{C})(?=\\p{C})",
+};
+
+
+Rex.classes.crnl = {
+  rex: "\\r?\\n",
+  kind: "operator",
+  parent: Rex.classes.ctrl,
+  split: "(?<=[\\r\\n])(?![\\r\\n])|(?<![\\r\\n])(?=[\\r\\n])",
+};
+
+
+// position (beginning/end of input or boi/eoi)
+
+Rex.classes.pos = {
+  rex: "(?:\\x02|\\x03)",
+  kind: "operator",
+  parent: Rex.classes.ctrl,
+  split: "(?<=[\\x02\\x03])(?![\\x02\\x03])|(?<![\\x02\\x03])(?=[\\x02\\x03])",
+};
 
 
 /*
@@ -10783,17 +10905,23 @@ Rex.i18n = {
 █████ Splitting ███████████████████████████████████████████████████████████████*/
 
 
-// combines matches with their separators in a mainingful way
+/* Split a string into tokens at every transition from one supplied character
+class to another. */
 
-Rex.splitWith = f => rx => s => {
-  const xs = s.split(rx), ys = Array.from(s.matchAll(rx));
+Rex.split = (...classes) => s => s.split(new RegExp(classes.join("|"), "sv"));
 
-  return xs.reduce((acc, s2, i) => {
-    if (ys.length <= i) acc.push(s2);
-    else acc.push(...f(s2, ys[i] [0]));
-    return acc;
-  }, []);
-};
+
+/*
+█████ Misc. ███████████████████████████████████████████████████████████████████*/
+
+
+Rex.count = rx => s => Array.from(s.matchAll(rx)).length;
+
+
+Rex.escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+
+Rex.normalizeNewline = s => s.replace(/\r\n/g, "\n");
 
 
 /*█████████████████████████████████████████████████████████████████████████████
