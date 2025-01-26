@@ -7556,6 +7556,20 @@ Num.trunc = places => n => {
 
 
 /*
+█████ GCD/LCM █████████████████████████████████████████████████████████████████*/
+
+
+// greatest common denominator
+
+Num.gcd = (m, n) => n == 0 ? m : Num.gcd(n, m % n);
+
+
+// least common multiplocator
+
+Num.lcm = (m, n) =>  m / Num.gcd(m, n) * n;
+
+
+/*
 █████ Serialization ███████████████████████████████████████████████████████████*/
 
 
@@ -10615,102 +10629,100 @@ Rex.classes = {};
 
 
 Rex.classes.letter = {
-  rex: "\\p{L}",
-  kind: "operand",
+  rex: /\p{L}/v,
   parent: null,
-  split: "(?<=\\p{L})(?!\\p{L})|(?<!\\p{L})(?=\\p{L})",
+  split: new RegExp("(?<=\\p{L})(?!\\p{L})|(?<!\\p{L})(?=\\p{L})", "v"),
 };
 
 
 // lower-case letter
 
 Rex.classes.lcl = {
-  rex: "\\p{Ll}",
-  kind: "operand",
+  rex: /\p{Ll}/v,
   parent: Rex.classes.letter,
-  split: "(?<=\\p{Ll})(?!\\p{Ll})|(?<!\\p{Ll})(?=\\p{Ll})",
+  split: new RegExp("(?<=\\p{Ll})(?!\\p{Ll})|(?<!\\p{Ll})(?=\\p{Ll})", "v"),
 };
     
 
 // upper-case letter
 
 Rex.classes.ucl = {
-  rex: "\\p{Lu}",
-  kind: "operand",
+  rex: /\p{Lu}/v,
   parent: Rex.classes.letter,
-  split: "(?<=\\p{Lu})(?!\\p{Lu})|(?<!\\p{Lu})(?=\\p{Lu})",
+  split: new RegExp("(?<=\\p{Lu})(?!\\p{Lu})|(?<!\\p{Lu})(?=\\p{Lu})", "v"),
 };
 
 
+// european vowels
+
+Rex.classes.vowels = {
+  rex: /[aeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]/i,
+  parent: Rex.classes.letter,
+  split: new RegExp(`(?<=${Rex.classes.vowels.source})(?!${Rex.classes.vowels.source})|(?<!${Rex.classes.vowels.source})(?=${Rex.classes.vowels.source})`, "i"),
+}
+
+
 Rex.classes.digit = {
-  rex: "\\p{N}",
-  kind: "operand",
+  rex: /\p{N}/v,
   parent: null,
-  split: "(?<=\\p{N})(?!\\p{N})|(?<!\\p{N})(?=\\p{N})",
+  split: new RegExp("(?<=\\p{N})(?!\\p{N})|(?<!\\p{N})(?=\\p{N})", "v"),
 };
 
 
 // punctuation
 
 Rex.classes.punct = {
-  rex: "\\p{P}",
-  kind: "operator",
+  rex: /\p{P}/v,
   parent: null,
-  split: "(?<=\\p{P})(?!\\p{P})|(?<!\\p{P})(?=\\p{P})",
+  split: new RegExp("(?<=\\p{P})(?!\\p{P})|(?<!\\p{P})(?=\\p{P})", "v"),
 };
 
 
 Rex.classes.space = {
-  rex: "\\p{Z}",
-  kind: "operator",
+  rex: /\p{Z}/v,
   parent: null,
-  split: "(?<=\\p{Z})(?!\\p{Z})|(?<!\\p{Z})(?=\\p{Z})",
+  split: new RegExp("(?<=\\p{Z})(?!\\p{Z})|(?<!\\p{Z})(?=\\p{Z})", "v"),
 };
 
 
 // symbol
 
 Rex.classes.sym = {
-  rex: "\\p{S}",
-  kind: "operator",
+  rex: /\p{S}/v,
   parent: null,
-  split: "(?<=\\p{S})(?!\\p{S})|(?<!\\p{S})(?=\\p{S})",
+  split: new RegExp("(?<=\\p{S})(?!\\p{S})|(?<!\\p{S})(?=\\p{S})", "v"),
 };
 
 
 // currency
 
 Rex.classes.curr = {
-  rex: "\\p{Sc}",
-  kind: "operator",
+  rex: /\p{Sc}/v,
   parent: Rex.classes.sym,
-  split: "(?<=\\p{Sc})(?!\\p{Sc})|(?<!\\p{Sc})(?=\\p{Sc})",
+  split: new RegExp("(?<=\\p{Sc})(?!\\p{Sc})|(?<!\\p{Sc})(?=\\p{Sc})", "v"),
 };
 
 
 Rex.classes.ctrl = {
   rex: "\\p{C}",
-  kind: "operator",
   parent: null,
   split: "(?<=\\p{C})(?!\\p{C})|(?<!\\p{C})(?=\\p{C})",
 };
 
 
 Rex.classes.crnl = {
-  rex: "\\r?\\n",
-  kind: "operator",
+  rex: /\r?\n/,
   parent: Rex.classes.ctrl,
-  split: "(?<=[\\r\\n])(?![\\r\\n])|(?<![\\r\\n])(?=[\\r\\n])",
+  split: new RegExp("(?<=[\\r\\n])(?![\\r\\n])|(?<![\\r\\n])(?=[\\r\\n])", ""),
 };
 
 
 // position (beginning/end of input or boi/eoi)
 
 Rex.classes.pos = {
-  rex: "(?:\\x02|\\x03)",
-  kind: "operator",
+  rex: /(?:\x02|\x03)/,
   parent: Rex.classes.ctrl,
-  split: "(?<=[\\x02\\x03])(?![\\x02\\x03])|(?<![\\x02\\x03])(?=[\\x02\\x03])",
+  split: new RegExp("(?<=[\\x02\\x03])(?![\\x02\\x03])|(?<![\\x02\\x03])(?=[\\x02\\x03])", ""),
 };
 
 
@@ -10875,7 +10887,7 @@ Rex.iso = {
     int: /^(?<sign>\+|\-)?(?<int>[1-9]\d*)$/, // integers
     float: /^(?<sign>\+|\-)?(?<int>\d+)\.(?<frac>\d+)$/, // only floating point numbers
     num: /^(?<sign>\+|\-)?(?<int>\d+)(?:\.(?<frac>\d+))?$/ // all numbers
-  }
+  },
 };
 
 
@@ -10896,7 +10908,7 @@ Rex.i18n = {
     },
 
     months: /(\b(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\b)/,
-    monthAbbrs: /(\b(Jan|Feb|Mär|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\b)\.?/
+    monthAbbrs: /(\b(Jan|Feb|Mär|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\b)\.?/,
   }
 };
 
@@ -10905,10 +10917,12 @@ Rex.i18n = {
 █████ Splitting ███████████████████████████████████████████████████████████████*/
 
 
-/* Split a string into tokens at every transition from one supplied character
-class to another. */
+/* Split a string as to a set of concatenated regular expressions. It is meant
+to be used with the predefined character classes in this section. You can
+define your own patterns as well, though. */
 
-Rex.split = (...classes) => s => s.split(new RegExp(classes.join("|"), "sv"));
+Rex.split = flags => (...rs) => s => s.split(
+  new RegExp(rs.map(rx => rx.source).join("|"), flags));
 
 
 /*
@@ -11393,6 +11407,40 @@ Str.countChar = c => s => {
   }
 
   return n;
+};
+
+
+Str.countChars = s => s.split("").reduce((acc, c) =>
+  acc.add(c), new Set()).size;
+
+
+// split at transitions from ASCII to not ASCII characters
+
+Str.splitAscii = s => {
+  return s.split("").reduce((acc, c) => {
+    const i = acc.length - 1;
+    
+    if (acc[i] === "") acc[i] += c;
+    else if (acc[i].charCodeAt(0) < 128 && c.charCodeAt(0) < 128) acc[i] += c;
+    else acc.push(c);
+
+    return acc;
+  }, [""]);
+};
+
+
+// split at character transitions
+
+Str.splitChars = s => {
+  return s.split("").reduce((acc, c) => {
+    const i = acc.length - 1;
+    
+    if (acc[i] === "") acc[i] += c;
+    else if (acc[i] [0] === c) acc[i] += c;
+    else acc.push(c);
+
+    return acc;
+  }, [""]);
 };
 
 
