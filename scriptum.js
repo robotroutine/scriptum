@@ -7156,24 +7156,24 @@ _Map.has = k => m => m.has(k);
 _Map.inc = k => m => m.has(k) ? m.set(k, m.get(k) + 1) : m.set(k, 1);
 
 
-_Map.set = k => v => m => m.set(k, v);
-
-
 _Map.set = (k, v) => m => m.set(k, v);
 
 
 _Map.del = k => m => m.delete(k);
 
 
-_Map.upd = k => f => m => {
+_Map.upd = (k, f) => m => {
   if (m.has(k)) return m.set(k, f(m.get(k)));
   else return m;
 };
 
 
-_Map.updOr = x => k => f => m => {
-  if (m.has(k)) return m.set(k, f(m.get(k)));
-  else return m.set(k, x);
+/* Either update a key by appending the previous and the provided value or just
+set the provided value. */
+
+_Map.updOr = (k, v, f) => m => {
+  if (m.has(k)) return m.set(k, f(m.get(k)) (v));
+  else return m.set(k, v);
 };
 
 
@@ -7216,18 +7216,43 @@ _Map.monthsShortDe = new Map([
 
 
 /*
-█████ Union ███████████████████████████████████████████████████████████████████*/
+█████ Set Operations ██████████████████████████████████████████████████████████*/
 
 
-_Map.union = m => n => {
-  new Map(n).forEach((v, k) => m.set(k, v));
+_Map.intersect = m => n => {
+  const mn = new Map();
+  for (const [k, v] of m) n.has(x) ? mn.set(k, v) : null;
+  return mn;
 };
 
 
-// destructive
+_Map.union = m => n => {
+  const mn = new Map(m);
+  n.forEach(([k, v]) => mn.set(k, v));
+  return mn;
+};
 
-_Map.union_ = m => n => {
-  n.forEach((v, k) => m.set(k, v));
+
+_Map.diff = m => n => {
+  const l = new Map(), r = new Map();
+  for (const [k, v] of m) !n.has(k) ? l.set(k, v) : null;
+  for (const [k, v] of n) !m.has(k) ? r.set(k, v) : null;
+  r.forEach(([k, v]) => l.set(k, v));
+  return l;
+};
+
+
+_Map.diffl = m => n => {
+  const l = new Map();
+  for (const [k, v] of m) !n.has(k) ? l.set(k, v) : null;
+  return l;
+};
+
+
+_Map.diffr = m => n => {
+  const r = new Map();
+  for (const [k, v] of n) !m.has(k) ? r.set(k, v) : null;
+  return r;
 };
 
 
@@ -7569,6 +7594,22 @@ Num.gcd = (m, n) => n == 0 ? m : Num.gcd(n, m % n);
 Num.lcm = (m, n) =>  m / Num.gcd(m, n) * n;
 
 
+// add two fractions
+
+Num.addFractions = ({dtor, ntor, dtor_, ntor_}) => {debugger;
+  const lcm = Num.lcm(ntor, ntor_);
+
+  const ntor2 = lcm / ntor * dtor,
+    ntor2_ = lcm / ntor_ * dtor_;
+
+  const gcd = Num.gcd(ntor2 + ntor2_, lcm);
+
+  return Pair(
+    Num.round2((ntor2 + ntor2_) / gcd),
+    Num.round2(lcm / gcd)
+  );
+}
+
 /*
 █████ Serialization ███████████████████████████████████████████████████████████*/
 
@@ -7744,33 +7785,33 @@ O.getDeepOr_ = x => (...getters) => o => {
 O.getDeep_ = O.getDeepOr_(undefined);
 
 
-O.set = k => v => o => (o[k] = v, o);
+O.set = (k, v) => o => (o[k] = v, o);
 
 
-O.set_ = k => v => o => Object.assign({}, o, {[k]: v});
+O.set_ = (k, v) => o => Object.assign({}, o, {[k]: v});
 
 
-O.upd = k => f => o => {
-  if (k in o) return (o[k] = f(o[k]), o);
+O.upd = (k, f) => o => {
+  if (k in o) return (o[k] = f(o[k]));
   else return o;
 };
 
 
-O.upd_ = k => f => o => {
+O.upd_ = (k, f) => o => {
   if (k in o) return Object.assign({}, o, {[k]: f(o[k])});
   else return o;
 };
 
 
-O.updOr = x => k => f => o => {
-  if (k in o) return (o[k] = f(o[k]), o);
-  else return (o[k] = x, o);
+O.updOr = (k, v, f) => o => {
+  if (k in o) return (o[k] = f(o[k])) (v);
+  else return (o[k] = v, o);
 };
 
 
-O.updOr_ = x => k => f => o => {
-  if (k in o) return Object.assign({}, o, {[k]: f(o[k])});
-  else return Object.assign({}, o, {[k]: x});
+O.updOr_ = (k, v, f) => o => {
+  if (k in o) return Object.assign({}, o, {[k]: f(o[k]) (v)});
+  else return Object.assign({}, o, {[k]: v});
 };
 
 
@@ -10658,8 +10699,13 @@ Rex.classes.ucl = {
 Rex.classes.vowels = {
   rex: /[aeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]/i,
   parent: Rex.classes.letter,
-  split: new RegExp(`(?<=${Rex.classes.vowels.source})(?!${Rex.classes.vowels.source})|(?<!${Rex.classes.vowels.source})(?=${Rex.classes.vowels.source})`, "i"),
-}
+  
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
+    return this.split;
+  },
+};
 
 
 Rex.classes.digit = {
@@ -11359,18 +11405,43 @@ Object.defineProperty(_Set, "atoZ", {
 
 
 /*
-█████ Union ███████████████████████████████████████████████████████████████████*/
+█████ Set Operations ██████████████████████████████████████████████████████████*/
 
 
-_Set.union = s => t => {
-  new Set(t).forEach(k => s.set(k));
+_Set.intersect = s => t => {
+  const st = new Set();
+  for (const x of s) t.has(x) ? st.add(x) : null;
+  return st;
 };
 
 
-// destructive
+_Set.union = s => t => {
+  const st = new Set(s);
+  t.forEach(x => st.add(x));
+  return st;
+};
 
-_Set.union_ = s => t => {
-  new t.forEach(k => s.set(k));
+
+_Set.diff = s => t => {
+  const l = new Set(), r = new Set();
+  for (const x of s) !t.has(x) ? l.add(x) : null;
+  for (const x of t) !s.has(x) ? r.add(x) : null;
+  r.forEach(x => l.add(x));
+  return l;
+};
+
+
+_Set.diffl = s => t => {
+  const l = new Set();
+  for (const x of s) !t.has(x) ? l.add(x) : null;
+  return l;
+};
+
+
+_Set.diffr = s => t => {
+  const r = new Set();
+  for (const x of t) !s.has(x) ? r.add(x) : null;
+  return r;
 };
 
 
