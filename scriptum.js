@@ -1562,7 +1562,7 @@ export const compareOn = order => compBoth(order);
 export const compareOn_ = order => f => x => y => order(f(x), f(y));
 
 
-export const ordering = n => n < 0 ? -1 : n > 0 ? 1 : 0;
+export const comparator = m => n => m < n ? -1 : m > n ? 1 : 0;
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -11482,7 +11482,7 @@ Str.countChar = c => s => {
 
 
 Str.countChars = s => s.split("").reduce((acc, c) =>
-  acc.add(c), new Set()).size;
+  _Set.inc(c) (acc), new Map());
 
 
 // split at transitions from ASCII to not ASCII characters
@@ -11526,6 +11526,65 @@ Str.cat = Str.catWith("");
 
 
 Str.cat_ = Str.catWith(" ");
+
+
+/*
+█████ Difference ██████████████████████████████████████████████████████████████*/
+
+
+/* Determine all shared substrings of two strings while preserving the context:
+  
+  "Gettysburg" vs. "Getisburger"
+  [{i: 0, c: "G"}, {i: 3, c: "ty"}]                 // left diff
+  [{i: 0, c: "T"}, {i: 3, c: "i"}, {i: 9, c: "er"}] // right diff */
+
+Str.diff = s => t => {
+  const xs = diff_(s, t), ys = diff_(t, s);
+  const l = [], r = [];
+
+  for (const o of xs) {
+    if (o.offset === null) {
+      const prev = l[l.length - 1];
+      
+      if (prev === undefined) l.push(o);
+      else if (o.i - prev.i === 1) prev.c += o.c;
+      else l.push(o);
+    }
+  }
+
+  for (const o of ys) {
+    if (o.offset === null) {
+      const prev = r[r.length - 1];
+      
+      if (prev === undefined) r.push(o);
+      else if (o.i - prev.i === 1) prev.c += o.c;
+      else r.push(o);
+    }
+  }
+
+  return {l: xs, r: ys, diffl: l, diffr: r};
+};
+
+
+const diff_ = (s, t) => {
+  const offset = Math.abs(s.length - t.length),
+    xs = s.split(""), ys = t.split(""), zs = [];
+
+  for (let i = 0, j2 = 0; i < xs.length; i++) {
+    const j = ys.indexOf(xs[i], j2);
+
+    if (j === -1) zs.push({i, c: xs[i], offset: null});
+
+    else if (Math.abs(i - j) <= offset) {
+      zs.push({i, c: xs[i], offset: i - j});
+      j2 = j + 1;
+    }
+
+    else zs.push({i, c: xs[i], offset: null});
+  }
+
+  return zs;
+};
 
 
 /*
