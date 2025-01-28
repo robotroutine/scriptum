@@ -10005,479 +10005,6 @@ Parser.delimitedBy = Monoid => transform => (left, right = left) => Parser(ix =>
 
 
 /*█████████████████████████████████████████████████████████████████████████████
-██████████████████████████████ PARSER :: UTILITY ██████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-/*
-█████ Codesets & Char Classes █████████████████████████████████████████████████*/
-
-
-Parser.asciiCodeset = {
-  get letter() {
-    delete this.letter;
-    this.letter = new RegExp(/[a-z]/, "i");
-    return this.letter;
-  },
-
-  get ucl() {
-    delete this.ucl;
-    this.ucl = new RegExp(/[A-Z]/, "");
-    return this.ucl;
-  },
-
-  get lcl() {
-    delete this.lcl;
-    this.lcl = new RegExp(/[a-z]/, "");
-    return this.lcl;
-  },
-
-  get digit() {
-    delete this.digit;
-    this.digit = new RegExp(/[0-9]/, "");
-    return this.digit;
-  },
-
-  get alnum() {
-    delete this.alnum;
-    this.alnum = new RegExp(`${this.digit.source}|${this.letter.source}`, "");
-    return this.alnum;
-  },
-
-  get control() {
-    delete this.control;
-    this.control = new RegExp(/[\0\a\b\t\v\f\r\n\cZ]/, "");
-    return this.control;
-  },
-
-  get punct() {
-    delete this.punct;
-    this.punct = new RegExp(/[!"#$%&'()*+,-./:;<=>?@\[\]\\^_`{|}~]/, "");
-    return this.punct;
-  },
-
-  get currency() {
-    delete this.currency;
-    this.currency = new RegExp(/[$]/, "");
-    return this.currency;
-  },
-
-  get space() {
-    delete this.space;
-    this.space = new RegExp(/ /, "");
-    return this.space;
-  },
-
-  get nonAlnum() {
-    delete this.nonAlnum;
-    
-    this.nonAlnum = new RegExp(
-      `${this.control.source}|${this.punct.source}|${this.currency.source}|${this.space.source}`, "");
-    
-    return this.nonAlnum;
-  }
-};
-
-
-/* CP1252 (Windows 1252) has the same characaters as latin1 (ISO-8859-1) but
-between 128-159 they are not at the same code points. */
-
-Parser.latin1CodeSet = {
-  get letter() {
-    delete this.letter;
-    this.letter = new RegExp(/[a-zßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]/, "i");
-    return this.letter;
-  },
-
-  get ucl() {
-    delete this.ucl;
-    this.ucl = new RegExp(/[A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞ]/, "");
-    return this.ucl;
-  },
-
-  get lcl() {
-    delete this.lcl;
-    this.lcl = new RegExp(/[a-zßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]/, "");
-    return this.lcl;
-  },
-
-  get digit() {
-    delete this.digit;
-    this.digit = new RegExp(/[0-9]/, "");
-    return this.digit;
-  },
-
-  get alnum() {
-    delete this.alnum;
-    this.alnum = new RegExp(`${this.digit.source}|${this.letter.source}`, "");
-    return this.alnum;
-  },
-
-  get control() {
-    delete this.control;
-    this.control = new RegExp(/[\0\a\b\t\v\f\r\n\cZ]/, "");
-    return this.control;
-  },
-  
-  get punct() {
-    delete this.punct;
-    this.punct = new RegExp(/[!"#$%&'()*+,-./:;<=>?@\[\]\\^_`{|}~€‚„…†‡ˆ‰‹‘’“”•–­—˜™›¡¢£¤¥¦§¨©ª«¬®¯°±²³´µ¶·¸¹º»¼½¾¿]/, "");
-    return this.punct;
-  },
-  
-  get currency() {
-    delete this.currency;
-    this.currency = new RegExp(/[¤$€£¥¢]/, "");
-    return this.currency;
-  },
-  
-  get space() {
-    delete this.space;
-    this.space = new RegExp(/  /, "");
-    return this.space;
-  },
-
-  get nonAlnum() {
-    delete this.nonAlnum;
-
-    this.nonAlnum = new RegExp(
-      `${this.control.source}|${this.punct.source}|${this.currency.source}|${this.space.source}`, "");
-
-    return this.nonAlnum;
-  }
-};
-
-
-Parser.utf8Codeset = {
-  get letter() {
-    delete this.letter;
-    this.letter = new RegExp(/\p{L}/, "v");
-    return this.letter;
-  },
-
-  get ucl() {
-    delete this.ucl;
-    this.ucl = new RegExp(/\p{Lu}/, "v");
-    return this.ucl;
-  },
-
-  get lcl() {
-    delete this.lcl;
-    this.lcl = new RegExp(/\p{Lu}/, "v");
-    return this.lcl;
-  },
-
-  get digit() {
-    delete this.digit;
-    this.digit = new RegExp(/\p{N}/, "v");
-    return this.digit;
-  },
-
-  get alnum() {
-    delete this.alnum;
-    this.alnum = new RegExp(`${this.digit.source}|${this.letter.source}`, "v");
-    return this.alnum;
-  },
-
-  get control() {
-    delete this.control;
-    this.control = new RegExp(/[\p{C}\p{Zl}\p{Zp}]/, "v");
-    return this.control;
-  },
-
-  get punct() {
-    delete this.punct;
-    this.punct = new RegExp(/[\p{P}\p{S}\p{F}]/, "v");
-    return this.punct;
-  },
-
-  get currency() {
-    delete this.currency;
-    this.currency = new RegExp(/\p{Sc}/, "v");
-    return this.currency;
-  },
-
-  get space() {
-    delete this.space;
-    this.space = new RegExp(/\p{Zs}/, "v");
-    return this.space;
-  },
-
-  get nonAlnum() {
-    delete this.nonAlnum;
-    
-    this.nonAlnum = new RegExp(
-      `${this.control.source}|${this.punct.source}|${this.currency.source}|${this.space.source}`, "v");
-
-    return this.nonAlnum;
-  }
-};
-
-
-/*
-█████ Parsers █████████████████████████████████████████████████████████████████*/
-
-
-Parser.asciiLetter = Parser.satisfy(
-  c => Parser.asciiCodeset.letter.test(c),
-  "ASCII letter expected");
-
-
-Parser.asciiLetterBehind = Parser.satisfyBehind(
-  c => Parser.asciiCodeset.letter.test(c),
-  "ASCII letter expected");
-
-
-Parser.asciiLcl = Parser.satisfy(
-  c => Parser.asciiCodeset.lcl.test(c),
-  "ASCII lower case letter expected");
-
-
-Parser.asciiLclBehind = Parser.satisfyBehind(
-  c => Parser.asciiCodeset.lcl.test(c),
-  "ASCII lower case letter expected");
-
-
-Parser.asciiUcl = Parser.satisfy(
-  c => Parser.asciiCodeset.ucl.test(c),
-  "ASCII upper case letter expected");
-
-
-Parser.asciiUclBehind = Parser.satisfyBehind(
-  c => Parser.asciiCodeset.ucl.test(c),
-  "ASCII upper case letter expected");
-
-
-Parser.asciiDigit = Parser.satisfy(
-  c => Parser.asciiCodeset.digit.test(c),
-  "ASCII digit expected");
-
-
-Parser.asciiDigitBehind = Parser.satisfyBehind(
-  c => Parser.asciiCodeset.digit.test(c),
-  "ASCII digit expected");
-
-
-Parser.asciiAlnum = Parser.satisfy(
-  c => Parser.asciiCodeset.alnum.test(c),
-  "ASCII alphanumeric character expected");
-
-
-Parser.asciiAlnumBehind = Parser.satisfyBehind(
-  c => Parser.asciiCodeset.alnum.test(c),
-  "ASCII alphanumeric character expected");
-
-
-Parser.asciiPunct = Parser.satisfy(
-  c => Parser.asciiCodeset.punct.test(c),
-  "ASCII punctuation expected");
-
-
-Parser.asciiPunctBehind = Parser.satisfyBehind(
-  c => Parser.asciiCodeset.punct.test(c),
-  "ASCII punctuation expected");
-
-
-Parser.asciiSpace = Parser.satisfy(
-  c => Parser.asciiCodeset.space.test(c),
-  "ASCII space character expected");
-
-
-Parser.asciiSpaceBehind = Parser.satisfyBehind(
-  c => Parser.asciiCodeset.space.test(c),
-  "ASCII space character expected");
-
-
-Parser.latin1Letter = Parser.satisfy(
-  c => Parser.latin1CodeSet.letter.test(c),
-  "Latin1 letter expected");
-
-
-Parser.latin1LetterBehind = Parser.satisfyBehind(
-  c => Parser.latin1CodeSet.letter.test(c),
-  "Latin1 letter expected");
-
-
-Parser.latin1Lcl = Parser.satisfy(
-  c => Parser.latin1CodeSet.lcl.test(c),
-  "Latin1 lower case letter expected");
-
-
-Parser.latin1LclBehind = Parser.satisfyBehind(
-  c => Parser.latin1CodeSet.lcl.test(c),
-  "Latin1 lower case letter expected");
-
-
-Parser.latin1Ucl = Parser.satisfy(
-  c => Parser.latin1CodeSet.ucl.test(c),
-  "Latin1 upper case letter expected");
-
-
-Parser.latin1UclBehind = Parser.satisfyBehind(
-  c => Parser.latin1CodeSet.ucl.test(c),
-  "Latin1 upper case letter expected");
-
-
-Parser.latin1Digit = Parser.satisfy(
-  c => Parser.latin1CodeSet.digit.test(c),
-  "Latin1 digit expected");
-
-
-Parser.latin1DigitBehind = Parser.satisfyBehind(
-  c => Parser.latin1CodeSet.digit.test(c),
-  "Latin1 digit expected");
-
-
-Parser.latin1Alnum = Parser.satisfy(
-  c => Parser.latin1CodeSet.alnum.test(c),
-  "Latin1 alphanumeric character expected");
-
-
-Parser.latin1AlnumBehind = Parser.satisfyBehind(
-  c => Parser.latin1CodeSet.alnum.test(c),
-  "Latin1 alphanumeric character expected");
-
-
-Parser.latin1Punct = Parser.satisfy(
-  c => Parser.latin1CodeSet.punct.test(c),
-  "Latin1 punctuation expected");
-
-
-Parser.latin1PunctBehind = Parser.satisfyBehind(
-  c => Parser.latin1CodeSet.punct.test(c),
-  "Latin1 punctuation expected");
-
-
-Parser.latin1Space = Parser.satisfy(
-  c => Parser.latin1CodeSet.space.test(c),
-  "Latin1 space character expected");
-
-
-Parser.latin1SpaceBehind = Parser.satisfyBehind(
-  c => Parser.latin1CodeSet.space.test(c),
-  "Latin1 space character expected");
-
-
-Parser.utf8Letter = Parser.satisfy(
-  c => Parser.utf8Codeset.letter.test(c),
-  "UTF8 letter expected");
-
-
-Parser.utf8LetterBehind = Parser.satisfyBehind(
-  c => Parser.utf8Codeset.letter.test(c),
-  "UTF8 letter expected");
-
-
-Parser.utf8Lcl = Parser.satisfy(
-  c => Parser.utf8Codeset.lcl.test(c),
-  "UTF8 lower case letter expected");
-
-
-Parser.utf8LclBehind = Parser.satisfyBehind(
-  c => Parser.utf8Codeset.lcl.test(c),
-  "UTF8 lower case letter expected");
-
-
-Parser.utf8Ucl = Parser.satisfy(
-  c => Parser.utf8Codeset.ucl.test(c),
-  "UTF8 upper case letter expected");
-
-
-Parser.utf8UclBehind = Parser.satisfyBehind(
-  c => Parser.utf8Codeset.ucl.test(c),
-  "UTF8 upper case letter expected");
-
-
-Parser.utf8Digit = Parser.satisfy(
-  c => Parser.utf8Codeset.digit.test(c),
-  "UTF8 digit expected");
-
-
-Parser.utf8DigitBehind = Parser.satisfyBehind(
-  c => Parser.utf8Codeset.digit.test(c),
-  "UTF8 digit expected");
-
-
-Parser.utf8Alnum = Parser.satisfy(
-  c => Parser.utf8Codeset.alnum.test(c),
-  "UTF8 alphanumeric character expected");
-
-
-Parser.utf8AlnumBehind = Parser.satisfyBehind(
-  c => Parser.utf8Codeset.alnum.test(c),
-  "UTF8 alphanumeric character expected");
-
-
-Parser.utf8Punct = Parser.satisfy(
-  c => Parser.utf8Codeset.punct.test(c),
-  "UTF8 punctuation expected");
-
-
-Parser.utf8PunctBehind = Parser.satisfyBehind(
-  c => Parser.utf8Codeset.punct.test(c),
-  "UTF8 punctuation expected");
-
-
-Parser.utf8Space = Parser.satisfy(
-  c => Parser.utf8Codeset.space.test(c),
-  "UTF8 space character expected");
-
-
-Parser.utf8SpaceBehind = Parser.satisfyBehind(
-  c => Parser.utf8Codeset.space.test(c),
-  "UTF8 space character expected");
-
-
-/*
-█████ Conversion ██████████████████████████████████████████████████████████████*/
-
-
-// map all special letters from latin-based alphabets onto ASCII
-
-Object.defineProperty(Parser, "toAscii", {
-  get() {
-    const m = new Map([
-      ["Æ", "AE"], ["æ", "ae"], ["Ä", "Ae"], ["ä", "ae"], ["Œ", "OE"],
-      ["œ", "oe"], ["Ö", "Oe"], ["ö", "oe"], ["ß", "ss"], ["ẞ", "ss"],
-      ["Ü", "Ue"], ["ü", "ue"], ["Ⱥ", "A"], ["ⱥ", "a"], ["Ɑ", "A"],
-      ["ɑ", "a"], ["ɐ", "a"], ["ɒ", "a"], ["Ƀ", "B"], ["ƀ", "b"],
-      ["Ɓ", "B"], ["ɓ", "b"], ["Ƃ", "b"], ["ƃ", "b"], ["ᵬ", "b"],
-      ["ᶀ", "b"], ["Ƈ", "C"], ["ƈ", "c"], ["Ȼ", "C"], ["ȼ", "c"],
-      ["Ɗ", "D"], ["ɗ", "d"], ["Ƌ", "D"], ["ƌ", "d"], ["ƍ", "d"],
-      ["Đ", "D"], ["đ", "d"], ["ɖ", "d"], ["ð", "d"], ["Ɇ", "E"],
-      ["ɇ", "e"], ["ɛ", "e"], ["ɜ", "e"], ["ə", "e"], ["Ɠ", "G"],
-      ["ɠ", "g"], ["Ǥ", "G"], ["ǥ", "g"], ["ᵹ", "g"], ["Ħ", "H"],
-      ["ħ", "h"], ["Ƕ", "H"], ["ƕ", "h"], ["Ⱨ", "H"], ["ⱨ", "h"],
-      ["ɥ", "h"], ["ɦ", "h"], ["ı", "i"], ["Ɩ", "I"], ["ɩ", "i"],
-      ["Ɨ", "I"], ["ɨ", "i"], ["Ɉ", "J"], ["ɉ", "j"], ["ĸ", "k"],
-      ["Ƙ", "K"], ["ƙ", "k"], ["Ⱪ", "K"], ["ⱪ", "k"], ["Ł", "L"],
-      ["ł", "l"], ["Ƚ", "L"], ["ƚ", "l"], ["ƛ", "l"], ["ȴ", "l"],
-      ["Ⱡ", "L"], ["ⱡ", "l"], ["Ɫ", "L"], ["ɫ", "l"], ["Ľ", "L"],
-      ["ľ", "l"], ["Ɯ", "M"], ["ɯ", "m"], ["ɱ", "m"], ["Ŋ", "N"],
-      ["ŋ", "n"], ["Ɲ", "N"], ["ɲ", "n"], ["Ƞ", "N"], ["ƞ", "n"],
-      ["Ø", "O"], ["ø", "o"], ["Ɔ", "O"], ["ɔ", "o"], ["Ɵ", "O"],
-      ["ɵ", "o"], ["Ƥ", "P"], ["ƥ", "p"], ["Ᵽ", "P"], ["ᵽ", "p"],
-      ["ĸ", "q"], ["Ɋ", "Q"], ["ɋ", "q"], ["Ƣ", "Q"], ["ƣ", "q"],
-      ["Ʀ", "R"], ["ʀ", "r"], ["Ɍ", "R"], ["ɍ", "r"], ["Ɽ", "R"],
-      ["ɽ", "r"], ["Ƨ", "S"], ["ƨ", "s"], ["ȿ", "s"], ["ʂ", "s"],
-      ["ᵴ", "s"], ["ᶊ", "s"], ["Ŧ", "T"], ["ŧ", "t"], ["ƫ", "t"],
-      ["Ƭ", "T"], ["ƭ", "t"], ["Ʈ", "T"], ["ʈ", "t"], ["Ʉ", "U"],
-      ["ʉ", "u"], ["Ʋ", "V"], ["ʋ", "v"], ["Ʌ", "V"], ["ʌ", "v"],
-      ["ⱴ", "v"], ["ⱱ", "v"], ["Ⱳ", "W"], ["ⱳ", "w"], ["Ƴ", "Y"],
-      ["ƴ", "y"], ["Ɏ", "Y"], ["ɏ", "y"], ["ɤ", "Y"], ["Ƶ", "Z"],
-      ["ƶ", "z"], ["Ȥ", "Z"], ["ȥ", "z"], ["ɀ", "z"], ["Ⱬ", "Z"],
-      ["ⱬ", "z"], ["Ʒ", "Z"], ["ʒ", "z"], ["Ƹ", "Z"], ["ƹ", "z"],
-      ["Ʒ", "Z"], ["ʒ", "z"]
-    ]);
-
-    delete this.toAscii;
-    this.toAscii = m;
-    return m;
-  }
-});
-
-
-/*█████████████████████████████████████████████████████████████████████████████
 ██████████████████████████████████ PREDICATE ██████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
@@ -10628,22 +10155,27 @@ regular expressions. Character classes like `\p{P}` or `\d` are most suitable
 as boundaries. */
 
 Rex.bound = flags => (...left) => (...right) => pattern => {
-  return new RegExp(
-    `(?<=^|[${left.join("")}])${pattern}(?=$|[${right.join("")}])`,
-    flags);
+  const l = left.map(rx => rx.source).join(""),
+    r = right.map(rx => rx.source).join("");
+
+  return new RegExp(`(?<=^|[${l}])${pattern}(?=$|[${r}])`, flags);
 };
 
 
 // create only a left boundary
 
-Rex.leftBound = flags => (...left) => pattern =>
-  new RegExp(`(?<=^|[${left.join("")}])${pattern}`, flags);
+Rex.leftBound = flags => (...left) => pattern => {
+  const l = left.map(rx => rx.source).join("");
+  return new RegExp(`(?<=^|[${l}])${pattern}`, flags);
+}
 
 
 // create only a right boundary
 
-Rex.rightBound = flags => (...right) => pattern =>
-  new RegExp(`${pattern}(?=$|[${right.join("")}])`, flags);
+Rex.rightBound = flags => (...right) => pattern => {
+  const r = right.map(rx => rx.source).join("");
+  return new RegExp(`${pattern}(?=$|[${r}])`, flags);
+}
 
 
 /*
@@ -10655,8 +10187,12 @@ Rex.classes = {};
 
 Rex.classes.letter = {
   rex: /\p{L}/v,
-  parent: null,
-  split: new RegExp("(?<=\\p{L})(?!\\p{L})|(?<!\\p{L})(?=\\p{L})", "v"),
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
 };
 
 
@@ -10664,8 +10200,12 @@ Rex.classes.letter = {
 
 Rex.classes.lcl = {
   rex: /\p{Ll}/v,
-  parent: Rex.classes.letter,
-  split: new RegExp("(?<=\\p{Ll})(?!\\p{Ll})|(?<!\\p{Ll})(?=\\p{Ll})", "v"),
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
 };
     
 
@@ -10673,8 +10213,12 @@ Rex.classes.lcl = {
 
 Rex.classes.ucl = {
   rex: /\p{Lu}/v,
-  parent: Rex.classes.letter,
-  split: new RegExp("(?<=\\p{Lu})(?!\\p{Lu})|(?<!\\p{Lu})(?=\\p{Lu})", "v"),
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
 };
 
 
@@ -10682,7 +10226,6 @@ Rex.classes.ucl = {
 
 Rex.classes.vowels = {
   rex: /[aeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]/i,
-  parent: Rex.classes.letter,
   
   get split() {
     delete this.split;
@@ -10694,8 +10237,12 @@ Rex.classes.vowels = {
 
 Rex.classes.digit = {
   rex: /\p{N}/v,
-  parent: null,
-  split: new RegExp("(?<=\\p{N})(?!\\p{N})|(?<!\\p{N})(?=\\p{N})", "v"),
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
 };
 
 
@@ -10703,15 +10250,23 @@ Rex.classes.digit = {
 
 Rex.classes.punct = {
   rex: /\p{P}/v,
-  parent: null,
-  split: new RegExp("(?<=\\p{P})(?!\\p{P})|(?<!\\p{P})(?=\\p{P})", "v"),
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
 };
 
 
 Rex.classes.space = {
   rex: /\p{Z}/v,
-  parent: null,
-  split: new RegExp("(?<=\\p{Z})(?!\\p{Z})|(?<!\\p{Z})(?=\\p{Z})", "v"),
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
 };
 
 
@@ -10719,8 +10274,12 @@ Rex.classes.space = {
 
 Rex.classes.sym = {
   rex: /\p{S}/v,
-  parent: null,
-  split: new RegExp("(?<=\\p{S})(?!\\p{S})|(?<!\\p{S})(?=\\p{S})", "v"),
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
 };
 
 
@@ -10728,22 +10287,34 @@ Rex.classes.sym = {
 
 Rex.classes.curr = {
   rex: /\p{Sc}/v,
-  parent: Rex.classes.sym,
-  split: new RegExp("(?<=\\p{Sc})(?!\\p{Sc})|(?<!\\p{Sc})(?=\\p{Sc})", "v"),
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
 };
 
 
 Rex.classes.ctrl = {
-  rex: "\\p{C}",
-  parent: null,
-  split: "(?<=\\p{C})(?!\\p{C})|(?<!\\p{C})(?=\\p{C})",
+  rex: /\p{C}/v,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
 };
 
 
 Rex.classes.crnl = {
   rex: /\r?\n/,
-  parent: Rex.classes.ctrl,
-  split: new RegExp("(?<=[\\r\\n])(?![\\r\\n])|(?<![\\r\\n])(?=[\\r\\n])", ""),
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
+    return this.split;
+  },
 };
 
 
@@ -10751,10 +10322,101 @@ Rex.classes.crnl = {
 
 Rex.classes.pos = {
   rex: /(?:\x02|\x03)/,
-  parent: Rex.classes.ctrl,
-  split: new RegExp("(?<=[\\x02\\x03])(?![\\x02\\x03])|(?<![\\x02\\x03])(?=[\\x02\\x03])", ""),
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
+    return this.split;
+  },
 };
 
+
+// ASCII
+
+
+Rex.classes.ascii = {};
+
+
+Rex.classes.ascii.ctrl = {
+  rex: /[\0\a\b\t\v\f\r\n\cZ]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
+    return this.split;
+  },
+};
+
+
+Rex.classes.ascii.punct = {
+  rex: /[!"#$%&'()*+,-./:;<=>?@\[\]\\^_`{|}~]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
+    return this.split;
+  },
+};
+
+
+// Latin1 (ISO-8859-1)
+
+
+Rex.classes.latin1 = {};
+
+Rex.classes.latin1.letter = {
+  rex: /[a-zßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]/i,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
+    return this.split;
+  },
+};
+
+
+Rex.classes.latin1.ucl = {
+  rex: /[A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞ]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
+    return this.split;
+  },
+};
+
+
+Rex.classes.latin1.lcl = {
+  rex: /[a-zßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
+    return this.split;
+  },
+};
+
+
+Rex.classes.latin1.punct = {
+  rex: /[!"#$%&'()*+,-./:;<=>?@\[\]\\^_`{|}~€‚„…†‡ˆ‰‹‘’“”•–­—˜™›¡¢£¤¥¦§¨©ª«¬®¯°±²³´µ¶·¸¹º»¼½¾¿]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
+    return this.split;
+  },
+};
+
+  
+Rex.classes.latin1.curr = {
+  rex: /[¤$€£¥¢]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
+    return this.split;
+  },
+};
 
 /*
 █████ Matching ████████████████████████████████████████████████████████████████*/
@@ -10890,6 +10552,55 @@ Rex.matchNthWith_ = p => rx => s => {
   if (i >= 0) return xs.slice(i, i + 1);
   else return [xs.slice(i) [0]];
 };
+
+
+/*
+█████ Normalizing █████████████████████████████████████████████████████████████*/
+
+
+// map all special letters from latin-based codesets to ASCII
+
+Object.defineProperty(Rex, "toAscii", {
+  get() {
+    const m = new Map([
+      ["Æ", "AE"], ["æ", "ae"], ["Ä", "Ae"], ["ä", "ae"], ["Œ", "OE"],
+      ["œ", "oe"], ["Ö", "Oe"], ["ö", "oe"], ["ß", "ss"], ["ẞ", "ss"],
+      ["Ü", "Ue"], ["ü", "ue"], ["Ⱥ", "A"], ["ⱥ", "a"], ["Ɑ", "A"],
+      ["ɑ", "a"], ["ɐ", "a"], ["ɒ", "a"], ["Ƀ", "B"], ["ƀ", "b"],
+      ["Ɓ", "B"], ["ɓ", "b"], ["Ƃ", "b"], ["ƃ", "b"], ["ᵬ", "b"],
+      ["ᶀ", "b"], ["Ƈ", "C"], ["ƈ", "c"], ["Ȼ", "C"], ["ȼ", "c"],
+      ["Ɗ", "D"], ["ɗ", "d"], ["Ƌ", "D"], ["ƌ", "d"], ["ƍ", "d"],
+      ["Đ", "D"], ["đ", "d"], ["ɖ", "d"], ["ð", "d"], ["Ɇ", "E"],
+      ["ɇ", "e"], ["ɛ", "e"], ["ɜ", "e"], ["ə", "e"], ["Ɠ", "G"],
+      ["ɠ", "g"], ["Ǥ", "G"], ["ǥ", "g"], ["ᵹ", "g"], ["Ħ", "H"],
+      ["ħ", "h"], ["Ƕ", "H"], ["ƕ", "h"], ["Ⱨ", "H"], ["ⱨ", "h"],
+      ["ɥ", "h"], ["ɦ", "h"], ["ı", "i"], ["Ɩ", "I"], ["ɩ", "i"],
+      ["Ɨ", "I"], ["ɨ", "i"], ["Ɉ", "J"], ["ɉ", "j"], ["ĸ", "k"],
+      ["Ƙ", "K"], ["ƙ", "k"], ["Ⱪ", "K"], ["ⱪ", "k"], ["Ł", "L"],
+      ["ł", "l"], ["Ƚ", "L"], ["ƚ", "l"], ["ƛ", "l"], ["ȴ", "l"],
+      ["Ⱡ", "L"], ["ⱡ", "l"], ["Ɫ", "L"], ["ɫ", "l"], ["Ľ", "L"],
+      ["ľ", "l"], ["Ɯ", "M"], ["ɯ", "m"], ["ɱ", "m"], ["Ŋ", "N"],
+      ["ŋ", "n"], ["Ɲ", "N"], ["ɲ", "n"], ["Ƞ", "N"], ["ƞ", "n"],
+      ["Ø", "O"], ["ø", "o"], ["Ɔ", "O"], ["ɔ", "o"], ["Ɵ", "O"],
+      ["ɵ", "o"], ["Ƥ", "P"], ["ƥ", "p"], ["Ᵽ", "P"], ["ᵽ", "p"],
+      ["ĸ", "q"], ["Ɋ", "Q"], ["ɋ", "q"], ["Ƣ", "Q"], ["ƣ", "q"],
+      ["Ʀ", "R"], ["ʀ", "r"], ["Ɍ", "R"], ["ɍ", "r"], ["Ɽ", "R"],
+      ["ɽ", "r"], ["Ƨ", "S"], ["ƨ", "s"], ["ȿ", "s"], ["ʂ", "s"],
+      ["ᵴ", "s"], ["ᶊ", "s"], ["Ŧ", "T"], ["ŧ", "t"], ["ƫ", "t"],
+      ["Ƭ", "T"], ["ƭ", "t"], ["Ʈ", "T"], ["ʈ", "t"], ["Ʉ", "U"],
+      ["ʉ", "u"], ["Ʋ", "V"], ["ʋ", "v"], ["Ʌ", "V"], ["ʌ", "v"],
+      ["ⱴ", "v"], ["ⱱ", "v"], ["Ⱳ", "W"], ["ⱳ", "w"], ["Ƴ", "Y"],
+      ["ƴ", "y"], ["Ɏ", "Y"], ["ɏ", "y"], ["ɤ", "Y"], ["Ƶ", "Z"],
+      ["ƶ", "z"], ["Ȥ", "Z"], ["ȥ", "z"], ["ɀ", "z"], ["Ⱬ", "Z"],
+      ["ⱬ", "z"], ["Ʒ", "Z"], ["ʒ", "z"], ["Ƹ", "Z"], ["ƹ", "z"],
+      ["Ʒ", "Z"], ["ʒ", "z"]
+    ]);
+
+    delete this.toAscii;
+    this.toAscii = m;
+    return m;
+  }
+});
 
 
 /*
@@ -11778,20 +11489,12 @@ Collator option object properties (first one is default value):
   * ignorePunctuation = false/true */
 
 
-Str.asc = ({locale, opt}) => s => t =>
+Str.compare = ({locale, opt}) => s => t =>
   new Intl.Collator(locale, opt).compare(s, t);
 
 
-Str.asc_ = ({locale, opt}) => (s, t) =>
-  new Intl.Collator(locale, opt).compare(s, t);
-
-
-Str.desc = ({locale, opt}) => t => s =>
-  new Intl.Collator(locale, opt).compare(s, t);
-
-
-Str.desc_ = ({locale, opt}) => (t, s) =>
-  new Intl.Collator(locale, opt).compare(s, t);
+Str.compare_ = ({locale, opt}) =>
+  new Intl.Collator(locale, opt).compare;
 
 
 /*
