@@ -1540,22 +1540,6 @@ export const desc = y => x => x - y;
 export const desc_ = (y, x) => x - y;
 
 
-export const ascAlpha = ({locale, sensitivity = "base"}) => x => y =>
-  x.localeCompare(y, locale, {sensitivity});
-
-
-export const ascAlpha_ = ({locale, sensitivity = "base"}) => (x, y) =>
-  x.localeCompare(y, locale, {sensitivity});
-
-
-export const descAlpha = ({locale, sensitivity = "base"}) => y => x =>
-  x.localeCompare(y, locale, {sensitivity});
-
-
-export const descAlpha_ = ({locale, sensitivity = "base"}) => (y, x) =>
-  x.localeCompare(y, locale, {sensitivity});
-
-
 export const compareOn = order => compBoth(order);
 
 
@@ -11776,6 +11760,38 @@ Str.normalizeNum = locale => s => {
     default: throw new Err(`unknown locale "${locale}"`);
   }
 };
+
+
+/*
+█████ Ordering ████████████████████████████████████████████████████████████████*/
+
+
+/* Locale string format: "de-DE"
+
+Collator option object properties (first one is default value):
+
+  * usage = "sort"/"search"
+  * collation = false/true
+  * numeric = false/true
+  * caseFirst = false/true
+  * sensitivity = "variant"/"base"/"accent"/"case"
+  * ignorePunctuation = false/true */
+
+
+Str.asc = ({locale, opt}) => s => t =>
+  new Intl.Collator(locale, opt).compare(s, t);
+
+
+Str.asc_ = ({locale, opt}) => (s, t) =>
+  new Intl.Collator(locale, opt).compare(s, t);
+
+
+Str.desc = ({locale, opt}) => t => s =>
+  new Intl.Collator(locale, opt).compare(s, t);
+
+
+Str.desc_ = ({locale, opt}) => (t, s) =>
+  new Intl.Collator(locale, opt).compare(s, t);
 
 
 /*
