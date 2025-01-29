@@ -8,7 +8,7 @@ functional library */
 
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
-████████████████████████████ CROSS-CUTTING ASPECTS ████████████████████████████
+███████████████████████████████████ ASPECTS ███████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
@@ -2276,14 +2276,6 @@ export const infix_ = _infix(false);
 // more readable immediately invoked functon expression
 
 export const scope = f => f();
-
-
-// make a thunk out of a function
-
-const thunkify = f => x => f.bind(undefined, x);
-
-
-const thunkify_ = (f, x) => f.bind(undefined, x);
 
 
 export const uncurry = f => (x, y) => f(x) (y);
@@ -10167,7 +10159,7 @@ Rex.bound = flags => (...left) => (...right) => pattern => {
 Rex.leftBound = flags => (...left) => pattern => {
   const l = left.map(rx => rx.source).join("");
   return new RegExp(`(?<=^|[${l}])${pattern}`, flags);
-}
+};
 
 
 // create only a right boundary
@@ -10175,7 +10167,7 @@ Rex.leftBound = flags => (...left) => pattern => {
 Rex.rightBound = flags => (...right) => pattern => {
   const r = right.map(rx => rx.source).join("");
   return new RegExp(`${pattern}(?=$|[${r}])`, flags);
-}
+};
 
 
 /*
@@ -10418,6 +10410,7 @@ Rex.classes.latin1.curr = {
   },
 };
 
+
 /*
 █████ Matching ████████████████████████████████████████████████████████████████*/
 
@@ -10437,7 +10430,7 @@ Rex.match = rx => s => {
 Rex.matchAll = rx => s => Array.from(s.matchAll(rx));
 
 
-// variant that recognizes overlapping patterns
+// variant that considers overlapping patterns
 
 Rex.matchAll_ = rx => s => {
   const xs = [];
@@ -10476,6 +10469,8 @@ Rex.matchAll_ = rx => s => {
 
 Rex.matchAllWith = p => rx => s => Rex.matchAll(rx) (s).filter(p);
 
+
+// variant that considers overlapping patterns
 
 Rex.matchAllWith_ = p => rx => s => Rex.matchAll_(rx) (s).filter(p);
 
@@ -10655,7 +10650,7 @@ Rex.i18n = {
 
 
 /*
-█████ Splitting ███████████████████████████████████████████████████████████████*/
+█████ Splitting/Replacing █████████████████████████████████████████████████████*/
 
 
 /* Split a string as to a set of concatenated regular expressions. It is meant
@@ -10664,6 +10659,26 @@ define your own patterns as well, though. */
 
 Rex.split = flags => (...rs) => s => s.split(
   new RegExp(rs.map(rx => rx.source).join("|"), flags));
+
+
+// just for convenience
+
+Rex.replace = (f, rx) => s => {
+  return s.replace(rx, (...args) => {
+    const o = typeof args[args.length - 1] === "object"
+      ? args.pop() : {};
+
+    const s = args.shift(), xs = [];
+
+    while (true) {
+      const arg = args.shift();
+      if (typeof arg === "number") break;
+      else groups.push(arg);
+    }
+      
+    return f({s, i: args[0], xs, o});
+  });
+};
 
 
 /*
@@ -11230,8 +11245,8 @@ Str.cat_ = Str.catWith(" ");
 /* Determine all shared substrings of two strings while preserving the context:
   
   "Gettysburg" vs. "Getisburger"
-  [{i: 0, c: "G"}, {i: 3, c: "ty"}]                 // left diff
-  [{i: 0, c: "T"}, {i: 3, c: "i"}, {i: 9, c: "er"}] // right diff */
+  [{i: 0, s: "G"}, {i: 3, s: "ty"}]                 // left diff
+  [{i: 0, s: "T"}, {i: 3, s: "i"}, {i: 9, s: "er"}] // right diff */
 
 Str.diff = s => t => {
   const xs = diff_(s, t), ys = diff_(t, s);
@@ -11241,9 +11256,9 @@ Str.diff = s => t => {
     if (o.offset === null) {
       const prev = l[l.length - 1];
       
-      if (prev === undefined) l.push(o);
-      else if (o.i - prev.i === 1) prev.c += o.c;
-      else l.push(o);
+      if (prev === undefined) l.push({i: o.i, s: o.c});
+      else if (o.i - prev.i === 1) prev.s += o.c;
+      else l.push({i: o.i, s: o.c});
     }
   }
 
@@ -11251,9 +11266,9 @@ Str.diff = s => t => {
     if (o.offset === null) {
       const prev = r[r.length - 1];
       
-      if (prev === undefined) r.push(o);
-      else if (o.i - prev.i === 1) prev.c += o.c;
-      else r.push(o);
+      if (prev === undefined) r.push({i: o.i, s: o.c});
+      else if (o.i - prev.i === 1) prev.s += o.c;
+      else r.push({i: o.i, s: o.c});
     }
   }
 
@@ -11527,8 +11542,18 @@ Str.Monoid = {
 Str.capitalize = s => s[0].strToUpper() + s.slice(1).strToLower();
 
 
-Str.splitChunk = ({from, to}) => s =>
+Str.splitChunk = ({from, to = from}) => s =>
   s.match(new RegExp(`.{${from},${to}}`, "g")) || [];
+
+
+/* Plain applicator but with a telling name. Intended use:
+
+  Str.template(o => `Happy ${o.foo}, ${o.bar}!`)
+    ({foo: "Thanksgiving", bar: "Muad'dib"})
+
+Yields "Happy Thanksgiving, Muad'dib!" */
+
+Str.template = f => o => f(o);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
