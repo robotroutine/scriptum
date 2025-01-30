@@ -3654,47 +3654,6 @@ A.unzip = () => A.foldl(([x, y]) => ([xs, ys]) =>
 
 
 /*
-█████ Misc. ███████████████████████████████████████████████████████████████████*/
-
-
-// scan command line arguments
-
-export const scanClas = ({mandatory, optional = {}, preds = {}}) => xs => {
-  const o = {}, crossCheck = [];
-
-  xs.forEach(arg => {
-    if (arg[0] === "/") return;
-
-    else if (!/-[a-z_]\b|--[a-z_]\w*=./.test(arg))
-      throw new Err(`malformed CLA "${arg}"`);
-
-    else {
-      const [k, v = null] = arg.split("="),
-        k2 = k.replace(/-/g, "");
-
-      if (v === null) o[k2] = true;
-      
-      else if (k2 in preds && !preds[k2] (v))
-        throw new Err(`malformed CLA value "${v}"`);
-
-      else o[k2] = v;
-
-      if (mandatory.has(k2)) crossCheck.push(k2);
-      else if (optional.has(k2)) return;
-      else throw new Err(`unknown CLA "${k2}"`);
-    }
-  });
-
-  if (crossCheck.length !== mandatory.size) {
-    const diff = A.diff(Array.from(mandatory)) (crossCheck).join(", ");
-    throw new Err(`missing CLAs "${diff}"`);
-  }
-
-  else return o;
-};
-
-
-/*
 █████ Resolve Deps ████████████████████████████████████████████████████████████*/
 
 
@@ -12413,9 +12372,65 @@ O.fromAit = O.fromAit();
 
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
-█████████████████████████████████████ IO ██████████████████████████████████████
+████████████████████████████████████ NODE █████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
+
+
+// only supply if Node.js is running
+
+export const Node = process?.release?.name !== "node" ? {} : {
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████ COMMAND LINE ARGUMENTS ████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+  scanClas: ({mandatory, optional = {}, preds = {}, env = false}) => {
+    const o = {}, crossCheck = [];
+
+    process.argv.slice(2).forEach(arg => {
+      if (arg[0] === "/") return;
+
+      else if (!/-[a-z]\b|--[a-z_]\w*=./.test(arg))
+        throw new Err(`malformed CLA "${arg}"`);
+
+      else {
+        const [k, v = null] = arg.split("="),
+          k2 = k.replace(/-/g, "");
+
+        if (v === null) o[k2] = true;
+        
+        else if (k2 in preds && !preds[k2] (v))
+          throw new Err(`malformed CLA "${k2}: ${v}"`);
+
+        else o[k2] = v;
+
+        if (k2 in mandatory) crossCheck.push(k2);
+        else if (k2 in optional) return;
+        else throw new Err(`unknown CLA "${k2}"`);
+      }
+    });
+
+    const ks = Array.from(O.keys(mandatory));
+
+    if (ks.length !== crossCheck.length) {
+      const diff = A.diff(ks) (crossCheck).join(", ");
+      throw new Err(`missing CLAs "${diff}"`);
+    }
+
+    if (env) {
+      for (const [k, v] of O.entries(o)) {
+        if (k in process.env)
+          throw new Err(`env var "${k}" already exists`);
+
+        else process.env[k] = v;
+      }
+    }
+
+    else return o;
+  },
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -12423,123 +12438,146 @@ O.fromAit = O.fromAit();
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* The file system implementation is supplied as a formal parameter to avoid a
-hard dependency. You can pass two different constructors to determine the
-continuation semantics:
+  /* The file system implementation is supplied as a formal parameter to avoid
+  a hard dependency. You can pass two different constructors to determine the
+  continuation semantics:
 
-  * Parallel
-  * Serial
+    * Parallel
+    * Serial
 
-Since both types don't have built-in exception handling, you either immediately
-throw or pass on exceptions for later handling. */
-
-
-export const FileSys = {};
+  Since both types don't have built-in exception handling, you either
+  immediately throw or pass on exceptions for later handling. */
 
 
-FileSys.handle = fs => Cons => reify(o => {
-  o.copy = src => dest => Cons(k =>
-    fs.copyFile(src, dest, e =>
-      e ? k(new Ex(e)) : k(null)));
+  FS: {
+    handle: fs => Cons => reify(o => {
+      o.copy = src => dest => Cons(k =>
+        fs.copyFile(src, dest, e =>
+          e ? k(new Ex(e)) : k(null)));
 
-  o.move = src => dest =>
-    Cons.chain(o.copy(src) (dest)) (e =>
-      e?.constructor?.name === "Exception" ? Cons.of(e) : o.unlink(src));
+      o.move = src => dest =>
+        Cons.chain(o.copy(src) (dest)) (e =>
+          e?.constructor?.name === "Exception" ? Cons.of(e) : o.unlink(src));
 
-  o.read = opt => path => Cons(k =>
-    fs.readFile(path, opt, (e, x) =>
-      e ? k(new Ex(e)) : k(x)));
+      o.read = opt => path => Cons(k =>
+        fs.readFile(path, opt, (e, x) =>
+          e ? k(new Ex(e)) : k(x)));
 
-  o.readUtf8 = opt => path => Cons(k =>
-    fs.readFile(path, Object.assign(opt, {encoding: "utf8"}), (e, x) =>
-      e ? k(new Ex(e)) : k(x)));
+      o.readUtf8 = opt => path => Cons(k =>
+        fs.readFile(path, Object.assign(opt, {encoding: "utf8"}), (e, x) =>
+          e ? k(new Ex(e)) : k(x)));
 
-  o.readLatin1 = opt => path => Cons(k =>
-    fs.readFile(path, Object.assign(opt, {encoding: "latin1"}), (e, x) =>
-      e ? k(new Ex(e)) : k(x)));
+      o.readLatin1 = opt => path => Cons(k =>
+        fs.readFile(path, Object.assign(opt, {encoding: "latin1"}), (e, x) =>
+          e ? k(new Ex(e)) : k(x)));
 
-  o.scanDir = path => Cons(k =>
-    fs.readdir(path, (e, xs) =>
-      e ? k(new Ex(e)) : k(xs)));
+      o.scanDir = path => Cons(k =>
+        fs.readdir(path, (e, xs) =>
+          e ? k(new Ex(e)) : k(xs)));
 
-  o.stat = path => Cons(k =>
-    fs.stat(path, (e, o) =>
-      e ? k(new Ex(e)) : k(o)));
+      o.stat = path => Cons(k =>
+        fs.stat(path, (e, o) =>
+          e ? k(new Ex(e)) : k(o)));
 
-  o.unlink = path => Cons(k =>
-    fs.unlink(path, e =>
-      e ? k(new Ex(e)) : k(null)));
+      o.unlink = path => Cons(k =>
+        fs.unlink(path, e =>
+          e ? k(new Ex(e)) : k(null)));
 
-  o.write = opt => path => s => Cons(k =>
-    fs.writeFile(path, s, opt, e =>
-      e ? k(new Ex(e)) : k(s)));
+      o.write = opt => path => s => Cons(k =>
+        fs.writeFile(path, s, opt, e =>
+          e ? k(new Ex(e)) : k(s)));
 
-  return o;
-});
+      return o;
+    }),
 
 
-FileSys.throw = fs => Cons => reify(o => {
-  o.copy = src => dest => Cons(k =>
-    fs.copyFile(src, dest, e =>
-      e ? _throw(e) : k(null)));
+    throw: fs => Cons => reify(o => {
+      o.copy = src => dest => Cons(k =>
+        fs.copyFile(src, dest, e =>
+          e ? _throw(e) : k(null)));
 
-  o.move = src => dest =>
-    Cons.chain(o.copy(src) (dest)) (_ =>
-      o.unlink(src));
+      o.move = src => dest =>
+        Cons.chain(o.copy(src) (dest)) (_ =>
+          o.unlink(src));
 
-  o.read = opt => path => Cons(k =>
-    fs.readFile(path, opt, (e, x) =>
-      e ? _throw(e) : k(x)));
+      o.read = opt => path => Cons(k =>
+        fs.readFile(path, opt, (e, x) =>
+          e ? _throw(e) : k(x)));
 
-  o.readUtf8 = opt => path => Cons(k =>
-    fs.readFile(path, Object.assign(opt, {encoding: "utf8"}), (e, x) =>
-      e ? _throw(e) : k(x)));
+      o.readUtf8 = opt => path => Cons(k =>
+        fs.readFile(path, Object.assign(opt, {encoding: "utf8"}), (e, x) =>
+          e ? _throw(e) : k(x)));
 
-  o.readLatin1 = opt => path => Cons(k =>
-    fs.readFile(path, Object.assign(opt, {encoding: "latin1"}), (e, x) =>
-      e ? _throw(e) : k(x)));
+      o.readLatin1 = opt => path => Cons(k =>
+        fs.readFile(path, Object.assign(opt, {encoding: "latin1"}), (e, x) =>
+          e ? _throw(e) : k(x)));
 
-  o.scanDir = path => Cons(k =>
-    fs.readdir(path, (e, xs) =>
-      e ? _throw(e) : k(xs)));
+      o.scanDir = path => Cons(k =>
+        fs.readdir(path, (e, xs) =>
+          e ? _throw(e) : k(xs)));
 
-  o.stat = path => Cons(k =>
-    fs.stat(path, (e, o) =>
-      e ? _throw(e) : k(o)));
+      o.stat = path => Cons(k =>
+        fs.stat(path, (e, o) =>
+          e ? _throw(e) : k(o)));
 
-  o.unlink = path => Cons(k =>
-    fs.unlink(path, e =>
-      e ? _throw(e) : k(null)));
+      o.unlink = path => Cons(k =>
+        fs.unlink(path, e =>
+          e ? _throw(e) : k(null)));
 
-  o.write = opt => path => s => Cons(k =>
-    fs.writeFile(path, s, opt, e =>
-      e ? _throw(e) : k(s)));
+      o.write = opt => path => s => Cons(k =>
+        fs.writeFile(path, s, opt, e =>
+          e ? _throw(e) : k(s)));
 
-  return o;
-});
+      return o;
+    })
+  },
 
 
 /*█████████████████████████████████████████████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████
-████████████████████████████████████ TODO █████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████████ SQL █████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/*
+  Sql: {
 
-  * add child_process support
+    // meta is additional data passed to the query
 
-  * backtacking
-    * depth/breadth first strategies
-      * BFS is fair but biased for all branches
-      * DFS is unfair for all branches
-    * disjunctions are encoded by Alt/Plus
-    * conjunctions are encoded by Chain
-    * pruning: e.g. stop at the first result
-    * List implements depth first
-    * Logic implements breadth first
-    * DFS adds new tasks at the front of the queue
-    * BFS adds them at the tail of the queue
-    * implement logict
-*/
+    Query: product("SqlQuery", "sq") ("meta", "query"),
+
+
+    Result: product("SqlResult", "sqr") ("data", "fields"),
+
+
+    createCredentials: ({charset = "utf8mb4", name}) => ({
+      host: process.env.sqlHost,
+      port: process.env.sqlPort,
+      user: process.env.sqlUser,
+      password: process.env.sqlPwd,
+      database: name,
+      charset: charset
+    }),
+
+
+    createResource: credentials => mysql.createConnection(credentials),
+
+
+    connect: res =>
+      P(k =>
+        res.connect(e => e
+          ? _throw(e) : k(res))),
+
+
+    disconnect: res =>
+      P(k =>
+        res.end(e => e
+          ? _throw(e) : k(true))),
+
+
+    query: con => tx => P(k => {
+      return con.query(tx.sq.query, (e, data, fields) => {
+        if (e) throw e;
+        else return k(Sql.Result(data, fields));
+      });
+    }),
+  },
+};
