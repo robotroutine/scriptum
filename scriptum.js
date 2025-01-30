@@ -5008,47 +5008,78 @@ D.weekInMs = 604800000;
 █████ Conversion ██████████████████████████████████████████████████████████████*/
 
 
-/* Expects the following ISO date fragments/strings:
+// parse date string
 
-* YY-MM-DD
-* YYYY-MM-DD
-* YYYY-MM-DDTHH:MM:SS.SSSZ
-* YYYY-MM-DDTHH:MM:SS.SSS+HH:MM
-* YYYY-MM-DDTHH:MM:SS.SSS-HH:MM
+D.fromStr = (locale, century = 20) => s => {
+  let xs;
 
-Returns a date object either with UTC time or the timezone offset. */
-
-D.fromStr = s => {
-  let s2 = "", offset = 0;
-
-  if (s.length === 8 && Rex.iso.dates.date8.test(s)) {
-    s2 = "20" + s;
+  switch (locale) {
+    case "iso": xs = Rex.iso.dates; break;
+    case "de-DE": xs = Rex.i18n.deDE.dates; break;
+    default: throw new Err(`unknown locale "${locale}"`);
   }
 
-  else if (s.length === 10 && Rex.iso.dates.date10.test(s)) s2 = s;
-  else if (s.length === 24 && Rex.iso.dates.datetimeUTC.test(s)) s2 = s;
+  for (const rx of xs) {
+    if (rx.test(s)) {
+      const o = s.match(rx);
 
-  else if (s.length === 29 && Rex.iso.dates.datetimeLoc.test(s)) {
-    s2 = s.slice(0, 23) + "Z";
-    offset = Number(s.slice(23, -3)) * D.hourInMs;
+      o.groups.y = o.groups.y.length === 2
+        ? century + o.groups.y
+        : o.groups.y;
+
+      const y = Number(o.groups.y),
+        m = Number(o.groups.m),
+        d = Number(o.groups.d);
+
+      if (m < 1 || m > 12)
+        throw new Err(`invalid month in date string "${s}"`);
+
+      else if (d < 1 || d > 31 || d > D.lastDayOfMonth(y) (m))
+        throw new Err(`invalid day in date string "${s}"`);
+
+      return new Date(Date.parse(
+        `${o.groups.y}-${o.groups.m}-${o.groups.d}`));
+    }
   }
 
-  else throw new Err(`invalid date string "${s}"`);
+  throw new Err(`invalid ${locale} date string "${s}"`);
+};
 
-  const d = new Date(s2);
 
-  if (Number.isNaN(d.getTime()))
-    throw new Err(`invalid date string "${s}"`);
-  
-  else {
-    const d2 = new Date(
-      d.getTime()
-        + d.getTimezoneOffset()
-        * D.minInMs
-        + offset);
+// parse the time string and add set it to the date object
 
-    return d2;
+D.fromTimeStr = locale => d => s => {
+  for (const rx of Rex.iso.times) {
+    if (rx.test(s)) {debugger;
+      const o = s.match(rx),
+        h = Number(o.groups.h),
+        m = Number(o.groups.m),
+        s_ = o.groups.s ? Number(o.groups.s) : 0,
+        ms = o.groups.ms ? Number(o.groups.ms) : 0,
+        tzh = o.groups.tzh ? Number(o.groups.tzh) : 0,
+        tzm = o.groups.tzm ? Number(o.groups.tzm) : 0;
+
+      if (h > 23)
+        throw new Err(`invalid hours in de-DE time string "${s}"`);
+          
+      else if (m > 59)
+        throw new Err(`invalid minutes in time string "${s}"`);
+
+      else if (s_ > 59)
+        throw new Err(`invalid seconds in time string "${s}"`);
+
+      else if (tzh > 23)
+        throw new Err(`invalid timezone hours in de-DE time string "${s}"`);
+
+      else if (tzm > 59)
+        throw new Err(`invalid timezone minutes in time string "${s}"`);
+
+      d.setHours(h, m, s_, ms);
+      return d;
+    }
   }
+
+  throw new Err(`invalid ${locale} time string "${s}"`);
 };
 
 
@@ -5245,13 +5276,10 @@ D.isDst = d => {
 };
 
 
-D.lastDayOfMonth = ({m, y}) => {
+D.lastDayOfMonth = y => m => {
   const d = new Date(y, m, 1);
   return new Date(d - 1).getDate();
 };
-
-
-D.numDaysOfMonth = (y, m) => new Date(y, m, 0).getDate();
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -7423,21 +7451,41 @@ export const Num = {}; // namespace
 █████ Conversion ██████████████████████████████████████████████████████████████*/
 
 
-// expects an ISO number string
+// parse number string
 
-Num.fromStr = s => {
-  if (Rex.iso.numbers.num.test(s)) return Number(s);
-  else throw new Err(`invalid number string: "${s}"`);
-};
+Num.fromStr = ({locale, strict = true}) => s => {
+  let xs;
 
+  switch (locale) {
+    case "iso": xs = Rex.iso.nums; break;
+    case "de-DE": xs = Rex.i18n.deDE.nums; break;
+    default: throw new Err(`unknown locale "${locale}"`);
+  }
 
-// more restrictive version (excludes 01.234 etc.)
+  for (const rx of xs) {
+    if (rx.test(s)) {
+      const o = s.match(rx);
 
-Num.fromStr_ = s => {
-  const n = Number(s);
+      const presign = o.groups.sign === undefined
+        ? "" : o.groups.sign;
 
-  if (String(n) === s) return Number(s);
-  else throw new Err(`invalid number string: "${s}"`);
+      const postsign = o.groups.postsign === undefined
+        ? "" : o.groups.postsign;
+
+      const sign = presign ? presign : postsign,
+        int = o.groups.int.replace(/[^\d]/g, "");
+
+      const frac = o.groups.frac === undefined
+        ? "" : o.groups.frac;
+
+      if (strict && int[0] === "0")
+        throw new Err(`invalid number string: "${s}"`);        
+
+      return Number(sign + int + "." + frac);
+    }
+  }
+
+  throw new Err(`invalid number string: "${s}"`);
 };
 
 
@@ -10415,7 +10463,7 @@ Rex.classes.latin1.curr = {
 █████ Matching ████████████████████████████████████████████████████████████████*/
 
 
-// consistent interface
+// consistent interface (returns an array that may be empty)
 
 Rex.match = rx => s => {
   const r = s.match(rx);
@@ -10424,8 +10472,7 @@ Rex.match = rx => s => {
 };
 
 
-// all matching combinators rely on the global flag and thus return an array
-
+// strict variant
 
 Rex.matchAll = rx => s => Array.from(s.matchAll(rx));
 
@@ -10603,48 +10650,49 @@ Object.defineProperty(Rex, "toAscii", {
 
 
 Rex.iso = {
-  dates: {
-    date6: /^(?<y>\d\d)(?<m>\d\d)(?<d>\d\d)$/,
-    date8: /^(?<y>\d\d)-(?<m>\d\d)-(?<d>\d\d)$/,
-    date8_: /^(?<y>\d{4})(?<m>\d\d)(?<d>\d\d)$/,
-    date10: /^(?<y>\d{4})-(?<m>\d\d)-(?<d>\d\d)$/,
-    datetime: /^(?<y>\d{4})-(?<m>\d\d)-(?<d>\d\d)T(?<h>\d\d):(?<min>\d\d):(?<s>\d\d).(?<ms>\d{3})(?<tz>Z|(?:\+|\-)\d\d:\d\d)$/, // all ISO
-    datetimeUTC: /^(?<y>\d{4})-(?<m>\d\d)-(?<d>\d\d)T(?<h>\d\d):(?<min>\d\d):(?<s>\d\d).(?<ms>\d{3})(?<tz>Z)$/, // YYYY-MM-DDTHH:MM:SS.MMMZ
-    datetimeLoc: /^(?<y>\d{4})-(?<m>\d\d)-(?<d>\d\d)T(?<h>\d\d):(?<min>\d\d):(?<s>\d\d).(?<ms>\d{3})(?<tz>(?:\+|\-)\d\d:\d\d)$/ // YYYY-MM-DDTHH:MM:SS.MMM+/-HH:MM
-  },
+  dates: [
+    /^(?<y>\d\d)\.(?<m>\d\d)\.(?<d>\d\d)$/, // 24-12-01
+    /^(?<y>\d{4})\.(?<m>\d\d)\.(?<d>\d\d)$/, // 2024-12-01
+  ],
 
-  times: {
-    time5: /^(?<h>\d\d):(?<min>\d\d)$/,
-    time8: /^(?<h>\d\d):(?<min>\d\d):(?<s>\d\d)$/
-  },
+  times: [
+    /^(?<h>\d\d):(?<m>\d\d)$/, // 12:00
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)$/, // 12:00:00
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})$/, // 12:00:00.123
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)Z$/, // 12:00:00Z (UTC)
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})Z$/, // 12:00:00.123Z (UTC)
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)(?:\+|\-)(?<tzh>\d\d):(?<tzm>\d\d)$/, // 12:00:00+/-01:00 (time zone)
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})(?:\+|\-)(?<tzh>\d\d):(?<tzm>\d\d)$/, // 12:00:00.123+/-01:00 (time zone)
+  ],
 
-  numbers: {
-    nat: /^(?<sign>\+)?(?<int>[1-9]\d*)$/, // natural numbers
-    int: /^(?<sign>\+|\-)?(?<int>[1-9]\d*)$/, // integers
-    float: /^(?<sign>\+|\-)?(?<int>\d+)\.(?<frac>\d+)$/, // only floating point numbers
-    num: /^(?<sign>\+|\-)?(?<int>\d+)(?:\.(?<frac>\d+))?$/ // all numbers
-  },
+  nums: [
+    /^(?<int>0|(?:[1-9]\d*))$/, // natural numbers
+    /^(?<sign>\+|\-)?(?<int>[1-9]\d*)$/, // integers
+    /^(?<sign>\+|\-)?(?<int>\d+)\.(?<frac>\d+)$/, // 1234.567
+  ],
 };
 
 
 Rex.i18n = {
   deDE: {
-    dates: {
-      date6: /^(?<d>\d{1,2})(?<m>\d{1,2})(?<y>\d\d)$/,
-      date8: /^(?<d>\d{1,2})\.(?<m>\d{1,2})\.(?<y>\d\d)$/,
-      date8_: /^(?<d>\d\d)(?<m>\d\d)(?<y>\d{4})$/,
-      date10: /^(?<d>\d{1,2})\.(?<m>\d{1,2})\.(?<y>\d{4})$/,
-      datetime16: /^(?<d>\d\d)\.(?<m>\d\d)\.(?<y>\d{4}) (?<h>\d\d):(?<min>\d\d)$/,
-      datetime18: /^(?<d>\d\d)\.(?<m>\d\d)\.(?<y>\d{4}) (?<h>\d\d):(?<min>\d\d):(?<s>\d\d)$/,
-      dateLong: /^(?<d>\d{1,2})\.? +(?<m>[A-Z][a-zä]+)\.? +(?<y>\d{2,4})$/
-    },
+    dates: [
+      /^(?<d>\d\d)(?<m>\d\d)(?<y>\d\d)$/, // 011224
+      /^(?<d>\d\d)(?<m>\d\d)(?<y>\d{4})$/, // 01122024
+      /^(?<d>\d{1,2})\.(?<m>\d{1,2})\.(?<y>\d\d)$/, // 01.12.24, 1.12.24
+      /^(?<d>\d\d)\.(?<m>\d\d)\.(?<y>\d\d)$/, // 01.12.24
+      /^(?<d>\d{1,2})\.(?<m>\d{1,2})\.(?<y>\d{4})$/, // 01.12.2024, 1.12.2024
+      /^(?<d>\d\d)\.(?<m>\d\d)\.(?<y>\d{4})$/, // 01.12.2024
+    ],
 
-    numbers : {
-      num: /^(?<presign>\+|\-)?(?<int>\d+(?:\.\d{3})*),(?<frac>\d+)(?<postsign>\+|\-)?$/
-    },
+    // times equal iso formats
+
+    nums : [
+      /^(?<sign>\+|\-)?(?<int>\d+(?:\d{3})*),(?<frac>\d+)(?<postsign>\+|\-)?$/, // 1234,567
+      /^(?<sign>\+|\-)?(?<int>\d+(?:\.\d{3})*),(?<frac>\d+)(?<postsign>\+|\-)?$/, // 1.234,567
+    ],
 
     months: /(\b(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\b)/,
-    monthAbbrs: /(\b(Jan|Feb|Mär|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\b)\.?/,
+    months_: /(\b(Jan|Feb|Mär|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\b)\.?/,
   }
 };
 
@@ -11385,106 +11433,6 @@ Str.distance = a => b => {
   }
 
   return dd;
-};
-
-
-/*
-█████ Normalization ███████████████████████████████████████████████████████████*/
-
-
-// convert to ISO date fragment/string
-
-Str.normalizeDate = (locale, century = "20") => s => {
-  switch (locale) {
-    case "de-DE": {
-      for (const r of O.values(Rex.i18n.deDE.dates)) {
-        if (r.test(s)) {
-          const rx = s.match(r);
-          let yearPrefix = "", monthDays = 0;
-
-          if (rx.groups.y.length === 2) yearPrefix = century;
-          
-          else if (rx.groups.y.slice(0, 2) !== century)
-            throw new Err(`invalid year in date string "${s}"`);
-
-          if (rx.groups.m.length === 2) {
-            const m = Number(rx.groups.m);
-
-            if (m === 0 || m > 12)
-              throw new Err(`invalid month in date string "${s}"`);
-
-            else monthDays = D.lastDayOfMonth(
-              {m, y: Number(yearPrefix + rx.groups.y)});
-          }
-
-          else if (rx.groups.m.length > 2) {
-            if (Rex.i18n.deDE.months.test(rx.groups.m))
-              rx.groups.m = _Map.monthsFullDe.get(rx.groups.m);
-
-            else if (Rex.i18n.deDE.monthAbbrs.test(rx.groups.m))
-              rx.groups.m = _Map.monthsShortDe.get(rx.groups.m);
-
-            else throw new Err(`invalid month in date string "${s}"`);
-
-            monthDays = D.lastDayOfMonth({
-              m: Number(rx.groups.m),
-              y: Number(yearPrefix + rx.groups.y)
-            });
-          }
-
-          if (Number(rx.groups.d) === 0
-            || Number(rx.groups.d) > 31)
-              throw new Err(`invalid day in date string "${s}"`);
-
-          else {
-            const d = Number(rx.groups.d);
-
-            if (d > monthDays)
-              throw new Err(`invalid day in date string "${s}"`);
-          }
-
-          return Str.cat(
-            yearPrefix + rx.groups.y,
-            "-" + rx.groups.m.padStart(2, "0"),
-            "-" + rx.groups.d.padStart(2, "0"));
-        }
-      }
-
-      throw new Err(`invalid date string "${s}"`);
-    }
-
-    default: throw new Err(`unknown locale "${locale}"`);
-  }
-};
-
-
-// convert to ISO number string
-
-Str.normalizeNum = locale => s => {
-  switch (locale) {
-    case "de-DE": {
-      for (const r of O.values(Rex.i18n.deDE.numbers)) {
-        if (r.test(s)) {
-          const rx = s.match(r);
-          let decPoint = "", sign = "";
-
-          if (rx.groups.presign) sign = rx.groups.presign;
-          else if (rx.groups.postsign) sign = rx.groups.postsign;
-
-          if (rx.groups.int.length > 3) rx.groups.int = rx.groups.int.replace(/[^\d]/g, "");
-
-          if (rx.groups.frac === undefined) rx.groups.frac = "";
-          else decPoint = ".";
-
-          return sign + rx.groups.int + decPoint + rx.groups.frac;
-        }
-      }
-
-      throw new Err(`invalid number string "${s}"`);
-    }
-
-    default: throw new Err(`unknown locale "${locale}"`);
-  }
 };
 
 
