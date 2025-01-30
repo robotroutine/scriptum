@@ -5184,7 +5184,6 @@ D.formatTz = digits => d => {
     else return "Z";
 
     switch (digits) {
-      case 1: return sign + offset + ":0";
       case 2: return sign + offset.padStart(2, "0") + ":00";
       default: throw new Err("invalid number of digits");
     }
@@ -10701,15 +10700,20 @@ Rex.i18n = {
 █████ Splitting/Replacing █████████████████████████████████████████████████████*/
 
 
-/* Split a string as to a set of concatenated regular expressions. It is meant
-to be used with the predefined character classes in this section. You can
-define your own patterns as well, though. */
+/* Split a string based on a set of concatenated regular expressions. It is
+meant to be used with the predefined character classes in this section. You can
+define your own split patterns using the following scheme:
+
+  (?<=yourCharClass)(?!yourCharClass)|(?<!yourCharClass)(?=yourCharClass)
+
+If you need more granular control, use one of the split combinators from the
+string section. */
 
 Rex.split = flags => (...rs) => s => s.split(
   new RegExp(rs.map(rx => rx.source).join("|"), flags));
 
 
-// just for convenience
+// provide a neat argument list for the replacer function
 
 Rex.replace = (f, rx) => s => {
   return s.replace(rx, (...args) => {
