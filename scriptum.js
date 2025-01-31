@@ -7578,19 +7578,37 @@ Num.lcm = (m, n) =>  m / Num.gcd(m, n) * n;
 
 // add two fractions
 
-Num.addFractions = ({dtor, ntor, dtor_, ntor_}) => {debugger;
-  const lcm = Num.lcm(ntor, ntor_);
+Num.addFracs = frac => frac2 => {
+  const lcm = Num.lcm(frac[1], frac2[1]);
 
-  const ntor2 = lcm / ntor * dtor,
-    ntor2_ = lcm / ntor_ * dtor_;
+  const ntor = lcm / frac[1] * frac[0],
+    ntor2 = lcm / frac2[1] * frac2[0];
 
-  const gcd = Num.gcd(ntor2 + ntor2_, lcm);
+  const gcd = Num.gcd(ntor + ntor2, lcm);
 
   return Pair(
-    Num.round2((ntor2 + ntor2_) / gcd),
+    Num.round2((ntor + ntor2) / gcd),
     Num.round2(lcm / gcd)
   );
-}
+};
+
+
+// average of two fractions
+
+Num.avgFracs = frac => frac2 => {
+  const lcm = Num.lcm(frac[1], frac2[1]);
+
+  const ntor = lcm / frac[1] * frac[0],
+    ntor2 = lcm / frac2[1] * frac2[0];
+
+  const gcd = Num.gcd(ntor + ntor2, lcm);
+
+  return Pair(
+    Num.round2((ntor + ntor2) / gcd / 2),
+    Num.round2(lcm / gcd)
+  );
+};
+
 
 /*
 █████ Serialization ███████████████████████████████████████████████████████████*/
@@ -11073,13 +11091,13 @@ _Set.entries = s => s[Symbol.iterator] ();
 █████ Getters/Setters █████████████████████████████████████████████████████████*/
 
 
+_Set.del = k => s => s.delete(k);
+
+
 _Set.has = k => s => s.has(k);
 
 
 _Set.set = k => s => s.add(k);
-
-
-_Set.del = k => s => s.delete(k);
 
 
 /*
