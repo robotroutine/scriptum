@@ -1087,7 +1087,9 @@ export const throwAll = (...es) => {
 █████ Exception ███████████████████████████████████████████████████████████████*/
 
 
-// predictable errors that are specified in advance
+/* Error class that is mainly used for the exception type or cases where errors
+need to be aggregated instead of throwing them immediately. */
+
 
 export class Exception extends Error {
   constructor(s, cause = {}) {
@@ -5009,7 +5011,7 @@ D.fromStr = (locale, century = 20) => s => {
 
 D.fromTimeStr = locale => d => s => {
   for (const rx of Rex.iso.times) {
-    if (rx.test(s)) {debugger;
+    if (rx.test(s)) {
       const o = s.match(rx),
         h = Number(o.groups.h),
         m = Number(o.groups.m),
@@ -6539,7 +6541,7 @@ It.ana = It.ana();
 
 
 /* Asynchronous iterators mostly intended for streaming. Associated combinators
-internally work with promises and it is their calling side which is meant to
+work with promises internally and it is their calling side which is meant to
 convert promises to more lawful asynchronous types like `Serial` or `Parallel`. */
 
 
@@ -6550,7 +6552,7 @@ export const Ait = {};
 █████ Chunking ████████████████████████████████████████████████████████████████*/
 
 
-/* Supply partially complete chunks of data that can be processed in isolation
+/* Supply semantically complete data chunks that can be processed in isolation
 from each other as part of a stream of chunks. This way, large data sources can
 be processed in a divide and conquer fashion exibiting a small memory footprint.
 Usage:
@@ -6569,9 +6571,8 @@ Usage:
   });
 
 The listed code reads from a text file containing words separated by newline,
-reduces the chunk size to each line/word length, filters all words starting
-with "a" and writes them to a text file with the filtered words separated by
-newline. */
+reduces the chunk size to each line length, filters all words starting with "a"
+and writes them to a text file with the filtered words separated by newline. */
 
 Ait.chunk = ({sep, threshold = 65536, skipRest = false}) => ix => {
   let chunks = [], buffer = "";
@@ -6605,10 +6606,11 @@ Ait.chunk = ({sep, threshold = 65536, skipRest = false}) => ix => {
 };
 
 
-/* Iterate over overlapping groups of n consecutive chunks where each group is
-offset by a single chunk. The last n chunks of the source are filled with empty
-strings in order to simplify this edge case. Consumer of this function must only
-store the first chunk of each group to avoid redundancy. Usage:
+/* Iterate over groups of n consecutive chunks where each iteration is offset by
+a single chunk, i.e. the groups overlap one another. The last n - 1 chunks of the
+source are filled with empty strings in order to maintain a consistent group size.
+Consumer of this function must only store the first chunk of each group to avoid
+redundancy. Usage:
 
   const sx = stream.compose(
     Ait.from(fs.createReadStream("./words.txt")),
@@ -6717,6 +6719,17 @@ Ait.all = async function* (xs) {
 
 
 /*
+█████ Consumption █████████████████████████████████████████████████████████████*/
+
+
+Ait.consume = async function (ix) {
+  let acc;
+  for await (const acc2 of ix) acc = acc2;
+  return acc;
+};
+
+
+/*
 █████ Conversion ██████████████████████████████████████████████████████████████*/
 
 
@@ -6739,20 +6752,20 @@ Ait.Filterable = {filter: Ait.filter};
 █████ Foldable ████████████████████████████████████████████████████████████████*/
 
 
-// exhaustive left-associative fold returing an async type
+// exhaustive left-associative fold
 
-Ait.foldl = f => acc => comp(S.fromPromise) (async function (ix) {
+Ait.foldl = f => acc => async function (ix) {
   for await (const x of ix) acc = f(acc) (x);
   return acc;
-});
+};
 
 
 // uncurried
 
-Ait.foldl_ = f => acc => comp(S.fromPromise) (async function (ix) {
+Ait.foldl_ = f => acc => async function (ix) {
   for await (const x of ix) acc = f(acc, x);
   return acc;
-});
+};
 
 
 // there is no right-accosiative fold due to possibly infinite streams
@@ -6760,11 +6773,11 @@ Ait.foldl_ = f => acc => comp(S.fromPromise) (async function (ix) {
 
 // exhaustive map followed by folding the resulting monoid
 
-Ait.foldMap = Monoid => f => comp(S.fromPromise) (async function (ix) {
+Ait.foldMap = Monoid => f => async function (ix) {
   let acc = Monoid.empty;
   for await (const x of ix) acc = Monoid.append(acc) (f(x));
   return acc;
-});
+};
 
 
 Ait.Foldable = {
@@ -7571,7 +7584,7 @@ Num.trunc = places => n => {
 Num.gcd = (m, n) => n == 0 ? m : Num.gcd(n, m % n);
 
 
-// least common multiplocator
+// least common multiplicator
 
 Num.lcm = (m, n) =>  m / Num.gcd(m, n) * n;
 
@@ -8320,7 +8333,9 @@ P.withCont = f => tx => P(k => tx.par(f(k)));
 P.fromSerial = tx => P(tx.ser);
 
 
-P.fromPromise = px => px.then(x => P(k => k(x))).catch(e => P(k => k(e)));
+// no error handling
+
+P.fromPromise = px => px.then(x => P(k => k(x))).catch(e => k(e));
 
 
 /*
@@ -8434,13 +8449,13 @@ P.anyObj = o =>
 
 
 P.tryCatch = k2 => tx => P(k => tx.par(x => {
-  if (x?.constructor?.name === "Exception") return k2(x);
+  if (intro(x) === "Error") return k2(x);
   else return k(x);
 }));
 
 
 P.tryThrow = tx => P(k => tx.par(x => {
-  if (x?.constructor?.name === "Exception") throw x;
+  if (intro(x) === "Error") throw x;
   else return k(x);
 }));
 
@@ -8655,7 +8670,7 @@ Parser.char = c => Parser(ix => {
   const iy = ix.next();
   if (iy.done) return Parsed.Done("eoi", ix);
   else if (c === iy.value) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex(`character "${c}" expected >>`), ix);
+  else return Parsed.Invalid(new Err(`character "${c}" expected >>`), ix);
 });
 
 
@@ -8663,7 +8678,7 @@ Parser.charBehind = c => Parser(ix => {
   const iy = ix.prev;
   if (iy === null) return Parsed.Done("boi", ix);
   else if (c === iy.value) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex(`<< character "${c}" expected`), ix);
+  else return Parsed.Invalid(new Err(`<< character "${c}" expected`), ix);
 });
 
 
@@ -8673,7 +8688,7 @@ Parser.notChar = c => Parser(ix => {
   const iy = ix.next();
   if (iy.done) return Parsed.Done("eoi", ix);
   else if (c !== iy.value) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex(`character "${c}" received >>`), ix);
+  else return Parsed.Invalid(new Err(`character "${c}" received >>`), ix);
 });
 
 
@@ -8681,7 +8696,7 @@ Parser.notCharBehind = c => Parser(ix => {
   const iy = ix.prev;
   if (iy === null) return Parsed.Done("boi", ix);
   else if (c !== iy.value) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex(`<< character "${c}" received`), ix);
+  else return Parsed.Invalid(new Err(`<< character "${c}" received`), ix);
 });
 
 
@@ -8691,7 +8706,7 @@ Parser.charCi = c => Parser(ix => {
   const iy = ix.next();
   if (iy.done) return Parsed.Done("eoi", ix);
   else if (c.toLowerCase() === iy.value.toLowerCase()) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex(`character "${c}" expected >>`), ix);
+  else return Parsed.Invalid(new Err(`character "${c}" expected >>`), ix);
 });
 
 
@@ -8699,7 +8714,7 @@ Parser.charCiBehind = c => Parser(ix => {
   const iy = ix.prev;
   if (iy === null) return Parsed.Done("boi", ix);
   else if (c.toLowerCase() === iy.value.toLowerCase()) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex(`<< character "${c}" expected`), ix);
+  else return Parsed.Invalid(new Err(`<< character "${c}" expected`), ix);
 });
 
 
@@ -8712,14 +8727,14 @@ Parser.charCiBehind = c => Parser(ix => {
 Parser.reject = msg => Parser(ix => {
   const iy = ix.next();
   if (iy.done) return Parsed.Done("eoi", ix);
-  else return Parsed.Invalid(new Ex(msg), ix);
+  else return Parsed.Invalid(new Err(msg), ix);
 });
 
 
 Parser.rejectBehind = msg => Parser(ix => {
   const iy = ix.prev;
   if (iy === null) return Parsed.Done("boi", ix);
-  else return Parsed.Invalid(new Ex(msg), ix);
+  else return Parsed.Invalid(new Err(msg), ix);
 });
 
 
@@ -8738,13 +8753,13 @@ Parser.bol = Monoid => Parser(ix => {
     else return Parsed.Valid("\n", ix);
   }
   
-  else return Parsed.Invalid(new Ex("beginning of line expected"), ix);
+  else return Parsed.Invalid(new Err("beginning of line expected"), ix);
 });
 
 
 Parser.boi = Monoid => Parser(ix => {
   if (ix.value === null) return Parsed.Valid(Monoid.empty, ix);
-  else return Parsed.Invalid(new Ex("beginning of input expected"), ix);
+  else return Parsed.Invalid(new Err("beginning of input expected"), ix);
 });
 
 
@@ -8776,18 +8791,18 @@ Parser.eol = Monoid => Parser(ix => {
     const iz = iy.next();
 
     if (iz.value === "\n") return Parsed.Valid("\r\n", iz);
-    else return Parsed.Invalid(new Ex("end of line expected"), ix);
+    else return Parsed.Invalid(new Err("end of line expected"), ix);
   }
 
   else if (iy.value === "\n") return Parsed.Valid("\n", iy);
-  else return Parsed.Invalid(new Ex("end of line expected"), ix);
+  else return Parsed.Invalid(new Err("end of line expected"), ix);
 });
 
 
 Parser.eoi = Monoid => Parser(ix => {
   const iy = ix.next();
   if (iy.done) return Parsed.Valid(Monoid.empty, ix);
-  else return Parsed.Invalid(new Ex("end of input expected"), ix);
+  else return Parsed.Invalid(new Err("end of input expected"), ix);
 });
 
 
@@ -8829,7 +8844,7 @@ Parser.satisfy = (p, msg = "predicate unmet") => Parser(ix => {
   const iy = ix.next();
   if (iy.done) return Parsed.Done("eoi", ix);
   else if (p(iy.value)) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex(msg), ix);
+  else return Parsed.Invalid(new Err(msg), ix);
 });
 
 
@@ -8837,7 +8852,7 @@ Parser.satisfyBehind = (p, msg = "predicate unmet") => Parser(ix => {
   const iy = ix.prev;
   if (iy === null) return Parsed.Done("boi", ix);
   else if (p(iy.value)) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex(msg), ix);
+  else return Parsed.Invalid(new Err(msg), ix);
 });
 
 
@@ -8852,7 +8867,7 @@ Parser.includes = s => Parser(ix => {
   const iy = ix.next();
   if (iy.done) return Parsed.Done("eoi", ix);
   else if (s.has(iy.value)) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex("input is not included"), ix);
+  else return Parsed.Invalid(new Err("input is not included"), ix);
 });
 
 
@@ -8860,7 +8875,7 @@ Parser.includesBehind = s => Parser(ix => {
   const iy = ix.prev;
   if (iy.done) return Parsed.Done("boi", ix);
   else if (s.has(iy.value)) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex("input is not included"), ix);
+  else return Parsed.Invalid(new Err("input is not included"), ix);
 });
 
 
@@ -8868,7 +8883,7 @@ Parser.excludes = s => Parser(ix => {
   const iy = ix.next();
   if (iy.done) return Parsed.Done("eoi", ix);
   else if (!s.has(iy.value)) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex("input is excluded"), ix);
+  else return Parsed.Invalid(new Err("input is excluded"), ix);
 });
 
 
@@ -8876,7 +8891,7 @@ Parser.excludesBehind = s => Parser(ix => {
   const iy = ix.prev;
   if (iy.done) return Parsed.Done("boi", ix);
   else if (s.has(iy.value)) return Parsed.Valid(iy.value, iy);
-  else return Parsed.Invalid(new Ex("input is excluded"), ix);
+  else return Parsed.Invalid(new Err("input is excluded"), ix);
 });
 
 
@@ -9001,7 +9016,7 @@ Parser.any = (...ts) => Parser(ix => {
 
 Parser.not = Monoid => tx => Parser(ix => {
   return tx.parse(ix).parsed.run({
-    Valid: (v, iy) => Parsed.Invalid(new Ex("logical not"), iy),
+    Valid: (v, iy) => Parsed.Invalid(new Err("logical not"), iy),
     Invalid: (e, _) => Parsed.Valid(Monoid.empty, ix),
     Done: (s, _) => Parsed.Done(s, ix)
   });
@@ -9013,7 +9028,7 @@ Parser.not = Monoid => tx => Parser(ix => {
 Parser.xor = tx => ty => Parser(ix => {
   return tx.parse(ix).parsed.run({
     Valid: (v, iy) => ty.parse(iy).parsed.run({
-      Valid: (v2, _) => Parsed.Invalid(new Ex("both parser succeeded"), ix),
+      Valid: (v2, _) => Parsed.Invalid(new Err("both parser succeeded"), ix),
       Invalid: (e, iz) => Parsed.Valid(v, iz),
       Done: (s, _) => Parsed.Done(s, ix)
     }),
@@ -9022,7 +9037,7 @@ Parser.xor = tx => ty => Parser(ix => {
       Valid: (v, iz) => Parsed.Valid(v, iz),
 
       Invalid: (e2, _) => Parsed.Invalid(
-        Ex.aggregate(e, e2, new Ex("both parser failed")), ix),
+        Ex.aggregate(e, e2, new Err("both parser failed")), ix),
 
       Done: (s, _) => Parsed.Done(s, ix)
     }),
@@ -9041,14 +9056,14 @@ Parser.iff = Monoid => tx => ty => Parser(ix => {
       Valid: (v2, iz) => Parsed.Valid(Monoid.append(v) (v2), iz),
 
       Invalid: (e, _) => Parsed.Invalid(Ex.aggregate(
-        new Ex("first parser succeeded but second one failed"), e), ix),
+        new Err("first parser succeeded but second one failed"), e), ix),
 
       Done: (s, _) => Parsed.Done(s, ix)
     }),
 
     Invalid: (e, iy) => ty.parse(iy).parsed.run({
       Valid: (v, _) => Parsed.Invalid(Ex.aggregate(
-        new Ex("first parser failed but second one succeeded"), e), ix),
+        new Err("first parser failed but second one succeeded"), e), ix),
 
       Invalid: (e2, iz) => Parsed.Valid(Monoid.empty, iz),
       Done: (s, _) => Parsed.Done(s, ix)
@@ -9076,7 +9091,7 @@ Parser.min = Monoid => n => tx => Parser(ix => {
     else break;
   }
 
-  if (acc.length < n) return Parsed.Invalid(new Ex(
+  if (acc.length < n) return Parsed.Invalid(new Err(
     `pattern less than ${n} times received`,
     {cause: o.parsed.val[0]}), ix);
 
@@ -9105,7 +9120,7 @@ Parser.max = Monoid => n => tx => Parser(ix => {
     else break;
   }
 
-  if (acc.length > n) return Parsed.Invalid(new Ex(
+  if (acc.length > n) return Parsed.Invalid(new Err(
     `pattern more than ${n} times received`,
     {cause: o.parsed.val[0]}), ix);
 
@@ -9137,7 +9152,7 @@ Parser.minMax = Monoid => (m, n = m) => tx => Parser(ix => {
         if (acc.length === n) break;
       }
       
-      else return Parsed.Invalid(new Ex(
+      else return Parsed.Invalid(new Err(
         `pattern more than ${n} times received`,
         {cause: o.parsed.val[0]}), ix);
     }
@@ -9145,7 +9160,7 @@ Parser.minMax = Monoid => (m, n = m) => tx => Parser(ix => {
     else break;
   }
 
-  if (acc.length < m) return Parsed.Invalid(new Ex(
+  if (acc.length < m) return Parsed.Invalid(new Err(
     `pattern less than ${m} times received`,
     {cause: o.parsed.val[0]}), ix);
 
@@ -9169,11 +9184,11 @@ Parser.minMaxOnly = Monoid => (m, n = m) => tx => Parser(ix => {
     else break;
   }
 
-  if (acc.length < m) return Parsed.Invalid(new Ex(
+  if (acc.length < m) return Parsed.Invalid(new Err(
     `pattern less than ${m} times received`,
     {cause: o.parsed.val[0]}), ix);
 
-  else if (acc.length > n) return Parsed.Invalid(new Ex(
+  else if (acc.length > n) return Parsed.Invalid(new Err(
     `pattern more than ${n} times received`,
     {cause: o.parsed.val[0]}), ix);
 
@@ -9202,7 +9217,7 @@ of the redundant monoid constraint. */
 Parser.once = tx => Parser(ix => {
   return tx.parse(ix).parsed.run({
     Valid: (v, iy) => Parsed.Valid(v, iy),
-    Invalid: (e, _) => Parsed.Invalid(new Ex("pattern not once received"), ix),
+    Invalid: (e, _) => Parsed.Invalid(new Err("pattern not once received"), ix),
     Done: (s, _) => Parsed.Done(s, ix)
   });
 });
@@ -9214,12 +9229,12 @@ Parser.once = tx => Parser(ix => {
 Parser.onceOnly = tx => Parser(ix => {
   return tx.parse(ix).parsed.run({
     Valid: (v, iy) => tx.parse(iy).parsed.run({
-      Valid: (v2, _) => Parsed.Invalid(new Ex("pattern more than once received"), ix),
+      Valid: (v2, _) => Parsed.Invalid(new Err("pattern more than once received"), ix),
       Invalid: (e, _) => Parsed.Valid(v, iy),
       Done: (s, _) => Parsed.Valid(v, iy)
     }),
 
-    Invalid: (e, _) => Parsed.Invalid(new Ex("pattern not once received"), ix),
+    Invalid: (e, _) => Parsed.Invalid(new Err("pattern not once received"), ix),
     Done: (s, _) => Parsed.Done(s, ix)
   });
 });
@@ -9230,7 +9245,7 @@ Parser.onceOnly = tx => Parser(ix => {
 // 0
 Parser.none = Monoid => tx => Parser(ix => {
   return tx.parse(ix).parsed.run({
-    Valid: (v, _) => Parsed.Invalid(new Ex("pattern once received"), ix),
+    Valid: (v, _) => Parsed.Invalid(new Err("pattern once received"), ix),
     Invalid: (e, iy) => Parsed.Valid(Monoid.empty, iy),
     Done: (s, _) => Parsed.Valid(Monoid.empty, ix)
   });
@@ -9258,7 +9273,7 @@ Parser.last = tx => Parser(ix => {
   if (once) return o;
 
   else return Parsed.Invalid(
-    new Ex(
+    new Err(
       "pattern not once received",
       {cause: o.parsed.val[0]}), ix);
 });
@@ -9282,7 +9297,7 @@ Parser.nth = n => tx => Parser(ix => {
     else break;
   }
 
-  return Parsed.Invalid(new Ex(
+  return Parsed.Invalid(new Err(
     `pattern less than ${n} times received`,
     {cause: o.parsed.val[0]}), ix);
 });
@@ -9730,7 +9745,7 @@ Parser.word = codeset => Parser(ix => {
   if (acc.length) return Parsed.Valid(acc, o.parsed.val[1]);
   
   else if (o.parsed.tag === "invalid")
-    return Parsed.Invalid(new Ex(`${codeset}-encoded word expected`), ix);
+    return Parsed.Invalid(new Err(`${codeset}-encoded word expected`), ix);
 
   else return Parsed.Done(o.parsed.val[0], ix);
 });
@@ -9757,7 +9772,7 @@ Parser.wordBehind = codeset => Parser(ix => {
   if (acc.length) return Parsed.Valid(acc, o.parsed.val[1]);
   
   else if (o.parsed.tag === "invalid")
-    return Parsed.Invalid(new Ex(`${codeset}-encoded word expected`), ix);
+    return Parsed.Invalid(new Err(`${codeset}-encoded word expected`), ix);
 
   else return Parsed.Done(o.parsed.val[0], ix);
 });
@@ -9836,7 +9851,7 @@ Parser.string = s => Parser(ix => {
     if (o.parsed.tag === "valid") acc += o.parsed.val[0];
 
     else if (o.parsed.tag === "invalid")
-      return Parsed.Invalid(new Ex(`"${s}" expected`), ix);
+      return Parsed.Invalid(new Err(`"${s}" expected`), ix);
 
     else return Parsed.Done(o.parsed.val[0], ix);
   }
@@ -9853,7 +9868,7 @@ Parser.stringBehind = s => Parser(ix => {
     if (o.parsed.tag === "valid") o.parsed.val[0] += acc;
 
     else if (o.parsed.tag === "invalid") 
-      return Parsed.Invalid(new Ex(`"${s}" expected`), ix);
+      return Parsed.Invalid(new Err(`"${s}" expected`), ix);
 
     else return Parsed.Done(o.parsed.val[0], ix);
   }
@@ -9872,7 +9887,7 @@ Parser.stringCi = s => Parser(ix => {
     if (o.parsed.tag === "valid") acc += o.parsed.val[0];
     
     else if (o.parsed.tag === "invalid")
-      return Parsed.Invalid(new Ex(`"${s}" expected`), ix);
+      return Parsed.Invalid(new Err(`"${s}" expected`), ix);
 
     else return Parsed.Done(o.parsed.val[0], ix);
   }
@@ -9889,7 +9904,7 @@ Parser.stringCiBehind = s => Parser(ix => {
     if (o.parsed.tag === "valid") o.parsed.val[0] += acc;
     
     else if (o.parsed.tag === "invalid")
-      return Parsed.Invalid(new Ex(`"${s}" expected`), ix);
+      return Parsed.Invalid(new Err(`"${s}" expected`), ix);
     
     else return Parsed.Done(o.parsed.val[0], ix);
   }
@@ -9915,7 +9930,7 @@ Parser.nestedIn = Monoid => ({maxLevel, captureNesting = false, stopChars = new 
 
     if (o.parsed.tag === "valid") {
       if (level + 1 > maxLevel)
-        return Parsed.Invalid(new Ex("further nesting received"), ix);
+        return Parsed.Invalid(new Err("further nesting received"), ix);
       
       else {
         level++;
@@ -9928,7 +9943,7 @@ Parser.nestedIn = Monoid => ({maxLevel, captureNesting = false, stopChars = new 
       }
     }
 
-    else if (o.parsed.tag === "done") return Parsed.Invalid(new Ex(
+    else if (o.parsed.tag === "done") return Parsed.Invalid(new Err(
       "incomplete nesting received", {cause: o.parsed.val[0]}), ix);
 
     else {
@@ -9936,7 +9951,7 @@ Parser.nestedIn = Monoid => ({maxLevel, captureNesting = false, stopChars = new 
 
       if (o.parsed.tag === "valid") {
         if (level - 1 < 0)
-          return Parsed.Invalid(new Ex("malformed nesting received"), ix);
+          return Parsed.Invalid(new Err("malformed nesting received"), ix);
 
         else {
           if (captureNesting) acc = Monoid.append(acc) (transform({
@@ -9949,14 +9964,14 @@ Parser.nestedIn = Monoid => ({maxLevel, captureNesting = false, stopChars = new 
         }
       }
 
-      else if (o.parsed.tag === "done") return Parsed.Invalid(new Ex(
+      else if (o.parsed.tag === "done") return Parsed.Invalid(new Err(
         "incomplete nesting received", {cause: o.parsed.val[0]}), ix);
 
       else {
         o = Parser.take.parse(o.parsed.val[1]);
         
         if (stopChars.has(o.parsed.val[0]))
-          return Parsed.Invalid(new Ex("incomplete nesting received"), ix);
+          return Parsed.Invalid(new Err("incomplete nesting received"), ix);
 
         else acc = Monoid.append(acc) (transform({
           acc,
@@ -9979,7 +9994,7 @@ Parser.delimitedBy = Monoid => transform => (left, right = left) => Parser(ix =>
   let o = Parser.string(left).parse(ix), acc = Monoid.empty;
 
   if (o.parsed.tag !== "valid")
-    return Parsed.Invalid(new Ex(
+    return Parsed.Invalid(new Err(
       `separator "${left}" expected`,
       {cause: o.parsed.val[0]}), ix);
 
@@ -9992,7 +10007,7 @@ Parser.delimitedBy = Monoid => transform => (left, right = left) => Parser(ix =>
   
       if (p.parsed.tag === "valid")
         return Parsed.Invalid(
-          new Ex(`nested separator "${left}" received`, ix));
+          new Err(`nested separator "${left}" received`, ix));
     }
 
     o = Parser.string(right).parse(o.parsed.val[1]);
@@ -10000,7 +10015,7 @@ Parser.delimitedBy = Monoid => transform => (left, right = left) => Parser(ix =>
     if (o.parsed.tag === "valid") break;
 
     else if (o.parsed.tag === "done")
-      return Parsed.Invalid(new Ex(
+      return Parsed.Invalid(new Err(
         "unclosed delimitation received",
         {cause: o.parsed.val[0]}), ix);
 
@@ -10010,7 +10025,7 @@ Parser.delimitedBy = Monoid => transform => (left, right = left) => Parser(ix =>
       if (o.parsed.tag === "valid")
         acc = Monoid.append(acc) (transform(o.parsed.val[0]));
 
-      else return Parsed.Invalid(new Ex(
+      else return Parsed.Invalid(new Err(
         "unclosed delimitation received",
         {cause: o.parsed.val[0]}), ix);
     }
@@ -10825,6 +10840,8 @@ S.withCont = f => tx => S(k => tx.ser(f(k)));
 S.fromParallel = tx => S(tx.par);
 
 
+// no error handling
+
 S.fromPromise = px => S(k => px.then(x => k(x)).catch(e => k(e)));
 
 
@@ -10868,13 +10885,13 @@ S.async = f => msecs => x => S(k => setTimeout(comp(k) (f), msecs, x));
 
 
 S.tryCatch = k2 => tx => S(k => tx.ser(x => {
-  if (x?.constructor?.name === "Exception") return k2(x);
+  if (intro(x) === "Error") return k2(x);
   else return k(x);
 }));
 
 
 S.tryThrow = tx => S(k => tx.ser(x => {
-  if (x?.constructor?.name === "Exception") throw x;
+  if (intro(x) === "Error") throw x;
   else return k(x);
 }));
 
@@ -12471,7 +12488,7 @@ export const Node = process?.release?.name !== "node" ? {} : {
     handle: fs => Cons => reify(o => {
       o.copy = src => dest => Cons(k =>
         fs.copyFile(src, dest, e =>
-          e ? k(new Ex(e)) : k(null)));
+          e ? k(new Err(e)) : k(null)));
 
       o.move = src => dest =>
         Cons.chain(o.copy(src) (dest)) (e =>
@@ -12479,31 +12496,31 @@ export const Node = process?.release?.name !== "node" ? {} : {
 
       o.read = opt => path => Cons(k =>
         fs.readFile(path, opt, (e, x) =>
-          e ? k(new Ex(e)) : k(x)));
+          e ? k(new Err(e)) : k(x)));
 
       o.readUtf8 = opt => path => Cons(k =>
         fs.readFile(path, Object.assign(opt, {encoding: "utf8"}), (e, x) =>
-          e ? k(new Ex(e)) : k(x)));
+          e ? k(new Err(e)) : k(x)));
 
       o.readLatin1 = opt => path => Cons(k =>
         fs.readFile(path, Object.assign(opt, {encoding: "latin1"}), (e, x) =>
-          e ? k(new Ex(e)) : k(x)));
+          e ? k(new Err(e)) : k(x)));
 
       o.scanDir = path => Cons(k =>
         fs.readdir(path, (e, xs) =>
-          e ? k(new Ex(e)) : k(xs)));
+          e ? k(new Err(e)) : k(xs)));
 
       o.stat = path => Cons(k =>
         fs.stat(path, (e, o) =>
-          e ? k(new Ex(e)) : k(o)));
+          e ? k(new Err(e)) : k(o)));
 
       o.unlink = path => Cons(k =>
         fs.unlink(path, e =>
-          e ? k(new Ex(e)) : k(null)));
+          e ? k(new Err(e)) : k(null)));
 
       o.write = opt => path => s => Cons(k =>
         fs.writeFile(path, s, opt, e =>
-          e ? k(new Ex(e)) : k(s)));
+          e ? k(new Err(e)) : k(s)));
 
       return o;
     }),
