@@ -6692,11 +6692,21 @@ Ait.alternate = ix => async function* (iy) {
 };
 
 
-Ait.interpolate = y => async function* (xs) {
+// alternate a stream and a string
+
+Ait.alternateStr = s => async function* (ix) {
+  for await (const x of ix) {
+    yield x;
+    yield s;
+  }
+};
+
+
+Ait.interpolate = s => async function* (xs) {
   for (let i = 0; i < xs.length; i++) {
     for await (const x of xs[i]) yield x
     if (i === xs.length - 1) break;
-    else yield y;
+    else yield s;
   }
 };
 
@@ -7581,12 +7591,14 @@ Num.trunc = places => n => {
 
 // greatest common denominator
 
-Num.gcd = (m, n) => n == 0 ? m : Num.gcd(n, m % n);
+Num.gcd = (m, n) => n === 0 ? m : Num.gcd(n, m % n);
 
 
 // least common multiplicator
 
-Num.lcm = (m, n) =>  m / Num.gcd(m, n) * n;
+Num.lcm = (m, n) => m === 0 && n === 0
+  ? _throw("invalid zeros")
+  : m / Num.gcd(m, n) * n;
 
 
 // add two fractions
@@ -7606,7 +7618,7 @@ Num.addFracs = frac => frac2 => {
 };
 
 
-// average of two fractions
+// average of two fractions (still buggy)
 
 Num.avgFracs = frac => frac2 => {
   const lcm = Num.lcm(frac[1], frac2[1]);
@@ -7614,12 +7626,20 @@ Num.avgFracs = frac => frac2 => {
   const ntor = lcm / frac[1] * frac[0],
     ntor2 = lcm / frac2[1] * frac2[0];
 
-  const gcd = Num.gcd(ntor + ntor2, lcm);
+  const gcd = Num.gcd(ntor + ntor2, lcm),
+    ntor3 = Num.round2((ntor + ntor2) / gcd / 2),
+    dtor = Num.round2(lcm / gcd),
+    factor = ntor3 % 1 !== 0 || dtor % 1 !== 0 ? 100 : 1;
 
-  return Pair(
-    Num.round2((ntor + ntor2) / gcd / 2),
-    Num.round2(lcm / gcd)
-  );
+  if (factor === 100) {
+    const gcd2 = Num.gcd(ntor3 * factor, dtor * factor);
+    
+    return Pair(
+      Num.round(0) (ntor3 / gcd2),
+      Num.round(0) (dtor / gcd2));
+  }
+
+  else return Pair(ntor3, dtor);
 };
 
 
