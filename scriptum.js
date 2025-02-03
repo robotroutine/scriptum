@@ -7156,7 +7156,7 @@ _Map.upd = (k, f) => m => {
 /* Either update a key by appending the previous and the provided value or just
 set the provided value. */
 
-_Map.updOr = (k, v, f) => m => {
+_Map.updOr = f => (k, v) => m => {
   if (m.has(k)) return m.set(k, f(m.get(k)) (v));
   else return m.set(k, v);
 };
@@ -7618,28 +7618,23 @@ Num.addFracs = frac => frac2 => {
 };
 
 
-// average of two fractions (still buggy)
+/* Caluclate the average of two fractions. Relies on rounding to avoid exploding
+factions. */
 
 Num.avgFracs = frac => frac2 => {
   const lcm = Num.lcm(frac[1], frac2[1]);
 
-  const ntor = lcm / frac[1] * frac[0],
-    ntor2 = lcm / frac2[1] * frac2[0];
+  const dtor = Num.round(0) (lcm / frac[1] * frac[0]),
+    dtor2 = Num.round(0) (lcm / frac2[1] * frac2[0]);
 
-  const gcd = Num.gcd(ntor + ntor2, lcm),
-    ntor3 = Num.round2((ntor + ntor2) / gcd / 2),
-    dtor = Num.round2(lcm / gcd),
-    factor = ntor3 % 1 !== 0 || dtor % 1 !== 0 ? 100 : 1;
+  const frac3 = Pair(Num.round(0) ((dtor + dtor2) / 2), lcm);
 
-  if (factor === 100) {
-    const gcd2 = Num.gcd(ntor3 * factor, dtor * factor);
-    
-    return Pair(
-      Num.round(0) (ntor3 / gcd2),
-      Num.round(0) (dtor / gcd2));
-  }
+  const gcd = Num.gcd(frac3[0], frac3[1]);
 
-  else return Pair(ntor3, dtor);
+  frac3[0] = Num.round(0) (frac3[0] / gcd);
+  frac3[1] = Num.round(0) (frac3[1] / gcd);
+
+  return frac3;
 };
 
 
@@ -8355,7 +8350,7 @@ P.fromSerial = tx => P(tx.ser);
 
 // no error handling
 
-P.fromPromise = px => px.then(x => P(k => k(x))).catch(e => k(e));
+P.fromPromise = px => P(k => px.then(x => k(x)).catch(e => k(e)));
 
 
 /*
@@ -11244,13 +11239,13 @@ export const Str = {}; // namespace
 █████ Chars ███████████████████████████████████████████████████████████████████*/
 
 
-Str.countChar = c => s => {
-  let n = 0, i = 0;
+Str.count = t => s => {
+  let n = 0, offset = 0;
 
   while (true) {
-    i = s.indexOf(c, i);
-    if (i >= 0) {++n; i++}
-    else break;
+    const i = s.indexOf(t, offset);
+    if (i === -1) break;
+    else (n++, offset = i + 1);
   }
 
   return n;
