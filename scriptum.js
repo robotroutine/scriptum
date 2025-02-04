@@ -1429,17 +1429,43 @@ expressions not wrapped in a thunk/function. */
 
 
 /*
-█████ Short Circuiting ████████████████████████████████████████████████████████*/
+█████ Arithemtic ██████████████████████████████████████████████████████████████*/
 
 
-// g might never be evaluated
-
-export const and = f => g => f() && g();
+export const add = x => y => x + y;
 
 
-// g might never be evaluated
+export const add_ = (x, y) => x + y;
 
-export const or = f => g => f() || g();
+
+export const div = x => y => x / y;
+
+
+export const div_ = (x, y) => x / y;
+
+
+export const mod = x => y => x % y;
+
+
+export const mod_ = (x, y) => x % y;
+
+
+export const mul = x => y => x * y;
+
+
+export const mul_ = (x, y) => x * y;
+
+
+export const pow = x => y => x ** y;
+
+
+export const pow_ = (x, y) => x ** y;
+
+
+export const sub = x => y => x - y;
+
+
+export const sub_ = (x, y) => x - y;
 
 
 /*
@@ -1549,6 +1575,20 @@ export const compareOn_ = order => f => x => y => order(f(x), f(y));
 
 
 export const comparator = m => n => m < n ? -1 : m > n ? 1 : 0;
+
+
+/*
+█████ Short Circuiting ████████████████████████████████████████████████████████*/
+
+
+// g might never be evaluated
+
+export const and = f => g => f() && g();
+
+
+// g might never be evaluated
+
+export const or = f => g => f() || g();
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -10550,9 +10590,7 @@ Rex.matchBounds = (f, g) => s => {
 };
 
 
-// prefer a unified interface over performance
-
-Rex.matchFirst = rx => s => Rex.matchAll(rx) (s).slice(0, 1);
+// `Rex.matchFirst` would be redundant
 
 
 Rex.matchFirstWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(0, 1);
@@ -10704,7 +10742,22 @@ Rex.i18n = {
 
 
 /*
-█████ Splitting/Replacing █████████████████████████████████████████████████████*/
+█████ Searching/Splitting/Replacing ███████████████████████████████████████████*/
+
+
+// consistent interface (returns an array that may be empty)
+
+Rex.search = flags => rx => s => {
+  for (const ix of s.matchAll(rx)) {
+    return [ix.index];
+  }
+
+  return [];
+};
+
+
+Rex.searchAll = flags => rx => s =>
+  Array.from(s.matchAll(rx)).map(ix => ix.index);
 
 
 /* Split a string based on a set of concatenated regular expressions. It is
