@@ -1432,6 +1432,10 @@ expressions not wrapped in a thunk/function. */
 █████ Arithemtic ██████████████████████████████████████████████████████████████*/
 
 
+
+export const abs = Math.abs;
+
+
 export const add = x => y => x + y;
 
 
@@ -2855,7 +2859,7 @@ A.fromAitValues = () => comp(S.fromPromise) (async function (ix) {
 
 A.fromCsv = ({sep, headings}) => csv => {
   const table = csv.trim()
-    .replace(/"/g, "")
+    .replaceAll(/"/g, "")
     .split(/\r?\n/)
     .map(row => row.split(sep));
 
@@ -3409,6 +3413,23 @@ A.values = function* (m) {
 
 
 A.at = i => xs => xs[i]; // curried `at` non-reliant on `this`
+
+
+/*
+█████ Indexing ████████████████████████████████████████████████████████████████*/
+
+
+A.indicesOf = s => xs => {
+  const ys = [];
+
+  while (true) {
+    const i = xs.indexOf(s, ys.length ? ys[ys.length - 1] + 1 : 0);
+    if (i === NOT_FOUND) break;
+    else ys.push(i);
+  }
+
+  return ys;
+};
 
 
 /*
@@ -7494,7 +7515,7 @@ Num.fromStr = ({locale, strict = true}) => s => {
         ? "" : o.groups.postsign;
 
       const sign = presign ? presign : postsign,
-        int = o.groups.int.replace(/[^\d]/g, "");
+        int = o.groups.int.replaceAll(/[^\d]/g, "");
 
       const frac = o.groups.frac === undefined
         ? "" : o.groups.frac;
@@ -7696,7 +7717,7 @@ Num.formatFrac = digits => n =>
 Num.formatInt = sep => n =>
   String(Math.trunc(n))
     .replace(/^-/, "")
-    .replace(new RegExp("(\\d)(?=(?:\\d{3})+$)", "g"), `$1${sep}`);
+    .replaceAll(new RegExp("(\\d)(?=(?:\\d{3})+$)", "g"), `$1${sep}`);
 
 
 Num.formatSign = ({pos, neg}) => n =>
@@ -9600,7 +9621,7 @@ Parser.csv = settings => Parser(ix => {
 
         // replace masked quotation marks (""") with a placeholder
 
-        const line = p.parsed.val[0].replace(
+        const line = p.parsed.val[0].replaceAll(
           new RegExp(settings.quote.repeat(3), "g"), "${qm}");
 
         // parse patterns `"…";` or `…;`
@@ -9625,8 +9646,8 @@ Parser.csv = settings => Parser(ix => {
 
           return Pair(
             p2.parsed.val[0].map(s =>
-              s.replace(new RegExp(Rex.escape("${qm}"), "g"), settings.quote)
-                .replace(new RegExp(Rex.escape("${sp}"), "g"), settings.sep)),
+              s.replaceAll(new RegExp(Rex.escape("${qm}"), "g"), settings.quote)
+                .replaceAll(new RegExp(Rex.escape("${sp}"), "g"), settings.sep)),
             p);
         }
       }
@@ -10506,7 +10527,56 @@ Rex.classes.latin1.curr = {
 
 
 /*
-█████ Matching ████████████████████████████████████████████████████████████████*/
+█████ Normalizing █████████████████████████████████████████████████████████████*/
+
+
+// map all special letters from latin-based codesets to ASCII
+
+Object.defineProperty(Rex, "toAscii", {
+  get() {
+    const m = new Map([
+      ["Æ", "AE"], ["æ", "ae"], ["Ä", "Ae"], ["ä", "ae"], ["Œ", "OE"],
+      ["œ", "oe"], ["Ö", "Oe"], ["ö", "oe"], ["ß", "ss"], ["ẞ", "ss"],
+      ["Ü", "Ue"], ["ü", "ue"], ["Ⱥ", "A"], ["ⱥ", "a"], ["Ɑ", "A"],
+      ["ɑ", "a"], ["ɐ", "a"], ["ɒ", "a"], ["Ƀ", "B"], ["ƀ", "b"],
+      ["Ɓ", "B"], ["ɓ", "b"], ["Ƃ", "b"], ["ƃ", "b"], ["ᵬ", "b"],
+      ["ᶀ", "b"], ["Ƈ", "C"], ["ƈ", "c"], ["Ȼ", "C"], ["ȼ", "c"],
+      ["Ɗ", "D"], ["ɗ", "d"], ["Ƌ", "D"], ["ƌ", "d"], ["ƍ", "d"],
+      ["Đ", "D"], ["đ", "d"], ["ɖ", "d"], ["ð", "d"], ["Ɇ", "E"],
+      ["ɇ", "e"], ["ɛ", "e"], ["ɜ", "e"], ["ə", "e"], ["Ɠ", "G"],
+      ["ɠ", "g"], ["Ǥ", "G"], ["ǥ", "g"], ["ᵹ", "g"], ["Ħ", "H"],
+      ["ħ", "h"], ["Ƕ", "H"], ["ƕ", "h"], ["Ⱨ", "H"], ["ⱨ", "h"],
+      ["ɥ", "h"], ["ɦ", "h"], ["ı", "i"], ["Ɩ", "I"], ["ɩ", "i"],
+      ["Ɨ", "I"], ["ɨ", "i"], ["Ɉ", "J"], ["ɉ", "j"], ["ĸ", "k"],
+      ["Ƙ", "K"], ["ƙ", "k"], ["Ⱪ", "K"], ["ⱪ", "k"], ["Ł", "L"],
+      ["ł", "l"], ["Ƚ", "L"], ["ƚ", "l"], ["ƛ", "l"], ["ȴ", "l"],
+      ["Ⱡ", "L"], ["ⱡ", "l"], ["Ɫ", "L"], ["ɫ", "l"], ["Ľ", "L"],
+      ["ľ", "l"], ["Ɯ", "M"], ["ɯ", "m"], ["ɱ", "m"], ["Ŋ", "N"],
+      ["ŋ", "n"], ["Ɲ", "N"], ["ɲ", "n"], ["Ƞ", "N"], ["ƞ", "n"],
+      ["Ø", "O"], ["ø", "o"], ["Ɔ", "O"], ["ɔ", "o"], ["Ɵ", "O"],
+      ["ɵ", "o"], ["Ƥ", "P"], ["ƥ", "p"], ["Ᵽ", "P"], ["ᵽ", "p"],
+      ["ĸ", "q"], ["Ɋ", "Q"], ["ɋ", "q"], ["Ƣ", "Q"], ["ƣ", "q"],
+      ["Ʀ", "R"], ["ʀ", "r"], ["Ɍ", "R"], ["ɍ", "r"], ["Ɽ", "R"],
+      ["ɽ", "r"], ["Ƨ", "S"], ["ƨ", "s"], ["ȿ", "s"], ["ʂ", "s"],
+      ["ᵴ", "s"], ["ᶊ", "s"], ["Ŧ", "T"], ["ŧ", "t"], ["ƫ", "t"],
+      ["Ƭ", "T"], ["ƭ", "t"], ["Ʈ", "T"], ["ʈ", "t"], ["Ʉ", "U"],
+      ["ʉ", "u"], ["Ʋ", "V"], ["ʋ", "v"], ["Ʌ", "V"], ["ʌ", "v"],
+      ["ⱴ", "v"], ["ⱱ", "v"], ["Ⱳ", "W"], ["ⱳ", "w"], ["Ƴ", "Y"],
+      ["ƴ", "y"], ["Ɏ", "Y"], ["ɏ", "y"], ["ɤ", "Y"], ["Ƶ", "Z"],
+      ["ƶ", "z"], ["Ȥ", "Z"], ["ȥ", "z"], ["ɀ", "z"], ["Ⱬ", "Z"],
+      ["ⱬ", "z"], ["Ʒ", "Z"], ["ʒ", "z"], ["Ƹ", "Z"], ["ƹ", "z"],
+      ["Ʒ", "Z"], ["ʒ", "z"]
+    ]);
+
+    delete this.toAscii;
+    this.toAscii = m;
+    return m;
+  }
+});
+
+
+/*
+█████ Operations ██████████████████████████████████████████████████████████████*/
 
 
 // consistent interface (returns an array that may be empty)
@@ -10640,53 +10710,52 @@ Rex.matchNthWith_ = p => rx => s => {
 };
 
 
-/*
-█████ Normalizing █████████████████████████████████████████████████████████████*/
+// provide a neat argument list for the replacer function
+
+Rex.replace = (f, rx) => s => {
+  return s.replaceAll(rx, (...args) => {
+    const o = typeof args[args.length - 1] === "object"
+      ? args.pop() : {};
+
+    const s = args.shift(), xs = [];
+
+    while (true) {
+      const arg = args.shift();
+      if (typeof arg === "number") break;
+      else groups.push(arg);
+    }
+      
+    return f({s, i: args[0], xs, o});
+  });
+};
 
 
-// map all special letters from latin-based codesets to ASCII
+// consistent interface (returns an array that may be empty)
 
-Object.defineProperty(Rex, "toAscii", {
-  get() {
-    const m = new Map([
-      ["Æ", "AE"], ["æ", "ae"], ["Ä", "Ae"], ["ä", "ae"], ["Œ", "OE"],
-      ["œ", "oe"], ["Ö", "Oe"], ["ö", "oe"], ["ß", "ss"], ["ẞ", "ss"],
-      ["Ü", "Ue"], ["ü", "ue"], ["Ⱥ", "A"], ["ⱥ", "a"], ["Ɑ", "A"],
-      ["ɑ", "a"], ["ɐ", "a"], ["ɒ", "a"], ["Ƀ", "B"], ["ƀ", "b"],
-      ["Ɓ", "B"], ["ɓ", "b"], ["Ƃ", "b"], ["ƃ", "b"], ["ᵬ", "b"],
-      ["ᶀ", "b"], ["Ƈ", "C"], ["ƈ", "c"], ["Ȼ", "C"], ["ȼ", "c"],
-      ["Ɗ", "D"], ["ɗ", "d"], ["Ƌ", "D"], ["ƌ", "d"], ["ƍ", "d"],
-      ["Đ", "D"], ["đ", "d"], ["ɖ", "d"], ["ð", "d"], ["Ɇ", "E"],
-      ["ɇ", "e"], ["ɛ", "e"], ["ɜ", "e"], ["ə", "e"], ["Ɠ", "G"],
-      ["ɠ", "g"], ["Ǥ", "G"], ["ǥ", "g"], ["ᵹ", "g"], ["Ħ", "H"],
-      ["ħ", "h"], ["Ƕ", "H"], ["ƕ", "h"], ["Ⱨ", "H"], ["ⱨ", "h"],
-      ["ɥ", "h"], ["ɦ", "h"], ["ı", "i"], ["Ɩ", "I"], ["ɩ", "i"],
-      ["Ɨ", "I"], ["ɨ", "i"], ["Ɉ", "J"], ["ɉ", "j"], ["ĸ", "k"],
-      ["Ƙ", "K"], ["ƙ", "k"], ["Ⱪ", "K"], ["ⱪ", "k"], ["Ł", "L"],
-      ["ł", "l"], ["Ƚ", "L"], ["ƚ", "l"], ["ƛ", "l"], ["ȴ", "l"],
-      ["Ⱡ", "L"], ["ⱡ", "l"], ["Ɫ", "L"], ["ɫ", "l"], ["Ľ", "L"],
-      ["ľ", "l"], ["Ɯ", "M"], ["ɯ", "m"], ["ɱ", "m"], ["Ŋ", "N"],
-      ["ŋ", "n"], ["Ɲ", "N"], ["ɲ", "n"], ["Ƞ", "N"], ["ƞ", "n"],
-      ["Ø", "O"], ["ø", "o"], ["Ɔ", "O"], ["ɔ", "o"], ["Ɵ", "O"],
-      ["ɵ", "o"], ["Ƥ", "P"], ["ƥ", "p"], ["Ᵽ", "P"], ["ᵽ", "p"],
-      ["ĸ", "q"], ["Ɋ", "Q"], ["ɋ", "q"], ["Ƣ", "Q"], ["ƣ", "q"],
-      ["Ʀ", "R"], ["ʀ", "r"], ["Ɍ", "R"], ["ɍ", "r"], ["Ɽ", "R"],
-      ["ɽ", "r"], ["Ƨ", "S"], ["ƨ", "s"], ["ȿ", "s"], ["ʂ", "s"],
-      ["ᵴ", "s"], ["ᶊ", "s"], ["Ŧ", "T"], ["ŧ", "t"], ["ƫ", "t"],
-      ["Ƭ", "T"], ["ƭ", "t"], ["Ʈ", "T"], ["ʈ", "t"], ["Ʉ", "U"],
-      ["ʉ", "u"], ["Ʋ", "V"], ["ʋ", "v"], ["Ʌ", "V"], ["ʌ", "v"],
-      ["ⱴ", "v"], ["ⱱ", "v"], ["Ⱳ", "W"], ["ⱳ", "w"], ["Ƴ", "Y"],
-      ["ƴ", "y"], ["Ɏ", "Y"], ["ɏ", "y"], ["ɤ", "Y"], ["Ƶ", "Z"],
-      ["ƶ", "z"], ["Ȥ", "Z"], ["ȥ", "z"], ["ɀ", "z"], ["Ⱬ", "Z"],
-      ["ⱬ", "z"], ["Ʒ", "Z"], ["ʒ", "z"], ["Ƹ", "Z"], ["ƹ", "z"],
-      ["Ʒ", "Z"], ["ʒ", "z"]
-    ]);
-
-    delete this.toAscii;
-    this.toAscii = m;
-    return m;
+Rex.search = flags => rx => s => {
+  for (const ix of s.matchAll(rx)) {
+    return [ix.index];
   }
-});
+
+  return [];
+};
+
+
+Rex.searchAll = flags => rx => s =>
+  Array.from(s.matchAll(rx)).map(ix => ix.index);
+
+
+/* Split a string based on a set of concatenated regular expressions. It is
+meant to be used with the predefined character classes in this section. You can
+define your own split patterns using the following scheme:
+
+  (?<=yourCharClass)(?!yourCharClass)|(?<!yourCharClass)(?=yourCharClass)
+
+If you need more granular control, use one of the split combinators from the
+string section. */
+
+Rex.split = flags => (...rs) => s => s.split(
+  new RegExp(rs.map(rx => rx.source).join("|"), flags));
 
 
 /*
@@ -10742,68 +10811,16 @@ Rex.i18n = {
 
 
 /*
-█████ Searching/Splitting/Replacing ███████████████████████████████████████████*/
-
-
-// consistent interface (returns an array that may be empty)
-
-Rex.search = flags => rx => s => {
-  for (const ix of s.matchAll(rx)) {
-    return [ix.index];
-  }
-
-  return [];
-};
-
-
-Rex.searchAll = flags => rx => s =>
-  Array.from(s.matchAll(rx)).map(ix => ix.index);
-
-
-/* Split a string based on a set of concatenated regular expressions. It is
-meant to be used with the predefined character classes in this section. You can
-define your own split patterns using the following scheme:
-
-  (?<=yourCharClass)(?!yourCharClass)|(?<!yourCharClass)(?=yourCharClass)
-
-If you need more granular control, use one of the split combinators from the
-string section. */
-
-Rex.split = flags => (...rs) => s => s.split(
-  new RegExp(rs.map(rx => rx.source).join("|"), flags));
-
-
-// provide a neat argument list for the replacer function
-
-Rex.replace = (f, rx) => s => {
-  return s.replace(rx, (...args) => {
-    const o = typeof args[args.length - 1] === "object"
-      ? args.pop() : {};
-
-    const s = args.shift(), xs = [];
-
-    while (true) {
-      const arg = args.shift();
-      if (typeof arg === "number") break;
-      else groups.push(arg);
-    }
-      
-    return f({s, i: args[0], xs, o});
-  });
-};
-
-
-/*
 █████ Misc. ███████████████████████████████████████████████████████████████████*/
 
 
 Rex.count = rx => s => Array.from(s.matchAll(rx)).length;
 
 
-Rex.escape = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+Rex.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 
-Rex.normalizeNewline = s => s.replace(/\r\n/g, "\n");
+Rex.normalizeNewline = s => s.replaceAll(/\r\n/g, "\n");
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -11289,7 +11306,20 @@ export const Str = {}; // namespace
 
 
 /*
-█████ Chars ███████████████████████████████████████████████████████████████████*/
+█████ Concatenization █████████████████████████████████████████████████████████*/
+
+
+Str.catWith = s => (...xs) => xs.join(s);
+
+
+Str.cat = Str.catWith("");
+
+
+Str.cat_ = Str.catWith(" ");
+
+
+/*
+█████ Counting ████████████████████████████████████████████████████████████████*/
 
 
 Str.count = t => s => {
@@ -11306,109 +11336,7 @@ Str.count = t => s => {
 
 
 Str.countChars = s => s.split("").reduce((acc, c) =>
-  _Set.inc(c) (acc), new Map());
-
-
-// split at transitions from ASCII to not ASCII characters
-
-Str.splitAscii = s => {
-  return s.split("").reduce((acc, c) => {
-    const i = acc.length - 1;
-    
-    if (acc[i] === "") acc[i] += c;
-    else if (acc[i].charCodeAt(0) < 128 && c.charCodeAt(0) < 128) acc[i] += c;
-    else acc.push(c);
-
-    return acc;
-  }, [""]);
-};
-
-
-// split at character transitions
-
-Str.splitChars = s => {
-  return s.split("").reduce((acc, c) => {
-    const i = acc.length - 1;
-    
-    if (acc[i] === "") acc[i] += c;
-    else if (acc[i] [0] === c) acc[i] += c;
-    else acc.push(c);
-
-    return acc;
-  }, [""]);
-};
-
-
-/*
-█████ Concatenization █████████████████████████████████████████████████████████*/
-
-
-Str.catWith = s => (...xs) => xs.join(s);
-
-
-Str.cat = Str.catWith("");
-
-
-Str.cat_ = Str.catWith(" ");
-
-
-/*
-█████ Difference ██████████████████████████████████████████████████████████████*/
-
-
-/* Determine all shared substrings of two strings while preserving the context:
-  
-  "Gettysburg" vs. "Getisburger"
-  [{i: 0, s: "G"}, {i: 3, s: "ty"}]                 // left diff
-  [{i: 0, s: "T"}, {i: 3, s: "i"}, {i: 9, s: "er"}] // right diff */
-
-Str.diff = s => t => {
-  const xs = diff_(s, t), ys = diff_(t, s);
-  const l = [], r = [];
-
-  for (const o of xs) {
-    if (o.offset === null) {
-      const prev = l[l.length - 1];
-      
-      if (prev === undefined) l.push({i: o.i, s: o.c});
-      else if (o.i - prev.i === 1) prev.s += o.c;
-      else l.push({i: o.i, s: o.c});
-    }
-  }
-
-  for (const o of ys) {
-    if (o.offset === null) {
-      const prev = r[r.length - 1];
-      
-      if (prev === undefined) r.push({i: o.i, s: o.c});
-      else if (o.i - prev.i === 1) prev.s += o.c;
-      else r.push({i: o.i, s: o.c});
-    }
-  }
-
-  return {l: xs, r: ys, diffl: l, diffr: r};
-};
-
-
-const diff_ = (s, t) => {
-  const offset = Math.abs(s.length - t.length),
-    xs = s.split(""), ys = t.split(""), zs = [];
-
-  for (let i = 0, j2 = 0; i < xs.length; i++) {
-    const j = ys.indexOf(xs[i], j2);
-
-    if (j === -1) zs.push({i, c: xs[i], offset: null});
-
-    else if (Math.abs(i - j) <= offset) {
-      zs.push({i, c: xs[i], offset: i - j});
-      j2 = j + 1;
-    }
-
-    else zs.push({i, c: xs[i], offset: null});
-  }
-
-  return zs;
-};
+  _Map.inc(c) (acc), new Map());
 
 
 /*
@@ -11418,12 +11346,12 @@ const diff_ = (s, t) => {
 Str.distance = a => b => {
   const min = (d0, d1, d2, bx, ay) => {
     return d0 < d1 || d2 < d1
-        ? d0 > d2
-            ? d2 + 1
-            : d0 + 1
-        : bx === ay
-            ? d1
-            : d1 + 1;
+      ? d0 > d2
+        ? d2 + 1
+        : d0 + 1
+      : bx === ay
+        ? d1
+        : d1 + 1;
   };
 
   if (a === b) return 0;
@@ -11550,14 +11478,64 @@ Str.Monoid = {
 
 
 /*
+█████ Splitting ███████████████████████████████████████████████████████████████*/
+
+
+// split at transitions from ASCII to not ASCII characters
+
+Str.splitAscii = s => {
+  return s.split("").reduce((acc, c) => {
+    const i = acc.length - 1;
+    
+    if (acc[i] === "") acc[i] += c;
+    else if (acc[i].charCodeAt(0) < 128 && c.charCodeAt(0) < 128) acc[i] += c;
+    else acc.push(c);
+
+    return acc;
+  }, [""]);
+};
+
+
+// split at character transitions
+
+Str.splitChars = s => {
+  return s.split("").reduce((acc, c) => {
+    const i = acc.length - 1;
+    
+    if (acc[i] === "") acc[i] += c;
+    else if (acc[i] [0] === c) acc[i] += c;
+    else acc.push(c);
+
+    return acc;
+  }, [""]);
+};
+
+
+Str.splitChunk = ({size, pad = " ", overlap = false}) => s => {
+  const xs = [];
+
+  for (let i = 0; i === i; overlap ? i++ : i += size) {
+    if (i >= s.length) break;
+    
+    else if (i + size >= s.length) {
+      xs.push(s.slice(i, i + size).padEnd(size, pad));
+      break;
+    }
+    
+    else xs.push(s.slice(i, i + size));
+  }
+
+  return xs;
+};
+
+
+/*
 █████ Misc. ███████████████████████████████████████████████████████████████████*/
 
 
+// TODO: consider ' and - and .
+
 Str.capitalize = s => s[0].strToUpper() + s.slice(1).strToLower();
-
-
-Str.splitChunk = ({from, to = from}) => s =>
-  s.match(new RegExp(`.{${from},${to}}`, "g")) || [];
 
 
 /* Plain applicator but with a telling name. Intended use:
@@ -12501,7 +12479,7 @@ export const Node = process?.release?.name !== "node" ? {} : {
 
       else {
         const [k, v = null] = arg.split("="),
-          k2 = k.replace(/-/g, "");
+          k2 = k.replaceAll(/-/g, "");
 
         if (v === null) o[k2] = true;
         
