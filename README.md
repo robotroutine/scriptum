@@ -7,7 +7,7 @@
 
 # No-frills Functional Programming Lib Augmenting Javascript/Node.js
 
-With a focus on arrays, (async) iterators, streams, string processing and regular expressions.
+with a focus on arrays, (async) iterators, streams, string processing and regular expressions.
 
 Status: no more major revisions expected but still unstable in some hideous details..
 
