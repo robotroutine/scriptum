@@ -10253,7 +10253,7 @@ export const Rex = {};
 
 
 /*
-█████ Boundary ████████████████████████████████████████████████████████████████*/
+█████ Bounds ██████████████████████████████████████████████████████████████████*/
 
 
 /* Combine the supplied `pattern` with its `left` and `right` boundaries and
@@ -10527,10 +10527,7 @@ Rex.classes.latin1.curr = {
 
 
 /*
-█████ Operations ██████████████████████████████████████████████████████████████*/
-
-
-Rex.count = rx => s => Array.from(s.matchAll(rx)).length;
+█████ Matching ████████████████████████████████████████████████████████████████*/
 
 
 // consistent interface (returns an array that may be empty)
@@ -10664,54 +10661,6 @@ Rex.matchNthWith_ = p => rx => s => {
 };
 
 
-// provide a neat argument list for the replacer function
-
-Rex.replace = (f, rx) => s => {
-  return s.replaceAll(rx, (...args) => {
-    const o = typeof args[args.length - 1] === "object"
-      ? args.pop() : {};
-
-    const s = args.shift(), xs = [];
-
-    while (true) {
-      const arg = args.shift();
-      if (typeof arg === "number") break;
-      else groups.push(arg);
-    }
-      
-    return f({s, i: args[0], xs, o});
-  });
-};
-
-
-// consistent interface (returns an array that may be empty)
-
-Rex.search = flags => rx => s => {
-  for (const ix of s.matchAll(rx)) {
-    return [ix.index];
-  }
-
-  return [];
-};
-
-
-Rex.searchAll = flags => rx => s =>
-  Array.from(s.matchAll(rx)).map(ix => ix.index);
-
-
-/* Split a string based on a set of concatenated regular expressions. It is
-meant to be used with the predefined character classes in this section. You can
-define your own split patterns using the following scheme:
-
-  (?<=yourCharClass)(?!yourCharClass)|(?<!yourCharClass)(?=yourCharClass)
-
-If you need more granular control, use one of the split combinators from the
-string section. */
-
-Rex.split = flags => (...rs) => s => s.split(
-  new RegExp(rs.map(rx => rx.source).join("|"), flags));
-
-
 /*
 █████ Patterns ████████████████████████████████████████████████████████████████*/
 
@@ -10765,7 +10714,125 @@ Rex.i18n = {
 
 
 /*
+█████ Replacing ███████████████████████████████████████████████████████████████*/
+
+
+// provide a neat argument list for the replacer function
+
+Rex.replace = (f, rx) => s => {
+  return s.replaceAll(rx, (...args) => {
+    const o = typeof args[args.length - 1] === "object"
+      ? args.pop() : {};
+
+    const s = args.shift(), xs = [];
+
+    while (true) {
+      const arg = args.shift();
+      if (typeof arg === "number") break;
+      else groups.push(arg);
+    }
+      
+    return f({s, i: args[0], xs, o});
+  });
+};
+
+
+/*
+█████ Searching ███████████████████████████████████████████████████████████████*/
+
+
+// consistent interface (returns an array that may be empty)
+
+Rex.search = flags => rx => s => {
+  for (const ix of s.matchAll(rx)) {
+    return [ix.index];
+  }
+
+  return [];
+};
+
+
+Rex.searchAll = flags => rx => s =>
+  Array.from(s.matchAll(rx)).map(ix => ix.index);
+
+
+/*
+█████ Splitting ███████████████████████████████████████████████████████████████*/
+
+
+/* Split a string based on certain transitions of character classes defined by
+regular expressions in the following form:
+
+  (?<=charClass)(?!charClass)|(?<!charClass)(?=charClass)
+
+The combinator is meant to be used with the predefined character classes in this
+section. If you need more granular control, use one of the split combinators from
+the string section. */
+
+Rex.splitTrans = flags => (...rs) => s => s.split(
+  new RegExp(rs.map(rx => rx.source).join("|"), flags));
+
+
+/* Split a string at tokens that can consists of unicode letters, digits and
+a selection of punctuation characters. All other characters are treated as part
+of the separator and can be either dropped or captured. */
+
+Rex.splitToken = ({capture, puncts}) => ({
+  [Symbol.split] (s) {
+    const xs = [];
+    let mode = null, buf = "";
+
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+
+      if (/[\p{L}\d]/v.test(c)) {
+        if (mode === "sep") {
+          if (capture) xs.push(buf);
+          buf = "";
+        }
+
+        mode = "token";
+        buf += c;
+      }
+
+      else if (puncts.has(c)) {
+        if (mode === "sep") {
+          if (capture) xs.push(buf);
+          buf = "";
+        }
+
+        mode = "token";
+        buf += c;
+      }
+
+      else {
+        if (mode === "token") {
+          xs.push(buf);
+          buf = "";
+        }
+
+        mode = "sep";
+        buf += c;
+      }
+
+      if (i + 1 === s.length) {
+        if (buf !== "") {
+          if (mode === "token") xs.push(buf);
+          else if (mode === "sep" && capture) xs.push(buf);
+        }
+      }
+    }
+
+    return xs;
+  }
+});
+
+
+/*
 █████ Misc. ███████████████████████████████████████████████████████████████████*/
+
+
+Rex.count = rx => s => Array.from(s.matchAll(rx)).length;
 
 
 Rex.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
