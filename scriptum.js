@@ -10303,19 +10303,6 @@ Rex.classes.letter = {
 };
 
 
-// lower-case letter
-
-Rex.classes.lcl = {
-  rex: /\p{Ll}/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
-};
-    
-
 // upper-case letter
 
 Rex.classes.ucl = {
@@ -10329,7 +10316,20 @@ Rex.classes.ucl = {
 };
 
 
-// european vowels
+// lower-case letter
+
+Rex.classes.lcl = {
+  rex: /\p{Ll}/v,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
+};
+    
+
+// latin vowels
 
 Rex.classes.vowels = {
   rex: /[aeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]/i,
@@ -10342,8 +10342,45 @@ Rex.classes.vowels = {
 };
 
 
-Rex.classes.digit = {
+// latin upper-case vowels
+
+Rex.classes.ucv = {
+  rex: /[AEUIOÁÀĂÂÅÄÃĀÐÉÈÊĚËĖĘÍÌÎÏĮĪÓÒÔÖŐÕØŌÚÙŬÛŮÜŰŨŲŪ]/,
+  
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
+    return this.split;
+  },
+};
+
+
+// latin lower-case vowels
+
+Rex.classes.lcv = {
+  rex: /[aeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]/,
+  
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
+    return this.split;
+  },
+};
+
+
+Rex.classes.num = {
   rex: /\p{N}/v,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
+};
+
+
+Rex.classes.digits = {
+  rex: /\d/,
 
   get split() {
     delete this.split;
@@ -10708,7 +10745,7 @@ Rex.i18n = {
     ],
 
     months: /(\b(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\b)/,
-    months_: /(\b(Jan|Feb|Mär|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\b)\.?/,
+    months_: /(\b(Jan|Feb|Febr|Mär|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Sept|Okt|Nov|Dez)\b)\.?/,
   }
 };
 
@@ -10771,61 +10808,6 @@ the string section. */
 
 Rex.splitTrans = flags => (...rs) => s => s.split(
   new RegExp(rs.map(rx => rx.source).join("|"), flags));
-
-
-/* Split a string at tokens that can consists of unicode letters, digits and
-a selection of punctuation characters. All other characters are treated as part
-of the separator and can be either dropped or captured. */
-
-Rex.splitToken = ({capture, puncts}) => ({
-  [Symbol.split] (s) {
-    const xs = [];
-    let mode = null, buf = "";
-
-    for (let i = 0; i < s.length; i++) {
-      const c = s[i];
-
-      if (/[\p{L}\d]/v.test(c)) {
-        if (mode === "sep") {
-          if (capture) xs.push(buf);
-          buf = "";
-        }
-
-        mode = "token";
-        buf += c;
-      }
-
-      else if (puncts.has(c)) {
-        if (mode === "sep") {
-          if (capture) xs.push(buf);
-          buf = "";
-        }
-
-        mode = "token";
-        buf += c;
-      }
-
-      else {
-        if (mode === "token") {
-          xs.push(buf);
-          buf = "";
-        }
-
-        mode = "sep";
-        buf += c;
-      }
-
-      if (i + 1 === s.length) {
-        if (buf !== "") {
-          if (mode === "token") xs.push(buf);
-          else if (mode === "sep" && capture) xs.push(buf);
-        }
-      }
-    }
-
-    return xs;
-  }
-});
 
 
 /*
