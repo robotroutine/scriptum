@@ -6621,6 +6621,43 @@ export const Ait = {};
 
 
 /*
+█████ Alternation █████████████████████████████████████████████████████████████*/
+
+
+// alternate two async iterators
+
+Ait.alternate = ix => async function* (iy) {
+  for await (const x of ix) {
+    for await (const y of iy) {
+      yield x;
+      yield y;
+    }    
+  }
+};
+
+
+// interpolate a string into an async iterator
+
+Ait.interpolate = s => async function* (ix) {
+  for await (const t of ix) {
+    yield t;
+    yield s;
+  }
+};
+
+
+// interpolate a string into an array
+
+Ait.interpolateArr = s => async function* (xs) {
+  for (let i = 0; i < xs.length; i++) {
+    const t = await xs[i];
+    yield t
+    yield s;
+  }
+};
+
+
+/*
 █████ Chunking ████████████████████████████████████████████████████████████████*/
 
 
@@ -6744,43 +6781,6 @@ Ait.nonOverlappingChunks = num => async function* (ix) {
     const xs = Array(num).fill("");
     xs[0] = chunk;
     yield xs;
-  }
-};
-
-
-/*
-█████ Combining ███████████████████████████████████████████████████████████████*/
-
-
-// alternate two streams
-
-Ait.alternate = ix => async function* (iy) {
-  for await (const x of ix) {
-    for await (const y of iy) {
-      yield x;
-      yield y;
-    }    
-  }
-};
-
-
-// interpolate a string into a stream
-
-Ait.interpolate = s => async function* (ix) {
-  for await (const t of ix) {
-    yield t;
-    yield s;
-  }
-};
-
-
-// interpolate a string into an array
-
-Ait.interpolateArr = s => async function* (xs) {
-  for (let i = 0; i < xs.length; i++) {
-    const t = await xs[i];
-    yield t
-    yield s;
   }
 };
 
@@ -11477,7 +11477,10 @@ Collator option object properties (first one is default value):
   * numeric = false/true
   * caseFirst = false/true
   * sensitivity = "variant"/"base"/"accent"/"case"
-  * ignorePunctuation = false/true */
+  * ignorePunctuation = false/true
+
+If case insensitive string comparison is required, set the `sensitivity`
+property in the option argument to `"accent"`, */
 
 
 Str.compare = ({locale, opt}) => s => t =>
@@ -11486,6 +11489,29 @@ Str.compare = ({locale, opt}) => s => t =>
 
 Str.compare_ = ({locale, opt}) =>
   new Intl.Collator(locale, opt).compare;
+
+
+/*
+█████ Pre-Postfixing ██████████████████████████████████████████████████████████*/
+
+
+// retrieve pre-/postfix in a case-insensitive manner
+
+Str.retrieveFixes = kws => token => {
+  const xs = [];
+
+  for (const kw of kws) {
+    if (kw.length >= token.length) continue;
+    
+    if (new RegExp(`^${kw}`, "vi").test(token))
+      xs.push({prefix: kw, rest: token.slice(kw.length - token.length)});
+
+    if (new RegExp(`${kw}$`, "vi").test(token))
+      xs.push({postfix: kw, rest: token.slice(0, token.length - kw.length)});
+  }
+
+  return xs;
+};
 
 
 /*
