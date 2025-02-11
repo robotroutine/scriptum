@@ -5754,11 +5754,22 @@ It.alternate = ix => function* (iy) {
 };
 
 
-It.interpolate = y => function* (xs) {
+// interpolate a string into a stream
+
+It.interpolate = s => function* (ix) {
+  for (const t of ix) {
+    yield t;
+    yield s;
+  }
+};
+
+
+// interpolate a string into an array
+
+It.interpolateArr = s => function* (xs) {
   for (let i = 0; i < xs.length; i++) {
-    for (const x of xs[i]) yield x;
-    if (i === xs.length - 1) break;
-    else yield y;
+    yield xs[i];
+    yield s;
   }
 };
 
@@ -6767,7 +6778,8 @@ Ait.interpolate = s => async function* (ix) {
 
 Ait.interpolateArr = s => async function* (xs) {
   for (let i = 0; i < xs.length; i++) {
-    for await (const t of xs[i]) yield t
+    const t = await xs[i];
+    yield t
     yield s;
   }
 };
