@@ -6753,21 +6753,22 @@ Ait.alternate = ix => async function* (iy) {
 };
 
 
-// alternate a stream and a string
+// interpolate a string into a stream
 
-Ait.alternateStr = s => async function* (ix) {
-  for await (const x of ix) {
-    yield x;
+Ait.interpolate = s => async function* (ix) {
+  for await (const t of ix) {
+    yield t;
     yield s;
   }
 };
 
 
-Ait.interpolate = s => async function* (xs) {
+// interpolate a string into an array
+
+Ait.interpolateArr = s => async function* (xs) {
   for (let i = 0; i < xs.length; i++) {
-    for await (const x of xs[i]) yield x
-    if (i === xs.length - 1) break;
-    else yield s;
+    for await (const t of xs[i]) yield t
+    yield s;
   }
 };
 
@@ -11306,6 +11307,27 @@ export const Str = {}; // namespace
 
 
 /*
+█████ Casing ██████████████████████████████████████████████████████████████████*/
+
+
+Str.capitalize = s =>
+  s.split(" ")
+    .map(t => t === "" ? t : t[0].toUpperCase() + t.slice(1).toLowerCase())
+    .join(" ")
+    .split("-")
+    .map(t => t === "" ? t : t[0].toUpperCase() + t.slice(1))
+    .join("-")
+    .split(".")
+    .map(t => t === "" ? t : t[0].toUpperCase() + t.slice(1))
+    .join(".");
+
+
+// two consecutive upper-case letters are sufficient
+
+Str.isAllCaps = s => /\p{Lu}{2,}/v.test(s);
+
+
+/*
 █████ Concatenization █████████████████████████████████████████████████████████*/
 
 
@@ -11531,11 +11553,6 @@ Str.splitChunk = ({size, pad = " ", overlap = false}) => s => {
 
 /*
 █████ Misc. ███████████████████████████████████████████████████████████████████*/
-
-
-// TODO: consider ' and - and .
-
-Str.capitalize = s => s[0].strToUpper() + s.slice(1).strToLower();
 
 
 /* Plain applicator but with a telling name. Intended use:
