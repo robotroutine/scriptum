@@ -1578,9 +1578,6 @@ export const compareOn = order => compBoth(order);
 export const compareOn_ = order => f => x => y => order(f(x), f(y));
 
 
-export const comparator = m => n => m < n ? -1 : m > n ? 1 : 0;
-
-
 /*
 █████ Short Circuiting ████████████████████████████████████████████████████████*/
 
@@ -11483,31 +11480,75 @@ If case insensitive string comparison is required, set the `sensitivity`
 property in the option argument to `"accent"`, */
 
 
-Str.compare = ({locale, opt}) => s => t =>
-  new Intl.Collator(locale, opt).compare(s, t);
+Str.comparator = locale => ({
+  usage,
+  caseFirst = false,
+  collation = false,
+  ignorePunctuation = false,
+  numeric = false,
+  sensitivity = "variant"}) => s => t =>
+    new Intl.Collator(locale, opt).compare(s, t);
 
 
-Str.compare_ = ({locale, opt}) =>
-  new Intl.Collator(locale, opt).compare;
+Str.comparator_ = locale => ({
+  usage,
+  caseFirst = false,
+  collation = false,
+  ignorePunctuation = false,
+  numeric = false,
+  sensitivity = "variant"}) => s => t =>
+    new Intl.Collator(locale, opt).compare(s, t);
+
+
+Str.comparatorDe = Str.comparator("de-DE");
+
+
+Str.comparatorDe = Str.comparator_("de-DE");
 
 
 /*
-█████ Pre-Postfixing ██████████████████████████████████████████████████████████*/
+█████ Pre-/Postfixing █████████████████████████████████████████████████████████*/
 
 
-// retrieve pre-/postfix in a case-insensitive manner
+/* Find possible pre- and postfixes in a case-insensitive manner by comparing
+the given token to a list of well-known keywords. Should only be used after all
+other alternatives are exhausted, since it is a very expensive operation. */
 
-Str.retrieveFixes = kws => token => {
+Str.lookupFixes = kws => token => {
   const xs = [];
 
   for (const kw of kws) {
     if (kw.length >= token.length) continue;
     
-    if (new RegExp(`^${kw}`, "vi").test(token))
-      xs.push({prefix: kw, rest: token.slice(kw.length - token.length)});
+    if (new RegExp(`^${kw}|${kw}$`, "vi").test(token)) {
+      const o = token.match(new RegExp(`^(?<pre>${kw})|(?<post>${kw})$`, "vi")),
+        type = o.groups.pre ? "prefix" : "postfix";
 
-    if (new RegExp(`${kw}$`, "vi").test(token))
-      xs.push({postfix: kw, rest: token.slice(0, token.length - kw.length)});
+      const rest = type === "prefix"
+        ? token.slice(kw.length - token.length)
+        : token.slice(0, token.length - kw.length);
+
+      const compare = Str.comparatorDe({
+        usage: "search",
+        sensitivity: "accent"});
+    
+      if (kws.has(rest))
+        xs.push({type, kws: [kw, rest], rest: "", token});
+
+      else {
+        let matched = false;
+
+        for (const kw2 of kws) {
+          if (compare(kw2, rest) === EQ) {
+            xs.push({type, kws: [kw, kw2], rest: "", token});
+            matched = true;
+            break;
+          }
+        }
+
+        if (!matched) xs.push({type, kws: [kw], rest, token});
+      }
+    }
   }
 
   return xs;
