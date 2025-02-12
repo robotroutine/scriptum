@@ -15,8 +15,14 @@ Author: Iven Marquardt
 
 Scriptum's focus is a consequence of being the foundation of a more elaborate natural language processing lib that covers the following aspects:
 
-* natural language tokenization (sentences and words)
-* evaluated diffing (evaluated differences between two words)
-* typo/spelling tolerance (takes typos and alternative spellings into account)
+* natural language tokenization (sentences/words)
+* abbreviation recognition
+* word frequency, dispersion, and co-occurrence
+* spelling tolerance (take typos and alternative spellings into account)
+* word stemming
+* evaluating word diffing
+* sentence equivalence
+* semantic category mapping
+* associative maps
 
 The NLP lib isn't disclosed on Github for the time being.
