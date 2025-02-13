@@ -11316,27 +11316,6 @@ export const Str = {}; // namespace
 
 
 /*
-█████ Casing ██████████████████████████████████████████████████████████████████*/
-
-
-Str.capitalize = s =>
-  s.split(" ")
-    .map(t => t === "" ? t : t[0].toUpperCase() + t.slice(1).toLowerCase())
-    .join(" ")
-    .split("-")
-    .map(t => t === "" ? t : t[0].toUpperCase() + t.slice(1))
-    .join("-")
-    .split(".")
-    .map(t => t === "" ? t : t[0].toUpperCase() + t.slice(1))
-    .join(".");
-
-
-// two consecutive upper-case letters are sufficient
-
-Str.isAllCaps = s => /\p{Lu}{2,}/v.test(s);
-
-
-/*
 █████ Concatenization █████████████████████████████████████████████████████████*/
 
 
@@ -11353,11 +11332,24 @@ Str.cat_ = Str.catWith(" ");
 █████ Counting ████████████████████████████████████████████████████████████████*/
 
 
-Str.count = t => s => {
+Str.count = seed => s => {
   let n = 0, offset = 0;
 
   while (true) {
-    const i = s.indexOf(t, offset);
+    const i = s.indexOf(seed, offset);
+    if (i === -1) break;
+    else (n++, offset = i + 1);
+  }
+
+  return n;
+};
+
+
+Str.count_ = (s, seed) => {
+  let n = 0, offset = 0;
+
+  while (true) {
+    const i = s.indexOf(seed, offset);
     if (i === -1) break;
     else (n++, offset = i + 1);
   }
@@ -11570,7 +11562,7 @@ Str.splitChunk = ({size, pad = " ", overlap = false}) => s => {
 
 
 /*
-█████ Misc. ███████████████████████████████████████████████████████████████████*/
+█████ Template ████████████████████████████████████████████████████████████████*/
 
 
 /* Plain applicator but with a telling name. Intended use:
