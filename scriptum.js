@@ -6346,6 +6346,45 @@ It.Align.Monoid = {
 
 
 /*
+█████ Special Folds/Maps ██████████████████████████████████████████████████████*/
+
+
+It.foldi = f => acc => ix => {
+  let i = 0;
+
+  while (true) {
+    const o = ix.next();
+    if (o.done) return acc;
+    else acc = f(acc) (o.value, i++);
+  }
+};
+
+
+// uncurried
+
+It.foldi_ = f => acc => ix => {
+  let i = 0;
+  
+  while (true) {
+    const o = ix.next();
+    if (o.done) return acc;
+    else acc = f(acc, o.value, i++);
+  }
+};
+
+
+It.mapi = f => function* (ix) {
+  let i = 0;
+
+  while (true) {
+    const o = ix.next();
+    if (o.done) return undefined;
+    else yield f(o.value, i++);
+  }
+};
+
+
+/*
 █████ Sublists ████████████████████████████████████████████████████████████████*/
 
 
@@ -7218,7 +7257,7 @@ _Map.set = (k, v) => m => m.set(k, v);
 _Map.del = k => m => m.delete(k);
 
 
-_Map.upd = (k, f) => m => {
+_Map.upd = f => k => m => {
   if (m.has(k)) return m.set(k, f(m.get(k)));
   else return m;
 };
@@ -7229,6 +7268,12 @@ set the provided value. */
 
 _Map.updOr = f => (k, v) => m => {
   if (m.has(k)) return m.set(k, f(m.get(k)) (v));
+  else return m.set(k, v);
+};
+
+
+_Map.updOr_ = f => (k, v) => m => {
+  if (m.has(k)) return m.set(k, f(m.get(k), v));
   else return m.set(k, v);
 };
 
