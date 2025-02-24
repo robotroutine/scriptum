@@ -3140,7 +3140,7 @@ A.foldk = f => init => xs =>
         (init, 0);
 
 
-// eager, right-associative and yet stack-safe fold
+// strict, right-associative and yet stack-safe fold
 
 A.foldr = f => acc => xs => Stack(i => {
   if (i === xs.length) return Stack.base(acc);
@@ -3211,7 +3211,10 @@ A.foldMap = Monoid => f => xs => {
 };
 
 
-A.sum = acc => A.fold((m, n) => m + n) (acc);
+A.sum = acc => A.foldl(m => n => m + n) (acc);
+
+
+A.sum_ = acc => A.foldl_((m, n) => m + n) (acc);
 
 
 A.Foldable = {
@@ -5065,7 +5068,7 @@ D.fromStr = (locale, century = 20) => s => {
 };
 
 
-// parse the time string and add set it to the date object
+// parse the time string and add it to the date object
 
 D.fromTimeStr = locale => d => s => {
   for (const rx of Rex.iso.times) {
@@ -5946,7 +5949,7 @@ It.Filterable = {filter: It.filter};
 █████ Foldable ████████████████████████████████████████████████████████████████*/
 
 
-// exhaustive left-associative fold
+// strict left-associative fold
 
 It.foldl = f => acc => ix => {
   while (true) {
@@ -5968,10 +5971,39 @@ It.foldl_ = f => acc => ix => {
 };
 
 
-// there is no right-accosiative fold due to possibly infinite streams
+// strict, right-associative and yet stack-safe fold
+
+It.foldr = f => acc => ix => function (stack) {
+  while (true) {
+    const o = ix.next();
+    if (o.done) break;
+    else stack.push(o.value);
+  }
+
+  for (let i = stack.length - 1; i >= 0; i--)
+    acc = f(acc) (stack[i]);
+
+  return acc;
+} ([]);
 
 
-// exhaustive map followed by folding the resulting monoid
+// uncurried
+
+It.foldr_ = f => acc => ix => function (stack) {
+  while (true) {
+    const o = ix.next();
+    if (o.done) break;
+    else stack.push(o.value);
+  }
+
+  for (let i = stack.length - 1; i >= 0; i--)
+    acc = f(acc, stack[i]);
+
+  return acc;
+} ([]);
+
+
+// strict map followed by folding the resulting monoid
 
 It.foldMap = Monoid => f => ix => {
   let acc = Monoid.empty;
@@ -5996,7 +6028,8 @@ It.sum = acc => ix => {
 
 
 It.Foldable = {
-  foldl: It.foldl
+  foldl: It.foldl,
+  foldr: It.foldr
 };
 
 
@@ -6872,7 +6905,7 @@ Ait.Filterable = {filter: Ait.filter};
 █████ Foldable ████████████████████████████████████████████████████████████████*/
 
 
-// exhaustive left-associative fold
+// strict left-associative fold
 
 Ait.foldl = f => acc => async function (ix) {
   for await (const x of ix) acc = f(acc) (x);
@@ -6888,10 +6921,31 @@ Ait.foldl_ = f => acc => async function (ix) {
 };
 
 
-// there is no right-accosiative fold due to possibly infinite streams
+// strict, right-associative and yet stack-safe fold
+
+Ait.foldr = f => acc => ix => async function (stack) {
+  for await (const x of ix) stack.push(x);
+
+  for (let i = stack.length - 1; i >= 0; i--)
+    acc = f(stack[i]) (acc);
+
+  return acc;
+} ([]);
 
 
-// exhaustive map followed by folding the resulting monoid
+// uncurried
+
+Ait.foldr_ = f => acc => ix => async function (stack) {
+  for await (const x of ix) stack.push(x);
+
+  for (let i = stack.length - 1; i >= 0; i--)
+    acc = f(stack[i], acc);
+
+  return acc;
+} ([]);
+
+
+// strict map followed by folding the resulting monoid
 
 Ait.foldMap = Monoid => f => async function (ix) {
   let acc = Monoid.empty;
@@ -6901,7 +6955,8 @@ Ait.foldMap = Monoid => f => async function (ix) {
 
 
 Ait.Foldable = {
-  foldl: Ait.foldl
+  foldl: Ait.foldl,
+  foldr: Ait.foldr
 };
 
 
@@ -7898,11 +7953,36 @@ O.del_ = k => o => {
 O.get = k => o => k in o ? o[k] : null;
 
 
-O.getOr = x => k => o => k in o ? o[k] : x;
+// use getters to either throw or supply a default value on missing properties
+
+O.getPath = (...getters) => o => {
+  for (const getter of getters) {
+    if (o) o = getter(o);
+    else break;
+  }
+
+  return o;
+};
 
 
-O.getDeepOr = x => (...keys) => o => {
-  for (const k of keys) {
+O.getPath_ = getters => o => {
+  for (const getter of getters) {
+    if (o) o = getter(o);
+    else break;
+  }
+
+  return o;
+};
+
+
+// getter meant to be used with `O.getPath_`
+
+O.getPathOrThrow = k => o => k in o
+  ? o[k] : _throw(`missing property "${k}"`);
+
+
+O.getPathOr = x => (...ks) => o => {
+  for (const k of ks) {
     if (o) o = o[k];
     else return x;
   }
@@ -7911,22 +7991,7 @@ O.getDeepOr = x => (...keys) => o => {
 };
 
 
-O.getDeep = O.getDeepOr(undefined);
-
-
-// more general version
-
-O.getDeepOr_ = x => (...getters) => o => {
-  for (const getter of getters) {
-    if (o) o = getter(o);
-    else return x;
-  }
-
-  return o === undefined ? x : o;
-};
-
-
-O.getDeep_ = O.getDeepOr_(undefined);
+O.getOr = x => k => o => k in o ? o[k] : x;
 
 
 O.set = (k, v) => o => (o[k] = v, o);
@@ -10311,32 +10376,35 @@ export const Rex = {};
 █████ Bounds ██████████████████████████████████████████████████████████████████*/
 
 
-/* Combine the supplied `pattern` with its `left` and `right` boundaries and
-create a regular expression out of it. All patterns must be string encoded
-regular expressions. Character classes like `\p{P}` or `\d` are most suitable
-as boundaries. */
+/* Combine the passed substring with its left and right boundary pattern and
+create a regular expression from it. Boundary patterns are meant to be positive
+or negative character classes of some sort. */
 
-Rex.bound = flags => (...left) => (...right) => pattern => {
-  const l = left.map(rx => rx.source).join(""),
-    r = right.map(rx => rx.source).join("");
+Rex.bound = (...left) => (...right) => s => {
+  let flags = "";
 
-  return new RegExp(`(?<=^|[${l}])${pattern}(?=$|[${r}])`, flags);
+  const l = left.map(rx => (flags += rx.flags, rx.source)).join(""),
+    r = right.map(rx => (flags += rx.flags, rx.source)).join("");
+
+  return new RegExp(`(?<=^|[${l}])${s}(?=$|[${r}])`, flags);
 };
 
 
 // create only a left boundary
 
-Rex.leftBound = flags => (...left) => pattern => {
-  const l = left.map(rx => rx.source).join("");
-  return new RegExp(`(?<=^|[${l}])${pattern}`, flags);
+Rex.leftBound = (...left) => s => {
+  let flags = "";
+  const l = left.map(rx => (flags += rx.flags, rx.source)).join("");
+  return new RegExp(`(?<=^|[${l}])${s}`, flags);
 };
 
 
 // create only a right boundary
 
-Rex.rightBound = flags => (...right) => pattern => {
-  const r = right.map(rx => rx.source).join("");
-  return new RegExp(`${pattern}(?=$|[${r}])`, flags);
+Rex.rightBound = flags => (...right) => s => {
+  let flags = "";
+  const r = right.map(rx => (flags += rx.flags, rx.source)).join("");
+  return new RegExp(`${s}(?=$|[${r}])`, flags);
 };
 
 
@@ -10759,8 +10827,8 @@ Rex.matchNthWith_ = p => rx => s => {
 
 Rex.iso = {
   dates: [
-    /^(?<y>\d\d)\.(?<m>\d\d)\.(?<d>\d\d)$/, // 24-12-01
-    /^(?<y>\d{4})\.(?<m>\d\d)\.(?<d>\d\d)$/, // 2024-12-01
+    /^(?<y>\d\d)-(?<m>\d\d)-(?<d>\d\d)$/, // 24-12-01
+    /^(?<y>\d{4})-(?<m>\d\d)-(?<d>\d\d)$/, // 2024-12-01
   ],
 
   times: [
@@ -10875,7 +10943,20 @@ Rex.count = rx => s => Array.from(s.matchAll(rx)).length;
 Rex.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 
-Rex.normalizeNewline = s => s.replaceAll(/\r\n/g, "\n");
+/* Replace the following characters:
+
+  * redundant newlines or spaces
+  * all control chars but newline
+  * all special spaces like NBSP */
+
+Rex.normalize = s => s
+  .replaceAll(/\r?\n/g, "<nl/>")
+  .replaceAll(/[\p{C}\p{Z}]/gv, " ")
+  .replaceAll(/ {2,}/g, " ")
+  .replaceAll(/^ +/g, " ")
+  .replaceAll(/ +$/g, " ")
+  .replaceAll(/<nl\/>{2,}/g, "<nl/>")
+  .replaceAll(/<nl\/>/g, "\n");
 
 
 /*█████████████████████████████████████████████████████████████████████████████
