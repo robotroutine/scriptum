@@ -2854,9 +2854,12 @@ A.fromAitValues = () => comp(S.fromPromise) (async function (ix) {
 });
 
 
-A.fromCsv = ({sep, headings}) => csv => {
+A.fromCsv = ({sep, delim, headings}) => csv => {
   const table = csv.trim()
-    .replaceAll(/"/g, "")
+    .replaceAll(new RegExp(`${delim}${sep}`, "g"), sep)
+    .replaceAll(new RegExp(`${sep}${delim}`, "g"), sep)
+    .replaceAll(new RegExp(`^${delim}`, "gm"), "")
+    .replaceAll(new RegExp(`${delim}$`, "gm"), "")
     .split(/\r?\n/)
     .map(row => row.split(sep));
 
@@ -6403,6 +6406,44 @@ It.foldi_ = f => acc => ix => {
     if (o.done) return acc;
     else acc = f(acc, o.value, i++);
   }
+};
+
+
+It.fold3 = f => acc => ix => {
+  let prev = null,
+    curr = {value: "", done: false},
+    next = ix.next();
+
+  while (true) {
+    prev = curr;
+    curr = next;
+    next = ix.next();
+    
+    if (next.done) break;
+    else acc = f(acc, prev.value, curr.value, next.value);
+  }
+
+  return f(acc) (prev.value, curr.value, "");
+};
+
+
+// uncurried
+
+It.fold3_ = f => acc => ix => {
+  let prev = null,
+    curr = {value: "", done: false},
+    next = ix.next();
+
+  while (true) {
+    prev = curr;
+    curr = next;
+    next = ix.next();
+    
+    if (next.done) break;
+    else acc = f(acc, prev.value, curr.value, next.value);
+  }
+
+  return f(acc, prev.value, curr.value, "");
 };
 
 
@@ -10860,10 +10901,10 @@ Rex.i18n = {
       /^(?<d>\d\d)\.(?<m>\d\d)\.(?<y>\d{4})$/, // 01.12.2024
     ],
 
-    // times equal iso formats
+    // time is equal to iso formats and thus skipped
 
     nums : [
-      /^(?<sign>\+|\-)?(?<int>\d+(?:\d{3})*),(?<frac>\d+)(?<postsign>\+|\-)?$/, // 1234,567
+      /^(?<sign>\+|\-)?(?<int>\d+),(?<frac>\d+)(?<postsign>\+|\-)?$/, // 1234,567
       /^(?<sign>\+|\-)?(?<int>\d+(?:\.\d{3})*),(?<frac>\d+)(?<postsign>\+|\-)?$/, // 1.234,567
     ],
 
@@ -10877,24 +10918,61 @@ Rex.i18n = {
 █████ Replacing ███████████████████████████████████████████████████████████████*/
 
 
-// provide a neat argument list for the replacer function
-
-Rex.replace = (f, rx) => s => {
+Rex.replaceAll = (f, rx) => s => {
   return s.replaceAll(rx, (...args) => {
-    const o = typeof args[args.length - 1] === "object"
+    const groups = typeof args[args.length - 1] === "object"
       ? args.pop() : {};
 
-    const s = args.shift(), xs = [];
+    const s = args.shift(), matches = [];
+    let i;
 
     while (true) {
       const arg = args.shift();
-      if (typeof arg === "number") break;
-      else groups.push(arg);
+      
+      if (typeof arg === "number") {
+        i = arg;
+        break;
+      }
+      
+      else matches.push(arg);
     }
       
-    return f({s, i: args[0], xs, o});
+    return f({s, i, matches, groups});
   });
 };
+
+
+Rex.replaceFirst = (f, rx) => s => {
+  if (rx.flags.search("g") !== NOT_FOUND)
+    throw new Err("unexpected global flag");
+
+  return s.replace(rx, (...args) => {
+    const groups = typeof args[args.length - 1] === "object"
+      ? args.pop() : {};
+
+    const s = args.shift(), matches = [];
+    let i;
+
+    while (true) {
+      const arg = args.shift();
+      
+      if (typeof arg === "number") {
+        i = arg;
+        break;
+      }
+      
+      else matches.push(arg);
+    }
+      
+    return f({s, i, matches, groups});
+  });
+};
+
+
+// TODO: Rex.replaceLast
+
+
+// TODO: Rex.replaceNth
 
 
 /*
@@ -11576,6 +11654,33 @@ Str.distance = a => b => {
   }
 
   return dd;
+};
+
+/*
+█████ Number String ███████████████████████████████████████████████████████████*/
+
+
+/* Take a list of regexes that include the following groups:
+  * sign or postsign
+  * int
+  * frac
+
+apply it to the passed number string and normalize it to the iso format. */
+
+Str.normalizeNum = xs => s => {
+  for (const rx of xs) {
+    const o = s.match(rx);
+    if (o === null) continue;
+    
+    else {
+      const sign = o.groups.sign !== undefined ? o.groups.sign
+        : o.groups.postsign !== undefined ? o.groups.postsign
+        : "";
+
+      return `${sign}${o.groups.int}.${o.groups.frac}`};
+  }
+
+  throw new Err(`invalid number string "${s}`);
 };
 
 
@@ -12621,8 +12726,13 @@ export const Node = process?.release?.name !== "node" ? {} : {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-  scanClas: ({mandatory, optional = {}, preds = {}, env = false}) => {
-    const o = {}, crossCheck = [];
+  /* Take an object of mandatory and optional command line arguments each and
+  check if all mandatory arguments are supplied. If a property of the mandatory
+  or optional object includes a predicate, use it to validate the respective
+  argument value. */
+
+  scanClas: ({mandatory, optional = {}}) => {
+    const o = {}, xs = [];
 
     process.argv.slice(2).forEach(arg => {
       if (arg[0] === "/") return;
@@ -12634,36 +12744,44 @@ export const Node = process?.release?.name !== "node" ? {} : {
         const [k, v = null] = arg.split("="),
           k2 = k.replaceAll(/-/g, "");
 
-        if (v === null) o[k2] = true;
+        if (k2 in mandatory) {
+          if (typeof mandatory[k2] === "function"
+            && !mandatory[k2] (v))
+              throw new Err(`malformed mandatory CLA "${k2}=${v}"`);
+
+          xs.push(k2);
+        }
         
-        else if (k2 in preds && !preds[k2] (v))
-          throw new Err(`malformed CLA "${k2}: ${v}"`);
+        else if (k2 in optional) {
+          if (typeof optional[k2] === "function"
+            && !optional[k2] (v))
+              throw new Err(`malformed optional CLA "${k2}=${v}"`);
+        }
 
-        else o[k2] = v;
-
-        if (k2 in mandatory) crossCheck.push(k2);
-        else if (k2 in optional) return;
         else throw new Err(`unknown CLA "${k2}"`);
+
+        o[k2] = v;
       }
-    });
+    }); 
 
-    const ks = Array.from(O.keys(mandatory));
+    const ks = Object.keys(mandatory);
 
-    if (ks.length !== crossCheck.length) {
-      const diff = A.diff(ks) (crossCheck).join(", ");
+    if (ks.length !== xs.length) {
+      const diff = A.diff(ks) (xs).join(", ");
       throw new Err(`missing CLAs "${diff}"`);
     }
 
-    if (env) {
-      for (const [k, v] of O.entries(o)) {
-        if (k in process.env)
-          throw new Err(`env var "${k}" already exists`);
+    return o;
+  },
 
-        else process.env[k] = v;
-      }
-    }
 
-    else return o;
+  setEnv: o => {
+    Object.keys(o).forEach(k => {
+      if (k in process.env) console.warn(`overwrite property "${k}"`);
+      process.env[k] = o[k];
+    });
+
+    return o;
   },
 
 
@@ -12782,13 +12900,13 @@ export const Node = process?.release?.name !== "node" ? {} : {
     Result: product("SqlResult", "sqr") ("data", "fields"),
 
 
-    createCredentials: ({charset = "utf8mb4", name}) => ({
-      host: process.env.sqlHost,
-      port: process.env.sqlPort,
-      user: process.env.sqlUser,
-      password: process.env.sqlPwd,
+    createCredentials: ({host, port, name, charset = "utf8mb4"}) => ({
+      host,
+      port,
+      user: process.dbUser,
+      password: process.env.dbPassword,
       database: name,
-      charset: charset
+      charset
     }),
 
 
