@@ -13,12 +13,14 @@ functional library for the Node.js environment */
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
+import __child from "node:child_process";
 import __fs from "node:fs";
 import __path from "node:path";
 import __stream from "node:stream";
 
 
 const Node = {
+  child: __child,
   fs: __fs,
   path: __path,
   stream: __stream
@@ -11739,11 +11741,11 @@ Str.cat_ = Str.catWith(" ");
 █████ Counting ████████████████████████████████████████████████████████████████*/
 
 
-Str.count = seed => s => {
+Str.count = t => s => {
   let n = 0, offset = 0;
 
   while (true) {
-    const i = s.indexOf(seed, offset);
+    const i = s.indexOf(t, offset);
     if (i === -1) break;
     else (n++, offset = i + 1);
   }
@@ -11752,11 +11754,11 @@ Str.count = seed => s => {
 };
 
 
-Str.count_ = (s, seed) => {
+Str.count_ = (s, t) => {
   let n = 0, offset = 0;
 
   while (true) {
-    const i = s.indexOf(seed, offset);
+    const i = s.indexOf(t, offset);
     if (i === -1) break;
     else (n++, offset = i + 1);
   }
@@ -13749,6 +13751,47 @@ O.fromAit = O.fromAit();
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+████████████████████████████████ CHILD PROCESS ████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+/* Pass an asynchronous type (`Serial`/`Parallel`) to get a child process.
+Example of use:
+
+  Child.exec("pdftotext -layout ./foo.pdf ./foo.txt")
+
+Yields either the text file or an error message from the executable (installed
+pdftotext assumed). */
+
+export const Child_ = Cons => {
+  const o = {};
+
+  o.handle = reify(p => {
+    p.exec = cmd => Cons(k =>
+      Node.child.exec(cmd, (e, stdout, stderr) => {
+        if (e) return k(new Err(e));
+        else if (stderr) return k(new Err(stderr));
+        else return k(stdout);
+      }));
+
+    return p;
+  });
+
+  o.throw = reify(p => {
+    p.exec = cmd => Cons(k =>
+      Node.child.exec(cmd, (e, stdout, stderr) => {
+        if (e) throw e;
+        else if (stderr) throw stderr;
+        else return k(stdout);
+      }));
+
+    return p;
+  });
+  return o;
+};
+
+
+/*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████ COMMAND LINE ARGUMENTS ████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
@@ -13822,7 +13865,7 @@ CLA.setEnv = o => {
 
 // pass an asynchronous type (`Serial`/`Parallel`) to get a file system instance
 
-export const FS = Cons => {
+export const FS_ = Cons => {
   const o = {};
 
   // file system that imposes error handling on the calling site
@@ -13966,7 +14009,7 @@ export const FS = Cons => {
 
 // pass an asynchronous type (`Serial`/`Parallel`) to get a SQL instance
 
-export const Sql = Cons => {
+export const SQL_ = Cons => {
   const o = {};
 
   // meta is additional data passed to the query
