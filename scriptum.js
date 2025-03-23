@@ -3,7 +3,26 @@
 /__` /  ` |__) | |__)  |  |  |  |\/| 
 .__/ \__, |  \ | |     |  \__/  |  | 
 
-functional library */
+functional library for the Node.js environment */
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+████████████████████████████████ DEPENDENCIES █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+import __fs from "node:fs";
+import __path from "node:path";
+import __stream from "node:stream";
+
+
+const Node = {
+  fs: __fs,
+  path: __path,
+  stream: __stream
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -6722,9 +6741,9 @@ It.ana = It.ana();
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Asynchronous iterators mostly intended for streaming. Associated combinators
-work with promises internally and it is their calling side which is meant to
-convert promises to more lawful asynchronous types like `Serial` or `Parallel`. */
+/* Asynchronous iterators are an abstraction for data streams and API calls.
+Associated combinators return promises. It is the calling site to wire them
+with the more lawful asynchronous types of this library. */
 
 
 export const Ait = {};
@@ -8114,29 +8133,6 @@ export const reify = f => f({});
 
 
 O.reify = reify;
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-███████████████████████████████████ STREAM ████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-/* Obsolete stream type. Use `createReadStream` from node's file system instead.
-Here is an exemplary use that does nothing but pass through chunks and append
-the word text at the end of the stream:
-
-  new stream.Transform({
-    transform(chunk, enc, next) {
-      //this.push(chunk);
-      next(null, chunk);
-    },
-
-    flush(next) {
-      //this.push("end");
-      next(null, "end");
-    }
-  });
-*/
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -11505,10 +11501,8 @@ _Set.diffr = s => t => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* An effectful stream is a generalized list utilizing monads, which requires
-lazy evaluation. Since Javascript is neither lazy nor has a monad ecosystem,
-there is no useful implementation based on a lazy-lists-like data structure.
-The closest you can get are an impure implementation using iterators. */
+/* There is no stream implementation because streams are a generalized lists
+and requires monads, transformers and lazy evaluation tha Javascript lacks. */
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -12716,73 +12710,71 @@ O.fromAit = O.fromAit();
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-// only supply if Node.js is running
-
-export const Node = process?.release?.name !== "node" ? {} : {
-
-
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████ COMMAND LINE ARGUMENTS ████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-  /* Take an object of mandatory and optional command line arguments each and
-  check if all mandatory arguments are supplied. If a property of the mandatory
-  or optional object includes a predicate, use it to validate the respective
-  argument value. */
+export const CLA = {};
 
-  scanClas: ({mandatory, optional = {}}) => {
-    const o = {}, xs = [];
 
-    process.argv.slice(2).forEach(arg => {
-      if (arg[0] === "/") return;
+/* Take an object of mandatory and optional command line arguments each and
+check if all mandatory arguments are supplied. If a property of the mandatory
+or optional object includes a predicate, use it to validate the respective
+argument value. */
 
-      else if (!/-[a-z]\b|--[a-z_]\w*=./.test(arg))
-        throw new Err(`malformed CLA "${arg}"`);
+CLA.scan = ({mandatory, optional = {}}) => {
+  const o = {}, xs = [];
 
-      else {
-        const [k, v = null] = arg.split("="),
-          k2 = k.replaceAll(/-/g, "");
+  process.argv.slice(2).forEach(arg => {
+    if (arg[0] === "/") return;
 
-        if (k2 in mandatory) {
-          if (typeof mandatory[k2] === "function"
-            && !mandatory[k2] (v))
-              throw new Err(`malformed mandatory CLA "${k2}=${v}"`);
+    else if (!/-[a-z]\b|--[a-z_]\w*=./.test(arg))
+      throw new Err(`malformed CLA "${arg}"`);
 
-          xs.push(k2);
-        }
-        
-        else if (k2 in optional) {
-          if (typeof optional[k2] === "function"
-            && !optional[k2] (v))
-              throw new Err(`malformed optional CLA "${k2}=${v}"`);
-        }
+    else {
+      const [k, v = null] = arg.split("="),
+        k2 = k.replaceAll(/-/g, "");
 
-        else throw new Err(`unknown CLA "${k2}"`);
+      if (k2 in mandatory) {
+        if (typeof mandatory[k2] === "function"
+          && !mandatory[k2] (v))
+            throw new Err(`malformed mandatory CLA "${k2}=${v}"`);
 
-        o[k2] = v;
+        xs.push(k2);
       }
-    }); 
+      
+      else if (k2 in optional) {
+        if (typeof optional[k2] === "function"
+          && !optional[k2] (v))
+            throw new Err(`malformed optional CLA "${k2}=${v}"`);
+      }
 
-    const ks = Object.keys(mandatory);
+      else throw new Err(`unknown CLA "${k2}"`);
 
-    if (ks.length !== xs.length) {
-      const diff = A.diff(ks) (xs).join(", ");
-      throw new Err(`missing CLAs "${diff}"`);
+      o[k2] = v;
     }
+  }); 
 
-    return o;
-  },
+  const ks = Object.keys(mandatory);
+
+  if (ks.length !== xs.length) {
+    const diff = A.diff(ks) (xs).join(", ");
+    throw new Err(`missing CLAs "${diff}"`);
+  }
+
+  return o;
+};
 
 
-  setEnv: o => {
-    Object.keys(o).forEach(k => {
-      if (k in process.env) console.warn(`overwrite property "${k}"`);
-      process.env[k] = o[k];
-    });
+CLA.setEnv = o => {
+  Object.keys(o).forEach(k => {
+    if (k in process.env) console.warn(`overwrite property "${k}"`);
+    process.env[k] = o[k];
+  });
 
-    return o;
-  },
+  return o;
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -12790,99 +12782,143 @@ export const Node = process?.release?.name !== "node" ? {} : {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-  /* The file system implementation is supplied as a formal parameter to avoid
-  a hard dependency. You can pass two different constructors to determine the
-  continuation semantics:
+// pass an asynchronous type (`Serial`/`Parallel`) to get a file system instance
 
-    * Parallel
-    * Serial
+export const FS = Cons => {
+  const o = {};
 
-  Since both types don't have built-in exception handling, you either
-  immediately throw or pass on exceptions for later handling. */
+  // file system that imposes error handling on the calling site
 
+  o.handle = reify(p => {
+    p.collectFiles = (rootPath, maxDepth, fileTypes) => {
+      return function go(acc, currentPath, depth) {
+        if (depth > maxDepth) return Cons.of();
 
-  FS: {
-    handle: fs => Cons => reify(o => {
-      o.copy = src => dest => Cons(k =>
-        fs.copyFile(src, dest, e =>
-          e ? k(new Err(e)) : k(null)));
+        return Cons.chain(p.scanDir({withFileTypes: true}) (currentPath)) (qs => {
+          if (intro(qs) === "Error") throw qs;
 
-      o.move = src => dest =>
-        Cons.chain(o.copy(src) (dest)) (e =>
-          e?.constructor?.name === "Exception" ? Cons.of(e) : o.unlink(src));
+          const xs = qs.map(q => {
+            const fullPath = Node.path.join(currentPath, q.name),
+              relativePath = Node.path.relative(rootPath, fullPath);
 
-      o.read = opt => path => Cons(k =>
-        fs.readFile(path, opt, (e, x) =>
-          e ? k(new Err(e)) : k(x)));
+            if (q.isFile()) {
+              const ys = q.name.split(/\./);
+              
+              if (ys.length > 1 && fileTypes.has(ys[ys.length - 1])) {
+                acc.push(relativePath);
+                return Cons.of();
+              }
 
-      o.readUtf8 = opt => path => Cons(k =>
-        fs.readFile(path, Object.assign(opt, {encoding: "utf8"}), (e, x) =>
-          e ? k(new Err(e)) : k(x)));
+              else return Cons.of();
+            }
 
-      o.readLatin1 = opt => path => Cons(k =>
-        fs.readFile(path, Object.assign(opt, {encoding: "latin1"}), (e, x) =>
-          e ? k(new Err(e)) : k(x)));
+            else if (q.isDirectory()) return go(acc, fullPath, depth + 1);
+            else return Cons.of();
+          });
 
-      o.scanDir = path => Cons(k =>
-        fs.readdir(path, (e, xs) =>
-          e ? k(new Err(e)) : k(xs)));
+          return Cons.map(_ =>
+            acc.map(path => Node.path.join(rootPath, path))) (Cons.allArr(xs));
+        });
+      } ([], rootPath, 0);
+    };
 
-      o.stat = path => Cons(k =>
-        fs.stat(path, (e, o) =>
-          e ? k(new Err(e)) : k(o)));
+    p.copy = src => dest => Cons(k =>
+      Node.fs.copyFile(src, dest, e =>
+        e ? k(new Err(e)) : k(null)));
 
-      o.unlink = path => Cons(k =>
-        fs.unlink(path, e =>
-          e ? k(new Err(e)) : k(null)));
+    p.move = src => dest =>
+      Cons.chain(p.copy(src) (dest)) (e =>
+        e?.constructor?.name === "Exception" ? Cons.of(e) : p.unlink(src));
 
-      o.write = opt => path => s => Cons(k =>
-        fs.writeFile(path, s, opt, e =>
-          e ? k(new Err(e)) : k(s)));
+    p.read = opt => path => Cons(k =>
+      Node.fs.readFile(path, opt, (e, x) =>
+        e ? k(new Err(e)) : k(x)));
 
-      return o;
-    }),
+    p.scanDir = opt => path => Cons(k =>
+      Node.fs.readdir(path, opt, (e, xs) =>
+        e ? k(new Err(e)) : k(xs)));
 
+    p.stat = path => Cons(k =>
+      Node.fs.stat(path, (e, p) =>
+        e ? k(new Err(e)) : k(p)));
 
-    throw: fs => Cons => reify(o => {
-      o.copy = src => dest => Cons(k =>
-        fs.copyFile(src, dest, e =>
-          e ? _throw(e) : k(null)));
+    p.unlink = path => Cons(k =>
+      Node.fs.unlink(path, e =>
+        e ? k(new Err(e)) : k(null)));
 
-      o.move = src => dest =>
-        Cons.chain(o.copy(src) (dest)) (_ =>
-          o.unlink(src));
+    p.write = opt => path => s => Cons(k =>
+      Node.fs.writeFile(path, s, opt, e =>
+        e ? k(new Err(e)) : k(s)));
 
-      o.read = opt => path => Cons(k =>
-        fs.readFile(path, opt, (e, x) =>
-          e ? _throw(e) : k(x)));
+    return p;
+  });
 
-      o.readUtf8 = opt => path => Cons(k =>
-        fs.readFile(path, Object.assign(opt, {encoding: "utf8"}), (e, x) =>
-          e ? _throw(e) : k(x)));
+  // file system that immediately throws on error
 
-      o.readLatin1 = opt => path => Cons(k =>
-        fs.readFile(path, Object.assign(opt, {encoding: "latin1"}), (e, x) =>
-          e ? _throw(e) : k(x)));
+  o.throw = reify(p => {
+    p.collectFiles = (rootPath, maxDepth, fileTypes) => {
+      return function go(acc, currentPath, depth) {
+        if (depth > maxDepth) return Cons.of();
 
-      o.scanDir = path => Cons(k =>
-        fs.readdir(path, (e, xs) =>
-          e ? _throw(e) : k(xs)));
+        return Cons.chain(p.scanDir({withFileTypes: true}) (currentPath)) (qs => {
+          const xs = qs.map(q => {
+            const fullPath = Node.path.join(currentPath, q.name),
+              relativePath = Node.path.relative(rootPath, fullPath);
 
-      o.stat = path => Cons(k =>
-        fs.stat(path, (e, o) =>
-          e ? _throw(e) : k(o)));
+            if (q.isFile()) {
+              const ys = q.name.split(/\./);
+              
+              if (ys.length > 1 && fileTypes.has(ys[ys.length - 1])) {
+                acc.push(relativePath);
+                return Cons.of();
+              }
 
-      o.unlink = path => Cons(k =>
-        fs.unlink(path, e =>
-          e ? _throw(e) : k(null)));
+              else return Cons.of();
+            }
 
-      o.write = opt => path => s => Cons(k =>
-        fs.writeFile(path, s, opt, e =>
-          e ? _throw(e) : k(s)));
+            else if (q.isDirectory()) return go(acc, fullPath, depth + 1);
+            else return Cons.of();
+          });
 
-      return o;
-    })
-  },
+          return Cons.map(_ =>
+            acc.map(path => Node.path.join(rootPath, path))) (Cons.allArr(xs));
+        });
+      } ([], rootPath, 0);
+    };
+
+    p.copy = src => dest => Cons(k =>
+      Node.fs.copyFile(src, dest, e =>
+        e ? _throw(e) : k(null)));
+
+    p.move = src => dest =>
+      Cons.chain(p.copy(src) (dest)) (_ =>
+        p.unlink(src));
+
+    p.read = opt => path => Cons(k =>
+      Node.fs.readFile(path, opt, (e, x) =>
+        e ? _throw(e) : k(x)));
+
+    p.scanDir = opt => path => Cons(k =>
+      Node.fs.readdir(path, opt, (e, xs) =>
+        e ? _throw(e) : k(xs)));
+
+    p.stat = path => Cons(k =>
+      Node.fs.stat(path, (e, p) =>
+        e ? _throw(e) : k(p)));
+
+    p.unlink = path => Cons(k =>
+      Node.fs.unlink(path, e =>
+        e ? _throw(e) : k(null)));
+
+    p.write = opt => path => s => Cons(k =>
+      Node.fs.writeFile(path, s, opt, e =>
+        e ? _throw(e) : k(s)));
+
+    return p;
+  });
+
+  return o;
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -12890,46 +12926,72 @@ export const Node = process?.release?.name !== "node" ? {} : {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-  Sql: {
+// pass an asynchronous type (`Serial`/`Parallel`) to get a SQL instance
 
-    // meta is additional data passed to the query
+export const Sql = Cons => {
+  const o = {};
 
-    Query: product("SqlQuery", "sq") ("meta", "query"),
+  // meta is additional data passed to the query
 
-
-    Result: product("SqlResult", "sqr") ("data", "fields"),
-
-
-    createCredentials: ({host, port, name, charset = "utf8mb4"}) => ({
-      host,
-      port,
-      user: process.dbUser,
-      password: process.env.dbPassword,
-      database: name,
-      charset
-    }),
+  o.Query = product("SqlQuery", "sq") ("meta", "query");
 
 
-    createResource: credentials => mysql.createConnection(credentials),
+  o.Result = product("SqlResult", "sr") ("data", "fields");
 
 
-    connect: res =>
-      P(k =>
+  o.createCredentials = ({host, port, name, charset = "utf8mb4"}) => ({
+    host,
+    port,
+    user: process.dbUser,
+    password: process.env.dbPassword,
+    database: name,
+    charset
+  });
+
+
+  o.createResource = credentials => mysql.createConnection(credentials);
+
+
+  o.handle = reify(p => {
+    p.connect = res =>
+      Cons(k =>
+        res.connect(e => e
+          ? k(new Err(e)) : k(res))),
+
+
+    o.disconnect = res =>
+      Cons(k =>
+        res.end(e => e
+          ? k(new Err(e)) : k(true))),
+
+
+    o.query = con => tx => Cons(k => {
+      return con.query(tx.sq.query, (e, data, fields) => {
+        if (e) return k(new Err(e));
+        else return k(Sql.Result(data, fields));
+      });
+    });
+  });
+
+
+  o.throw = reify(p => {
+    p.connect = res =>
+      Cons(k =>
         res.connect(e => e
           ? _throw(e) : k(res))),
 
 
-    disconnect: res =>
-      P(k =>
+    o.disconnect = res =>
+      Cons(k =>
         res.end(e => e
           ? _throw(e) : k(true))),
 
 
-    query: con => tx => P(k => {
+    o.query = con => tx => Cons(k => {
       return con.query(tx.sq.query, (e, data, fields) => {
         if (e) throw e;
         else return k(Sql.Result(data, fields));
       });
-    }),
-  },
+    });
+  });
 };
