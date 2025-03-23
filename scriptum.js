@@ -10413,35 +10413,29 @@ export const Rex = {};
 █████ Bounds ██████████████████████████████████████████████████████████████████*/
 
 
-/* Combine the passed substring with its left and right boundary pattern and
-create a regular expression from it. Boundary patterns are meant to be positive
-or negative character classes of some sort. */
+/* Create a more general word boundary pattern (`\b`) by combining the passed
+subpattern with its left/right character classes and create a regular expression
+from it. */
 
-Rex.bound = (...left) => (...right) => s => {
-  let flags = "";
-
-  const l = left.map(rx => (flags += rx.flags, rx.source)).join(""),
-    r = right.map(rx => (flags += rx.flags, rx.source)).join("");
-
-  return new RegExp(`(?<=^|[${l}])${s}(?=$|[${r}])`, flags);
+Rex.bound = ({left, right}) => rx => {
+  const flags = left.flags + right.flags + rx.flags;
+  return new RegExp(`(?<=^|[${left}])${rx.source}(?=$|[${right}])`, flags);
 };
 
 
 // create only a left boundary
 
-Rex.leftBound = (...left) => s => {
-  let flags = "";
-  const l = left.map(rx => (flags += rx.flags, rx.source)).join("");
-  return new RegExp(`(?<=^|[${l}])${s}`, flags);
+Rex.leftBound = left => rx => {
+  const flags = left.flags + rx.flags;
+  return new RegExp(`(?<=^|[${left}])${rx.source}`, flags);
 };
 
 
 // create only a right boundary
 
-Rex.rightBound = flags => (...right) => s => {
-  let flags = "";
-  const r = right.map(rx => (flags += rx.flags, rx.source)).join("");
-  return new RegExp(`${s}(?=$|[${r}])`, flags);
+Rex.rightBound = right => rx => {
+  const flags = right.flags + rx.flags;
+  return new RegExp(`${rx.source}(?=$|[${right}])`, flags);
 };
 
 
@@ -10450,6 +10444,28 @@ Rex.rightBound = flags => (...right) => s => {
 
 
 Rex.classes = {};
+
+
+Rex.classes.alnum = {
+  rex: /[\p{L}\p{N}]/v,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
+};
+
+
+Rex.classes.aldig = {
+  rex: /[\p{L}\d]/v,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
+};
 
 
 Rex.classes.letter = {
@@ -10539,7 +10555,7 @@ Rex.classes.num = {
 };
 
 
-Rex.classes.digits = {
+Rex.classes.digit = {
   rex: /\d/,
 
   get split() {
@@ -10562,6 +10578,8 @@ Rex.classes.punct = {
   },
 };
 
+
+// space
 
 Rex.classes.space = {
   rex: /\p{Z}/v,
@@ -10914,7 +10932,7 @@ Rex.i18n = {
 █████ Replacing ███████████████████████████████████████████████████████████████*/
 
 
-Rex.replaceAll = (f, rx) => s => {
+Rex.replaceAllWith = (rx, f) => s => {
   return s.replaceAll(rx, (...args) => {
     const groups = typeof args[args.length - 1] === "object"
       ? args.pop() : {};
@@ -10938,7 +10956,15 @@ Rex.replaceAll = (f, rx) => s => {
 };
 
 
-Rex.replaceFirst = (f, rx) => s => {
+Rex.replaceFirst = (rx, f) => s => {
+  if (rx.flags.search("g") !== NOT_FOUND)
+    throw new Err("unexpected global flag");
+
+  return s.replace(rx);
+};
+
+
+Rex.replaceFirstWith = (rx, f) => s => {
   if (rx.flags.search("g") !== NOT_FOUND)
     throw new Err("unexpected global flag");
 
@@ -10965,10 +10991,72 @@ Rex.replaceFirst = (f, rx) => s => {
 };
 
 
-// TODO: Rex.replaceLast
+Rex.replaceLast = (rx, t) => s => {
+  if (rx.flags.search("g") === NOT_FOUND)
+    throw new Err("missing global flag");
+
+  const xs = s.match(rx);
+
+  if (xs.length === 0) return s;
+
+  else {
+    const match = xs[xs.length - 1],
+      i = s.lastIndexOf(match);
+    
+    return str.slice(0, i) + t + str.slice(i + match.length);
+  }
+};
 
 
-// TODO: Rex.replaceNth
+Rex.replaceLastWith = (rx, f) => s => {
+  if (rx.flags.search("g") === NOT_FOUND)
+    throw new Err("missing global flag");
+
+  const xs = s.match(rx);
+
+  if (xs.length === 0) return s;
+
+  else {
+    const match = xs[xs.length - 1],
+      i = s.lastIndexOf(match);
+    
+    return str.slice(0, i) + f(match) + str.slice(i + match.length);
+  }
+};
+
+
+Rex.replaceNth = (rx, t, n) => s => {
+  if (rx.flags.search("g") === NOT_FOUND)
+    throw new Err("missing global flag");
+
+  const xs = s.match(rx);
+
+  if (xs.length < n - 1) return s;
+
+  else {
+    const match = xs[n - 1],
+      i = s.lastIndexOf(match);
+    
+    return str.slice(0, i) + t + str.slice(i + match.length);
+  }
+};
+
+
+Rex.replaceNthWith = (rx, f, n) => s => {
+  if (rx.flags.search("g") === NOT_FOUND)
+    throw new Err("missing global flag");
+
+  const xs = s.match(rx);
+
+  if (xs.length < n - 1) return s;
+
+  else {
+    const match = xs[n],
+      i = s.lastIndexOf(match);
+    
+    return str.slice(0, i) + f(match) + str.slice(i + match.length);
+  }
+};
 
 
 /*
@@ -11003,8 +11091,34 @@ The combinator is meant to be used with the predefined character classes in this
 section. If you need more granular control, use one of the split combinators from
 the string section. */
 
-Rex.splitTrans = flags => (...rs) => s => s.split(
+Rex.splitAt = flags => (...rs) => s => s.split(
   new RegExp(rs.map(rx => rx.source).join("|"), flags));
+
+
+Rex.splitAtAlnum = Rex.splitAt("v") (Rex.classes.alnum.split);
+
+
+Rex.splitAtAldig = Rex.splitAt("v") (Rex.classes.aldig.split);
+
+
+Rex.splitAtLetter = Rex.splitAt("v") (Rex.classes.letter.split);
+
+
+Rex.splitAtCasing = Rex.splitAt("v")
+  (Rex.classes.ucl.split, Rex.classes.lcl.split);
+
+
+Rex.splitAtNum = Rex.splitAt("v") (Rex.classes.num.split);
+
+
+Rex.splitAtDig = Rex.splitAt("v") (Rex.classes.digit.split);
+
+
+Rex.splitAtNonAlnum = Rex.splitAt("v") (
+  Rex.classes.punct.split,
+  Rex.classes.sym.split,
+  Rex.classes.space.split,
+  Rex.classes.crnl.split);
 
 
 /*
