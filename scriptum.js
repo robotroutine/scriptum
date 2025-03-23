@@ -11082,6 +11082,35 @@ Rex.searchAll = flags => rx => s =>
 █████ Splitting ███████████████████████████████████████████████████████████████*/
 
 
+// consolidate a splitted string
+
+Rex.consolidate = xs => {
+
+  // A-Dur
+
+  // Dipl.-Ing.
+
+  // 3-fach
+
+  // -fach
+
+  // Fach-
+
+  // Max'
+
+  // O'Hara
+
+  // Newton'sche
+
+  // 'ne
+
+  // u.s.w.
+
+  // usw.
+
+};
+
+
 /* Split a string based on certain transitions of character classes defined by
 regular expressions in the following form:
 
@@ -11628,6 +11657,72 @@ export const Str = {}; // namespace
 
 
 /*
+█████ Casing ██████████████████████████████████████████████████████████████████*/
+
+
+// capitalize a word and its potential word components
+
+Str.capitalize = word => {
+  const xs = word.split("-");
+
+  for (let i = 0; i < xs.length; i++) {
+    if (xs[i] === "") continue;
+    else if (xs[i - 1] === "") xs[i] = xs[i].toLowerCase();
+    else xs[i] = xs[i] [0].toUpperCase() + xs[i].slice(1).toLowerCase();
+
+    const ys = xs[i].split(".");
+
+    for (let i2 = 0; i2 < ys.length; i2++) {
+      if (ys[i2] === "") continue;
+      ys[i2] = ys[i2] [0].toUpperCase() + ys[i2].slice(1);
+    }
+
+    xs[i] = ys.join(".");
+
+    if (/\p{L}+'\p{L}{2,}/v.test(xs[i])) {
+      const zs = xs[i].split("'");
+
+      for (let i2 = 0; i2 < zs.length; i2++)
+        zs[i2] = zs[i2] [0].toUpperCase() + zs[i2].slice(1);
+
+      xs[i] = zs.join("'");
+    }
+  }
+
+  return xs.join("-");
+};
+
+
+Str.determineCasing = word => {
+  const s = word.toLowerCase();
+
+  if (s === word) return "all-lower-case";
+  else if (s.toUpperCase() === word) return "all-upper-case";
+  
+  else {
+    let guess = "";
+
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] !== word[i]) {
+        if (i === 0) guess = "sentence-case";
+        else if (s[i - 1] === "-") guess = "sentence-case";
+        else if (s[i - 1] === ".") guess = "sentence-case";
+        else if (s[i - 1] === "'") guess = "sentence-case";
+        else if (s[i - 1] === word[i - 1]) guess = "camel-case";
+        
+        else {
+          guess = "arbitrary-case";
+          break;
+        }
+      }
+    }
+
+    return guess;
+  }
+};
+
+
+/*
 █████ Concatenization █████████████████████████████████████████████████████████*/
 
 
@@ -11672,6 +11767,598 @@ Str.count_ = (s, seed) => {
 
 Str.countChars = s => s.split("").reduce((acc, c) =>
   _Map.inc(c) (acc), new Map());
+
+
+/*
+█████ Diffing █████████████████████████████████████████████████████████████████*/
+
+
+Str.Diff = {};
+
+
+Str.Diff.equivalence = new Map([
+  ["ä", "ae"], ["ü", "ue"], ["ö", "oe"], ["ß", "ss"], ["Æ", "Ae"],
+  ["æ", "ae"], ["ᴭ", "Ae"], ["ᵆ", "ae"], ["Ǽ", "Ae"], ["ǽ", "ae"],
+  ["Ǣ", "Ae"], ["ǣ", "ae"], ["ᴁ", "Ae"], ["ᴂ", "ae"], ["ȸ", "db"],
+  ["Ǳ", "Dz"], ["ǲ", "Dz"], ["ǳ", "dz"], ["Ǆ", "Dz"], ["ǅ", "Dz"],
+  ["ǆ", "dz"], ["ﬀ", "ff"], ["ﬃ", "ffi"], ["ﬄ", "ffl"], ["ﬁ", "fi"],
+  ["ﬂ", "fl"], ["Ĳ", "Ij"], ["ĳ", "ij"], ["Ǉ", "Lj"], ["ǈ", "Lj"],
+  ["ǉ", "lj"], ["Ǌ", "Nj"], ["ǋ", "Nj"], ["ǌ", "nj"], ["Œ", "Oe"],
+  ["œ", "oe"], ["ᴔ", "oe"], ["ȹ", "qp"], ["ᵫ", "ue"],
+]);
+
+
+Str.Diff.ocr = new Map([
+  ["0", ["D", "O", "o"]],
+  ["1", ["I", "l"]],
+  ["2", ["Z", "z"]],
+  ["5", ["S"]],
+  ["6", ["b", "G"]],
+  ["7", ["T"]],
+  ["8", ["S", "B"]],
+  ["9", ["g", "q"]],
+]);
+
+
+Str.Diff.ocr_ = new Map([
+  ["B", ["8"]],
+  ["b", ["6"]],
+  ["D", ["0"]],
+  ["G", ["6"]],
+  ["g", ["9"]],
+  ["I", ["1"]],
+  ["l", ["1"]],
+  ["O", ["0"]],
+  ["o", ["0"]],
+  ["q", ["9"]],
+  ["S", ["5", "8"]],
+  ["T", ["7"]],
+  ["Z", ["2"]],
+  ["z", ["2"]],
+]);
+
+
+Str.Diff.phonetics = new Map([
+  ["a", ["ah"]],
+  ["ä", ["äh"]],
+  ["c", ["k", "z"]],
+  ["d", ["dt", "t"]],
+  ["e", ["i"]],
+  ["f", ["ph"]],
+  ["g", ["gh"]],
+  ["i", ["e", "ie", "y"]],
+  ["k", ["c", "ck"]],
+  ["o", ["oh"]],
+  ["ö", ["öh"]],
+  ["p", ["ph"]],
+  ["r", ["rh"]],
+  ["s", ["ß", "z"]],
+  ["ß", ["s", "ss"]],
+  ["t", ["d", "th"]],
+  ["u", ["uh"]],
+  ["ü", ["üh"]],
+  ["y",["i"]],
+  ["z", ["c", "s", "ts", "tz"]],
+]);
+
+
+Str.Diff.phonetics2 = new Map([
+  ["ah", ["a"]],
+  ["äh", ["ä"]],
+  ["ck", ["k"]],
+  ["dt", ["d", "t"]],
+  ["gh", ["g"]],
+  ["ie", ["i"]],
+  ["oh", ["o"]],
+  ["öh", ["ö"]],
+  ["ph", ["f", "p"]],
+  ["rh", ["r"]],
+  ["ss", ["ß"]],
+  ["th", ["t"]],
+  ["ts", ["z"]],
+  ["tz", ["z"]],
+  ["uh", ["u"]],
+  ["üh", ["ü"]],
+]);
+
+
+Str.Diff.repetition = new Set(
+  ["b", "d", "f", "g", "l", "m", "n", "p", "r", "s", "t"]);
+
+
+// keyboard typos on the x-axis are far more likely than on the y-axis
+
+Str.Diff.keyb = new Map([
+  ["q", ["w"]],
+  ["w", ["q", "e"]],
+  ["e", ["w", "r"]],
+  ["r", ["e", "t"]],
+  ["t", ["r", "z"]],
+  ["z", ["t", "u"]],
+  ["u", ["z", "i"]],
+  ["i", ["u", "o"]],
+  ["o", ["i", "p"]],
+  ["p", ["o", "ü"]],
+  ["ü", ["p"]],
+  ["a", ["s"]],
+  ["s", ["a", "d"]],
+  ["d", ["s", "f"]],
+  ["f", ["d", "g"]],
+  ["g", ["f", "h"]],
+  ["h", ["g", "j"]],
+  ["j", ["h", "k"]],
+  ["k", ["j", "l"]],
+  ["l", ["k", "ö"]],
+  ["ö", ["l", "ä"]],
+  ["ä", ["ö"]],
+  ["y", ["x"]],
+  ["x", ["y", "c"]],
+  ["c", ["x", "v"]],
+  ["v", ["c", "b"]],
+  ["b", ["v", "n"]],
+  ["n", ["b", "m"]],
+  ["m", ["n"]],
+]);
+
+
+/* Determine all shared letters while preserving their order for two word-like
+strings, i.e. strings without spaces or newlines:
+  
+  "rethoric" = "rhetoric"
+  left difference:  [{s: "h", i: 3}]
+  right difference: [{s: "h", i: 1}]
+
+  "Getisburger" = "Gettysburg"
+  left difference:  [{s: "ty", i: 3}]
+  right difference: [{s: "i", i: 3}, {s: "er", i: 10}]
+
+The first argument is supposed to be the "left", possibly incorrect string,
+whereas the second one should be the "right" string used as a benchmark. */
+
+Str.Diff.words = l => r => {
+  const s = l.length <= r.length ? l : r,
+    t = l.length <= r.length ? r : l,
+    s_ = s.toLowerCase(),
+    t_ = t.toLowerCase(),
+    offset = t.length - s.length;
+
+  const o = diffWords(s_, t_);
+
+  if (t.length - o.indices.length <= t.length / 3) return o;
+
+  const o2 = offset < 2
+    ? diffWords(t_, " " + s_ + " ")
+    : diffWords(" " + s_ + " ", t_);
+
+  const o3 = diffWords(s_, " " + t_ + " ");
+  let o4;
+
+  if (o.indices.length >= o2.indices.length) {
+    if (o.indices.length >= o3.indices.length) o4 = o;
+    else o4 = o3;
+  }
+
+  else if (o2.indices.length >= o3.indices.length) o4 = o2;
+  else o4 = o3;
+
+  // reconstruct original casing
+
+  o4.left.diff = {
+    ci: o4.left.diff,
+    
+    cs: o4.left.diff.map(p =>
+      Object.assign({}, p, {s: s.slice(p.i, p.i + p.s.length)}))
+  };
+
+  o4.right.diff = {
+    ci: o4.right.diff,
+    
+    cs: o4.right.diff.map(p =>
+      Object.assign({}, p, {s: t.slice(p.i, p.i + p.s.length)}))
+  };
+
+  o4.left.s = s;
+  o4.right.s = t;
+
+  // detect potential casing deviations
+
+  for (const [i, j] of o4.indices) {
+    if (o4.left.s[i] !== o4.right.s[j]) {
+      if (o4.left.diff.cs.length) {
+        const last = o4.left.diff.cs[o4.left.diff.cs.length - 1];
+        if (i - last.i === last.s.length) last.s += o4.left.s[i];
+        else o4.left.diff.cs.push({s: o4.left.s[i], i});
+      }
+
+      else o4.left.diff.cs.push({s: o4.left.s[i], i});
+       
+      if (o4.right.diff.cs.length) {
+        const last = o4.right.diff.cs[o4.right.diff.cs.length - 1];
+        if (j - last.i === last.s.length) last.s += o4.right.s[j];
+        else o4.right.diff.cs.push({s: o4.right.s[j], i: j});
+      }
+
+      else o4.right.diff.cs.push({s: o4.right.s[j], i: j});
+
+      o4.indices.delete(i);
+    }
+  }
+
+  // necessary to preserve original argument order
+
+  if (o4.right.s !== r) {
+    const p = o4.left;
+    o4.left = o4.right;
+    o4.right = p;
+    
+    const m = new Map();
+    for (const pair of o4.indices) m.set(pair[1], pair[0]);
+    o4.indices = m;
+  }
+
+  return o4;
+};
+
+
+/* Determine the difference between two tokens, i.e. strings without spaces or
+newlines. */
+
+const diffWords = (s, t) => {
+  const offset = t.length - s.length,
+    offs = s[0] === " " ? 1 : 0,
+    offt = t[0] === " " ? 1 : 0,
+    pairs = [];
+
+  for (let j = 0; j <= offset; j++) {
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === t[i + j]) pairs.push([i - offs, i + j - offt]);
+    }
+  }
+
+  if (offs) s = s.slice(1, -1);
+  else if (offt) t = t.slice(1, -1);
+
+  pairs.sort((pair, pair2) => pair[0] - pair2[0]);
+
+  const m = new Map();
+  let max = -1;
+
+  for (const pair of pairs) {
+    if (m.has(pair[0])) continue;
+    else if (max >= pair[1]) continue;
+
+    else {
+      m.set(pair[0], pair[1]);
+      max = pair[1];
+    }
+  }
+
+  const indices = Array.from(m);
+
+  const left = [], right = [];
+  let maxl = 0, maxr = 0;
+
+  for (const pair of indices) {
+    if (pair[0] !== maxl) {
+      let buf = "";
+      for (let i = maxl; i < pair[0]; i++) buf += s[i];
+      left.push({s: buf, i: maxl});
+      maxl = pair[0];
+    }
+
+    if (pair[1] !== maxr) {
+      let buf = "";
+      for (let i = maxr; i < pair[1]; i++) buf += t[i];
+      right.push({s: buf, i: maxr});
+      maxr = pair[1];
+    }
+
+    maxl++;
+    maxr++;
+  }
+
+  if (indices.length === 0) {
+    left.push({s, i: 0});
+    right.push({s, i: 0});
+  }
+
+  else {
+    const last = indices[indices.length - 1];
+
+    if (last[0] + 1 < s.length) {
+      left.push({
+        s: s.slice(last[0] + 1),
+        i: last[0] + 1
+      });
+    }
+
+    if (last[1] + 1 < t.length) {
+      right.push({
+        s: t.slice(last[1] + 1),
+        i: last[1] + 1
+      });
+    }
+  }
+
+  return {
+    indices: m,
+    left: {s, diff: left},
+    right: {s: t, diff: right}
+  };
+};
+
+
+/* Quantify the difference between two tokens. As a rule of thumb, a score <1
+represents a soft typo whereas bigger scores are considered hard errors. */
+
+// TODO: consider OCR and keyboard errors
+
+Str.Diff.eval = o => {
+  const ls = o.left.diff.ci.slice(),
+    rs = o.right.diff.ci.slice(),
+    left = o.left,
+    right = o.right;
+
+  const desc = [];
+  let score = 0;
+
+  while (ls.length || rs.length) {
+
+    // left partial ("zur Zeit" instead of "zurzeit")
+
+    if (right.s.slice(-left.s.length) === left.s[0].toLowerCase() + left.s.slice(1)) {
+        if (left.s[0].toLowerCase() === left.s[0]) {
+          desc.push("partiality");
+          score += 1;
+        }
+
+        else {
+          desc.push("partiality");
+          score += 1.25;
+        }
+
+        ls.length = 0;
+        rs.length = 0;
+        continue;
+    }
+
+    // right partial ("vorort" instead of "vor Ort")
+
+    if (left.s.slice(-right.s.length) === right.s[0].toLowerCase() + right.s.slice(1)) {
+        if (right.s[0].toLowerCase() === right.s[0]) {
+          desc.push("partiality");
+          score += 1;
+        }
+
+        else {
+          desc.push("partiality");
+          score += 1.25;
+        }
+
+        ls.length = 0;
+        rs.length = 0;
+        continue;
+    }
+
+    // LEFT AND RIGHT
+
+    if (ls.length && rs.length) {
+      const l = ls[0], r = rs[0];
+
+      // equivalent ("Mueller" instead of "Müller")
+
+      if (Str.Diff.equivalence.has(l.s[0])
+        && r.s.startsWith(Str.Diff.equivalence.get(l.s[0]))) {
+          desc.push("equivalence");
+          score += 0.25;
+          r.s = r.s.slice(Str.Diff.equivalence.get(l.s[0]).length);
+          l.s = ls.slice(1);
+          if (l.s.length === 0) ls.shift();
+          if (r.s.length === 0) rs.shift();
+          continue;
+      }
+
+      if (Str.Diff.equivalence.has(r.s[0])
+        && l.s.startsWith(Str.Diff.equivalence.get(r.s[0]))) {
+          desc.push("equivalence");
+          score += 0.25;
+          l.s = l.s.slice(Str.Diff.equivalence.get(r.s[0]).length);
+          r.s = r.s.slice(1);
+          if (l.s.length === 0) ls.shift();
+          if (r.s.length === 0) rs.shift();
+          continue;
+      }
+
+      // case-related ("des weiteren" instead of "des Weiteren")
+
+      if (l.s[0].toLowerCase() === r.s[0].toLowerCase()
+        && l.s[0] !== r.s[0]) {
+          desc.push("casing");
+          score += 0.25;
+          l.s = l.s.slice(1);
+          r.s = r.s.slice(1);
+          if (l.s.length === 0) ls.shift();
+          if (r.s.length === 0) rs.shift();
+          continue;
+      }
+
+      // modified ("Cafe" instead of "Café")
+
+      if (Str.modifier.has(l.s[0])
+        && Str.modifier.get(l.s[0]) === r.s[0]) {
+          desc.push("modifier");
+          score += 0.25;
+          l.s = l.s.slice(1);
+          r.s = r.s.slice(1);
+          if (l.s.length === 0) ls.shift();
+          if (r.s.length === 0) rs.shift();
+          continue;
+      }
+
+      if (Str.modifier.has(r.s[0])
+        && Str.modifier.get(r.s[0]) === l.s[0]) {
+          desc.push("modifier");
+          score += 0.25;
+          l.s = l.s.slice(1);
+          r.s = r.s.slice(1);
+          if (l.s.length === 0) ls.shift();
+          if (r.s.length === 0) rs.shift();
+          continue;
+      }
+
+      // swapped-case (Bürste instead of Brüste)
+
+      if (l.s[0] === r.s[0] && abs(l.i - r.i) === 1) {
+        desc.push("swap");
+        score += 0.25;
+        l.s = l.s.slice(1);
+        r.s = r.s.slice(1);
+        if (l.s.length === 0) ls.shift();
+        if (r.s.length === 0) rs.shift();
+        continue;
+      }
+
+      // phonetic ("Elefant" instead of "Elephant")
+
+      if (Str.Diff.phonetics.has(l.s[0])
+        && Str.Diff.phonetics.get(l.s[0]).some(s => r.s.startsWith(s))) {
+          desc.push("phonetics");
+          score += 0.5;
+
+          Str.Diff.phonetics.get(l.s[0]).some(s => {
+            if (r.s.startsWith(s)) r.s = r.s.slice(s.length);
+          });
+
+          l.s = l.s.slice(1);
+          if (l.s.length === 0) ls.shift();
+          if (r.s.length === 0) rs.shift();
+          continue;
+      }
+
+      // phonetic ("Elepfant" instead of "Elefant")
+
+      if (Str.Diff.phonetics2.has(l.s.slice(0, 2))
+        && Str.Diff.phonetics2.get(l.s.slice(0, 2)).includes(r.s)) {
+          desc.push("phonetics");
+          score += 0.5;
+          l.s = l.s.slice(2);
+          r.s = r.s.slice(1);
+          if (l.s.length === 0) ls.shift();
+          if (r.s.length === 0) rs.shift();
+          continue;
+      }
+    }
+
+    // LEFT
+
+    if (ls.length) {
+      const l = ls[0];
+
+      // repetitive ("Büffett" instead of "Büfett")
+
+      if (Str.Diff.repetition.has(l.s[0])
+        && (l.s[0] === left.s[l.i - 1] || l.s[0] === left.s[l.i + 1])
+        && (l.s[0] === right.s[l.i - 1] || l.s[0] === right.s[l.i + 1])) {
+          desc.push("repetition");
+          score += 0.5;
+          l.s = l.s.slice(1);
+          if (l.s.length === 0) ls.shift();
+          continue;
+      }
+
+      // phonetic ("nähmlich" instead of "nämlich")
+
+      if (Str.Diff.phonetics2.has(left.s[l.i - 1] + l.s[0])) {
+        desc.push("phonetics");
+        score += 0.5;
+        l.s = l.s.slice(1);
+        if (l.s.length === 0) ls.shift();
+        continue;
+      }
+
+      if (Str.Diff.phonetics2.has(l.s[0] + left.s[l.i + 1])) {
+        desc.push("phonetics");
+        score += 0.5;
+        l.s = l.s.slice(1);
+        if (l.s.length === 0) ls.shift();
+        continue;
+      }
+
+      // abbreviation ("v.l.g." instead of "vlg.")
+
+      if (l.s === ".") {
+        desc.push("period");
+        score += 0.25;
+        ls.shift();
+        continue;
+      }
+
+      desc.push("error");
+      score += 1;
+      l.s = l.s.slice(1);
+      if (l.s.length === 0) ls.shift();
+    }
+
+    // RIGHT
+
+    if (rs.length) {
+      const r = rs[0];
+
+      // repetitive ("Aparat" instead of "Apparat")
+
+      if (Str.Diff.repetition.has(r.s[0])
+        && (r.s[0] === right.s[r.i - 1] || r.s[0] === right.s[r.i + 1])
+        && (r.s[0] === left.s[r.i - 1] || r.s[0] === left.s[r.i + 1])) {
+          desc.push("repetition");
+          score += 0.5;
+          r.s = r.s.slice(1);
+          if (r.s.length === 0) rs.shift();
+          continue;
+      }
+
+      // phonetic ("war" instead of "wahr")
+
+      if (Str.Diff.phonetics2.has(right.s[r.i - 1] + r.s[0])) {
+        desc.push("phonetics");
+        score += 0.5;
+        r.s = r.s.slice(1);
+        if (r.s.length === 0) rs.shift();
+        continue;
+      }
+
+      if (Str.Diff.phonetics2.has(r.s[0] + right.s[r.i + 1])) {
+        desc.push("phonetics");
+        score += 0.5;
+        r.s = r.s.slice(1);
+        if (r.s.length === 0) rs.shift();
+        continue;
+      }
+
+      // abbreviation ("v.l.g." instead of "vlg.")
+
+      if (r.s === ".") {
+        desc.push("period");
+        score += 0.25;
+        rs.shift();
+        continue;
+      }
+
+      desc.push("error");
+      score += 1;
+      r.s = r.s.slice(1);
+      if (r.s.length === 0) rs.shift();
+    }
+  }
+
+  // consolidate casing deviations
+
+  const n = desc.reduce((acc, s) =>
+    s === "casing" ? acc + 1 : acc, 0);
+
+  if (n > 1) score -= 0.25 * (n - 1);
+
+  return {desc: Array.from(new Set(desc)), score};
+};
 
 
 /*
@@ -11764,31 +12451,268 @@ Str.distance = a => b => {
   return dd;
 };
 
+
 /*
-█████ Number String ███████████████████████████████████████████████████████████*/
+█████ Normalizing █████████████████████████████████████████████████████████████*/
 
 
-/* Take a list of regexes that include the following groups:
-  * sign or postsign
-  * int
-  * frac
+Str.fraction = new Map([
+  ["½", "1/2"],
+  ["⅓", "1/3"],
+  ["⅔", "2/3"],
+  ["¼", "1/4"],
+  ["¾", "3/4"],
+  ["⅕", "1/5"],
+  ["⅖", "2/5"],
+  ["⅗", "3/5"],
+  ["⅘", "4/5"],
+  ["⅙", "1/6"],
+  ["⅚", "5/6"],
+  ["⅐", "1/7"],
+  ["⅛", "1/8"],
+  ["⅜", "3/8"],
+  ["⅝", "5/8"],
+  ["⅞", "7/8"],
+  ["⅑", "1/9"],
+  ["⅒", "1/10"],
+]);
 
-apply it to the passed number string and normalize it to the iso format. */
 
-Str.normalizeNum = xs => s => {
-  for (const rx of xs) {
-    const o = s.match(rx);
-    if (o === null) continue;
+Str.modifier = new Map([
+  ["Á", "A"], ["á", "a"], ["À", "A"], ["à", "a"], ["Â", "A"], ["â", "a"], ["Ǎ", "A"], ["ǎ", "a"], ["Ă", "A"],
+  ["ă", "a"], ["Ã", "A"], ["ã", "a"], ["Ả", "A"], ["ả", "a"], ["Ȧ", "A"], ["ȧ", "a"], ["Ạ", "A"], ["ạ", "a"],
+  ["Ä", "A"], ["ä", "a"], ["Å", "A"], ["å", "a"], ["Ḁ", "A"], ["ḁ", "a"], ["Ā", "A"], ["ā", "a"], ["Ą", "A"],
+  ["ą", "a"], ["ᶏ", "a"], ["Ⱥ", "A"], ["ⱥ", "a"], ["Ȁ", "A"], ["ȁ", "a"], ["Ấ", "A"], ["ấ", "a"], ["Ầ", "A"],
+  ["ầ", "a"], ["Ẫ", "A"], ["ẫ", "a"], ["Ẩ", "A"], ["ẩ", "a"], ["Ậ", "A"], ["ậ", "a"], ["Ắ", "A"], ["ắ", "a"],
+  ["Ằ", "A"], ["ằ", "a"], ["Ẵ", "A"], ["ẵ", "a"], ["Ẳ", "A"], ["ẳ", "a"], ["Ặ", "A"], ["ặ", "a"], ["Ǻ", "A"],
+  ["ǻ", "a"], ["Ǡ", "A"], ["ǡ", "a"], ["Ǟ", "A"], ["ǟ", "a"], ["Ȃ", "A"], ["ȃ", "a"], ["Ɑ", "A"], ["ɑ", "a"],
+  ["ᴀ", "A"], ["Ɐ", "A"], ["ɐ", "a"], ["ɒ", "a"], ["Ａ", "A"], ["ａ", "a"], ["Æ", "A"], ["æ", "a"], ["ᴭ", "A"],
+  ["ᵆ", "a"], ["Ǽ", "A"], ["ǽ", "a"], ["Ǣ", "A"], ["ǣ", "a"], ["ᴁ", "A"], ["ᴂ", "a"], ["Ḃ", "B"], ["ḃ", "b"],
+  ["Ḅ", "B"], ["ḅ", "b"], ["Ḇ", "B"], ["ḇ", "b"], ["Ƀ", "B"], ["ƀ", "b"], ["Ɓ", "B"], ["ɓ", "b"], ["Ƃ", "b"],
+  ["ƃ", "b"], ["ᵬ", "b"], ["ᶀ", "b"], ["ʙ", "B"], ["Ｂ", "B"], ["ｂ", "b"], ["Ć", "C"], ["ć", "c"], ["Ĉ", "C"],
+  ["ĉ", "c"], ["Č", "C"], ["č", "c"], ["Ċ", "C"], ["ċ", "c"], ["C̄", "C"], ["c̄", "c"], ["Ç", "C"], ["ç", "c"],
+  ["Ḉ", "C"], ["ḉ", "c"], ["Ȼ", "C"], ["ȼ", "c"], ["Ƈ", "C"], ["ƈ", "c"], ["ɕ", "c"], ["ᴄ", "c"], ["Ｃ", "C"],
+  ["ｃ", "c"], ["Ď", "D"], ["ď", "d"], ["Ḋ", "D"], ["ḋ", "d"], ["Ḑ", "D"], ["ḑ", "d"], ["D̦", "D"], ["d̦", "d"],
+  ["Ḍ", "D"], ["ḍ", "d"], ["Ḓ", "D"], ["ḓ", "d"], ["Ḏ", "D"], ["ḏ", "d"], ["Đ", "D"], ["đ", "d"], ["Ð", "D"],
+  ["ð", "d"], ["D̦", "D"], ["d̦", "d"], ["Ɖ", "D"], ["ɖ", "d"], ["Ɗ", "D"], ["ɗ", "d"], ["Ƌ", "D"], ["ƌ", "d"],
+  ["ᵭ", "d"], ["ᶁ", "d"], ["ᶑ", "d"], ["ȡ", "d"], ["ᴅ", "D"], ["Ｄ", "D"], ["ｄ", "d"], ["Þ", "D"], ["þ", "d"],
+  ["ȸ", "d"], ["Ǳ", "D"], ["ǲ", "D"], ["ǳ", "d"], ["Ǆ", "D"], ["ǅ", "D"], ["ǆ", "d"], ["É", "E"], ["é", "e"],
+  ["È", "E"], ["è", "e"], ["Ê", "E"], ["ê", "e"], ["Ḙ", "E"], ["ḙ", "e"], ["Ě", "E"], ["ě", "e"], ["Ĕ", "E"],
+  ["ĕ", "e"], ["Ẽ", "E"], ["ẽ", "e"], ["Ḛ", "E"], ["ḛ", "e"], ["Ẻ", "E"], ["ẻ", "e"], ["Ė", "E"], ["ė", "e"],
+  ["Ë", "E"], ["ë", "e"], ["Ē", "E"], ["ē", "e"], ["Ȩ", "E"], ["ȩ", "e"], ["Ę", "E"], ["ę", "e"], ["ᶒ", "e"],
+  ["Ɇ", "E"], ["ɇ", "e"], ["Ȅ", "E"], ["ȅ", "e"], ["Ế", "E"], ["ế", "e"], ["Ề", "E"], ["ề", "e"], ["Ễ", "E"],
+  ["ễ", "e"], ["Ể", "E"], ["ể", "e"], ["Ḝ", "E"], ["ḝ", "e"], ["Ḗ", "E"], ["ḗ", "e"], ["Ḕ", "E"], ["ḕ", "e"],
+  ["Ȇ", "E"], ["ȇ", "e"], ["Ẹ", "E"], ["ẹ", "e"], ["Ệ", "E"], ["ệ", "e"], ["ⱸ", "e"], ["ᴇ", "E"], ["Ə", "e"],
+  ["ə", "e"], ["Ǝ", "E"], ["ǝ", "e"], ["Ɛ", "E"], ["ɛ", "e"], ["Ｅ", "E"], ["ｅ", "e"], ["Ḟ", "F"], ["ḟ", "f"],
+  ["Ƒ", "F"], ["ƒ", "f"], ["ᵮ", "f"], ["ᶂ", "f"], ["ꜰ", "F"], ["Ｆ", "F"], ["ｆ", "f"], ["ﬀ", "f"], ["ﬃ", "f"],
+  ["ﬄ", "f"], ["ﬁ", "f"], ["ﬂ", "f"], ["Ǵ", "G"], ["ǵ", "g"], ["Ğ", "G"], ["ğ", "g"], ["Ĝ", "G"], ["ĝ", "g"],
+  ["Ǧ", "G"], ["ǧ", "g"], ["Ġ", "G"], ["ġ", "g"], ["Ģ", "G"], ["ģ", "g"], ["Ḡ", "G"], ["ḡ", "g"], ["Ǥ", "G"],
+  ["ǥ", "g"], ["Ɠ", "G"], ["ɠ", "g"], ["ᶃ", "g"], ["ɢ", "G"], ["Ȝ", "G"], ["ȝ", "g"], ["Ｇ", "G"], ["ｇ", "g"],
+  ["ɢ", "G"], ["ɢ̆", "G"], ["Ĥ", "H"], ["ĥ", "h"], ["Ȟ", "H"], ["ȟ", "h"], ["Ḧ", "H"], ["ḧ", "h"], ["Ḣ", "H"],
+  ["ḣ", "h"], ["Ḩ", "H"], ["ḩ", "h"], ["Ḥ", "H"], ["ḥ", "h"], ["Ḫ", "H"], ["ḫ", "h"], ["H̱", "H"], ["ẖ", "h"],
+  ["Ħ", "H"], ["ħ", "h"], ["Ⱨ", "H"], ["ⱨ", "h"], ["Ɦ", "H"], ["ɦ", "h"], ["Ꜧ", "H"], ["ꜧ", "h"], ["ʰ", "h"],
+  ["ʜ", "H"], ["Ｈ", "H"], ["ｈ", "h"], ["h̃", "h"], ["ɧ", "h"], ["Í", "I"], ["í", "i"], ["Ì", "I"], ["ì", "i"],
+  ["Ĭ", "I"], ["ĭ", "i"], ["Î", "I"], ["î", "i"], ["Ǐ", "I"], ["ǐ", "i"], ["Ï", "I"], ["ï", "i"], ["Ḯ", "I"],
+  ["ḯ", "i"], ["Ĩ", "I"], ["ĩ", "i"], ["Į", "I"], ["į", "i"], ["Ī", "I"], ["ī", "i"], ["Ỉ", "I"], ["ỉ", "i"],
+  ["Ȉ", "I"], ["ȉ", "i"], ["Ȋ", "I"], ["ȋ", "i"], ["Ị", "I"], ["ị", "i"], ["Ḭ", "I"], ["ḭ", "i"], ["Ɨ", "I"],
+  ["ɨ", "i"], ["ᵻ", "I"], ["ᶖ", "i"], ["İ", "I"], ["i", "i"], ["I", "I"], ["ı", "i"], ["ɪ", "I"], ["Ɩ", "I"],
+  ["ɩ", "i"], ["Ｉ", "I"], ["ｉ", "i"], ["Ĳ", "I"], ["ĳ", "i"], ["Ĵ", "J"], ["ĵ", "j"], ["Ɉ", "J"], ["ɉ", "j"],
+  ["J̌", "J"], ["ǰ", "j"], ["ȷ", "J"], ["ʝ", "j"], ["ɟ", "j"], ["ʄ", "j"], ["ᴊ", "J"], ["Ｊ", "J"], ["ｊ", "j"],
+  ["ʲ", "j"], ["j̃", "j"], ["Ḱ", "K"], ["ḱ", "k"], ["Ǩ", "K"], ["ǩ", "k"], ["Ķ", "K"], ["ķ", "k"], ["Ḳ", "K"],
+  ["ḳ", "k"], ["Ḵ", "K"], ["ḵ", "k"], ["Ƙ", "K"], ["ƙ", "k"], ["Ⱪ", "K"], ["ⱪ", "k"], ["ᶄ", "k"], ["Ꝁ", "K"],
+  ["ꝁ", "k"], ["ᴋ", "K"], ["Ｋ", "K"], ["ｋ", "k"], ["Ĺ", "L"], ["ĺ", "l"], ["Ľ", "L"], ["ľ", "l"], ["Ļ", "L"],
+  ["ļ", "l"], ["Ḷ", "L"], ["ḷ", "l"], ["Ḹ", "L"], ["ḹ", "l"], ["Ḽ", "L"], ["ḽ", "l"], ["Ḻ", "L"], ["ḻ", "l"],
+  ["Ł", "L"], ["ł", "l"], ["Ŀ", "L"], ["ŀ", "l"], ["Ƚ", "L"], ["ƚ", "l"], ["Ⱡ", "L"], ["ⱡ", "l"], ["Ɫ", "L"],
+  ["ɫ", "l"], ["ɬ", "l"], ["ᶅ", "l"], ["ɭ", "l"], ["ȴ", "l"], ["ʟ", "L"], ["Ｌ", "L"], ["ｌ", "l"], ["Ǉ", "L"],
+  ["ǈ", "L"], ["ǉ", "l"], ["Ḿ", "M"], ["ḿ", "m"], ["Ṁ", "M"], ["ṁ", "m"], ["Ṃ", "M"], ["ṃ", "m"], ["ᵯ", "m"],
+  ["ᶆ", "m"], ["Ɱ", "M"], ["ɱ", "m"], ["ᴍ", "M"], ["Ｍ", "M"], ["ｍ", "m"], ["Ń", "N"], ["ń", "n"], ["Ǹ", "N"],
+  ["ǹ", "n"], ["Ň", "N"], ["ň", "n"], ["Ñ", "N"], ["ñ", "n"], ["Ṅ", "N"], ["ṅ", "n"], ["Ņ", "N"], ["ņ", "n"],
+  ["Ṇ", "N"], ["ṇ", "n"], ["Ṋ", "N"], ["ṋ", "n"], ["Ṉ", "N"], ["ṉ", "n"], ["N̈", "N"], ["n̈", "n"], ["Ɲ", "N"],
+  ["ɲ", "n"], ["Ƞ", "N"], ["ƞ", "n"], ["ᵰ", "n"], ["ᶇ", "n"], ["ɳ", "n"], ["ȵ", "n"], ["ɴ", "N"], ["Ｎ", "N"],
+  ["ｎ", "n"], ["Ŋ", "N"], ["ŋ", "n"], ["Ǌ", "N"], ["ǋ", "N"], ["ǌ", "n"], ["Ó", "O"], ["ó", "o"], ["Ò", "O"],
+  ["ò", "o"], ["Ŏ", "O"], ["ŏ", "o"], ["Ô", "O"], ["ô", "o"], ["Ố", "O"], ["ố", "o"], ["Ồ", "O"], ["ồ", "o"],
+  ["Ỗ", "O"], ["ỗ", "o"], ["Ổ", "O"], ["ổ", "o"], ["Ǒ", "O"], ["ǒ", "o"], ["Ö", "O"], ["ö", "o"], ["Ȫ", "O"],
+  ["ȫ", "o"], ["Ő", "O"], ["ő", "o"], ["Õ", "O"], ["õ", "o"], ["Ṍ", "O"], ["ṍ", "o"], ["Ṏ", "O"], ["ṏ", "o"],
+  ["Ȭ", "O"], ["ȭ", "o"], ["Ȯ", "O"], ["ȯ", "o"], ["Ȱ", "O"], ["ȱ", "o"], ["Ø", "O"], ["ø", "o"], ["Ǿ", "O"],
+  ["ǿ", "o"], ["Ǫ", "O"], ["ǫ", "o"], ["Ǭ", "O"], ["ǭ", "o"], ["Ō", "O"], ["ō", "o"], ["Ṓ", "O"], ["ṓ", "o"],
+  ["Ṑ", "O"], ["ṑ", "o"], ["Ỏ", "O"], ["ỏ", "o"], ["Ȍ", "O"], ["ȍ", "o"], ["Ȏ", "O"], ["ȏ", "o"], ["Ơ", "O"],
+  ["ơ", "o"], ["Ớ", "O"], ["ớ", "o"], ["Ờ", "O"], ["ờ", "o"], ["Ỡ", "O"], ["ỡ", "o"], ["Ở", "O"], ["ở", "o"],
+  ["Ợ", "O"], ["ợ", "o"], ["Ọ", "O"], ["ọ", "o"], ["Ộ", "O"], ["ộ", "o"], ["Ɵ", "O"], ["ɵ", "o"], ["Ɔ", "O"],
+  ["ɔ", "o"], ["Ȣ", "O"], ["ȣ", "o"], ["ⱺ", "O"], ["ᴏ", "o"], ["Ｏ", "O"], ["ｏ", "o"], ["Œ", "O"], ["œ", "o"],
+  ["ᴔ", "o"], ["Ṕ", "P"], ["ṕ", "p"], ["Ṗ", "P"], ["ṗ", "p"], ["Ᵽ", "P"], ["ᵽ", "p"], ["Ƥ", "P"], ["ƥ", "p"],
+  ["P̃", "P"], ["p̃", "p"], ["ᵱ", "p"], ["ᶈ", "p"], ["ᴘ", "P"], ["Ƿ", "P"], ["ƿ", "p"], ["Ｐ", "P"], ["ｐ", "p"],
+  ["Ɋ", "q"], ["ɋ", "q"], ["Ƣ", "Q"], ["ƣ", "q"], ["ʠ", "q"], ["Ｑ", "Q"], ["ｑ", "q"], ["ȹ", "q"], ["ꞯ", "Q"],
+  ["Ŕ", "R"], ["ŕ", "r"], ["Ř", "R"], ["ř", "r"], ["Ṙ", "R"], ["ṙ", "r"], ["Ŗ", "R"], ["ŗ", "r"], ["Ȑ", "R"],
+  ["ȑ", "r"], ["Ȓ", "R"], ["ȓ", "r"], ["Ṛ", "R"], ["ṛ", "r"], ["Ṝ", "R"], ["ṝ", "r"], ["Ṟ", "R"], ["ṟ", "r"],
+  ["Ɍ", "R"], ["ɍ", "r"], ["Ɽ", "R"], ["ɽ", "r"], ["Ꝛ", "R"], ["ꝛ", "r"], ["ᵲ", "r"], ["ᶉ", "r"], ["ɼ", "r"],
+  ["ɾ", "r"], ["ᵳ", "r"], ["ʀ", "R"], ["Ｒ", "R"], ["ｒ", "r"], ["ɹ", "r"], ["ʁ", "R"], ["ſ", "s"], ["ẞ", "S"],
+  ["ß", "s"], ["Ś", "S"], ["ś", "s"], ["Ṥ", "S"], ["ṥ", "s"], ["Ŝ", "S"], ["ŝ", "s"], ["Š", "S"], ["š", "s"],
+  ["Ṧ", "S"], ["ṧ", "s"], ["Ṡ", "S"], ["ṡ", "s"], ["ẛ", "s"], ["Ş", "S"], ["ş", "s"], ["Ṣ", "S"], ["ṣ", "s"],
+  ["Ṩ", "S"], ["ṩ", "s"], ["Ș", "S"], ["ș", "s"], ["S̩", "S"], ["s̩", "s"], ["ᵴ", "s"], ["ᶊ", "s"], ["Ʂ", "S"],
+  ["ʂ", "s"], ["Ȿ", "S"], ["ȿ", "s"], ["ꜱ", "s"], ["Ʃ", "S"], ["ʃ", "s"], ["Ｓ", "S"], ["ｓ", "s"], ["Ť", "T"],
+  ["ť", "t"], ["Ṫ", "T"], ["ṫ", "t"], ["Ţ", "T"], ["ţ", "t"], ["Ṭ", "T"], ["ṭ", "t"], ["Ț", "T"], ["ț", "t"],
+  ["Ṱ", "T"], ["ṱ", "t"], ["Ṯ", "T"], ["ṯ", "t"], ["Ŧ", "T"], ["ŧ", "t"], ["Ⱦ", "T"], ["ⱦ", "t"], ["Ƭ", "T"],
+  ["ƭ", "t"], ["Ʈ", "T"], ["ʈ", "t"], ["T̈", "T"], ["ẗ", "t"], ["ᵵ", "t"], ["ƫ", "t"], ["ȶ", "t"], ["ᴛ", "T"],
+  ["Ｔ", "T"], ["ｔ", "t"], ["Ú", "U"], ["ú", "u"], ["Ù", "U"], ["ù", "u"], ["Ŭ", "U"], ["ŭ", "u"], ["Û", "U"],
+  ["û", "u"], ["Ǔ", "U"], ["ǔ", "u"], ["Ů", "U"], ["ů", "u"], ["Ü", "U"], ["ü", "u"], ["Ǘ", "U"], ["ǘ", "u"],
+  ["Ǜ", "U"], ["ǜ", "u"], ["Ǚ", "U"], ["ǚ", "u"], ["Ǖ", "U"], ["ǖ", "u"], ["Ű", "U"], ["ű", "u"], ["Ũ", "U"],
+  ["ũ", "u"], ["Ṹ", "U"], ["ṹ", "u"], ["Ų", "U"], ["ų", "u"], ["Ū", "U"], ["ū", "u"], ["Ṻ", "U"], ["ṻ", "u"],
+  ["Ủ", "U"], ["ủ", "u"], ["Ȕ", "U"], ["ȕ", "u"], ["Ȗ", "U"], ["ȗ", "u"], ["Ư", "U"], ["ư", "u"], ["Ứ", "U"],
+  ["ứ", "u"], ["Ừ", "U"], ["ừ", "u"], ["Ữ", "U"], ["ữ", "u"], ["Ử", "U"], ["ử", "u"], ["Ự", "U"], ["ự", "u"],
+  ["Ụ", "U"], ["ụ", "u"], ["Ṳ", "U"], ["ṳ", "u"], ["Ṷ", "U"], ["ṷ", "u"], ["Ṵ", "U"], ["ṵ", "u"], ["Ʉ", "U"],
+  ["ʉ", "u"], ["Ʊ", "U"], ["ʊ", "u"], ["Ȣ", "U"], ["ȣ", "u"], ["ᵾ", "U"], ["ᶙ", "u"], ["ᴜ", "u"], ["Ｕ", "U"],
+  ["ｕ", "u"], ["ᵫ", "u"], ["ɯ", "u"], ["Ṽ", "V"], ["ṽ", "v"], ["Ṿ", "V"], ["ṿ", "v"], ["Ʋ", "V"], ["ʋ", "v"],
+  ["ᶌ", "v"], ["ⱱ", "v"], ["ⱴ", "v"], ["ᴠ", "v"], ["Ʌ", "V"], ["ʌ", "v"], ["Ｖ", "V"], ["ｖ", "v"], ["Ẃ", "W"],
+  ["ẃ", "w"], ["Ẁ", "W"], ["ẁ", "w"], ["Ŵ", "W"], ["ŵ", "w"], ["Ẅ", "W"], ["ẅ", "w"], ["Ẇ", "W"], ["ẇ", "w"],
+  ["Ẉ", "W"], ["ẉ", "w"], ["W̊", "W"], ["ẘ", "w"], ["Ⱳ", "W"], ["ⱳ", "w"], ["ᴡ", "w"], ["Ｗ", "W"], ["ｗ", "w"],
+  ["ʷ", "w"], ["ʍ", "w"], ["w̃", "w"], ["Ẍ", "X"], ["ẍ", "x"], ["Ẋ", "X"], ["ẋ", "x"], ["ᶍ", "x"], ["Ｘ", "X"],
+  ["ｘ", "x"], ["Ý", "Y"], ["ý", "y"], ["Ỳ", "Y"], ["ỳ", "y"], ["Ŷ", "Y"], ["ŷ", "y"], ["ẙ", "y"], ["Ÿ", "Y"],
+  ["ÿ", "y"], ["Ỹ", "Y"], ["ỹ", "y"], ["Ẏ", "Y"], ["ẏ", "y"], ["Ȳ", "Y"], ["ȳ", "y"], ["Ỷ", "Y"], ["ỷ", "y"],
+  ["Ỵ", "Y"], ["ỵ", "y"], ["Ɏ", "Y"], ["ɏ", "y"], ["Ƴ", "Y"], ["ƴ", "y"], ["ʏ", "Y"], ["Ｙ", "Y"], ["ｙ", "y"],
+  ["Ź", "Z"], ["ź", "z"], ["Ẑ", "Z"], ["ẑ", "z"], ["Ž", "Z"], ["ž", "z"], ["Ż", "Z"], ["ż", "z"], ["Ẓ", "Z"],
+  ["ẓ", "z"], ["Ẕ", "Z"], ["ẕ", "z"], ["Ƶ", "Z"], ["ƶ", "z"], ["Ȥ", "Z"], ["ȥ", "z"], ["Ⱬ", "Z"], ["ⱬ", "z"],
+  ["ᵶ", "z"], ["ᶎ", "z"], ["ʐ", "z"], ["ʑ", "z"], ["ɀ", "z"], ["ᴢ", "z"], ["Ʒ", "Z"], ["ʒ", "z"], ["Ǯ", "Z"],
+  ["ǯ", "z"], ["Ƹ", "Z"], ["ƹ", "z"], ["Ｚ", "Z"], ["ｚ", "z"],
+]);
+
+
+Str.normalize = ({inclAlpha}) => doc => {
+  let s = "";
+
+  for (const c of doc) {
+
+    // control
+
+    if (/\p{C}/v.test(c)) {
+      if (c === "\n") s += c;
+      else s += " ";
+    }
+
+    // letter
+
+    else if (/\p{L}/v.test(c)) {
+      if (c.codePointAt(0) <= 127) s += c;
+      else if (c === "ʼ") s += "'";
+      else if (c === "ʻ") s += "'";
+      else if (c === "ˮ") s += "'";
+      
+      else if (inclAlpha && Str.modifier.has(c))
+        s += Str.modifier.get(c);
+      
+      else s += c;
+    }
+
+    // mark
+
+    else if (/\p{M}/v.test(c)) s += c;
+
+    // number
+
+    else if (/\p{N}/v.test(c)) {
+      if (Str.fraction.has(c))
+        s += Str.fraction.get(c);
+      
+      else s += c;
+    }
+
+    // punctuation
+
+    else if (/\p{P}/v.test(c)) {
+      if (c.codePointAt(0) <= 127) s += c;
+
+      // hyphen/dash
+
+      else if (/\p{Pd}/v.test(c)) s += "-";
+
+      else {
+        if (c === "‚") s += '"';
+        else if (c === "„") s += '"';
+        else if (c === "⹂") s += '"';
+        else if (c === "〝") s += '"';
+        else if (c === "〞") s += '"';
+        else if (c === "〟") s += '"';
+        else if (c === "«") s += '"';
+        else if (c === "»") s += '"';
+        else if (c === "‹") s += '"';
+        else if (c === "›") s += '"';
+        else if (c === "‘") s += '"';
+        else if (c === "‛") s += '"';
+        else if (c === "“") s += '"';
+        else if (c === "‟") s += '"';
+        else if (c === "’") s += '"';
+        else if (c === "”") s += '"';
+        else if (c === "＂") s += '"';
+
+        else if (c === "‐") s += "-"; // 0x2010
+        else if (c === "‑") s += "-"; // 0x2011
+        else if (c === "‒") s += "-"; // 0x2012
+        else if (c === "–") s += "-"; // 0x2013
+        else if (c === "—") s += "-"; // 0x2014
+        else if (c === "―") s += "-"; // 0x2015
+        else if (c === "﹘") s += "-"; // 0xFE58
+        else if (c === "﹣") s += "-"; // 0xFE63
+        else if (c === "－") s += "-"; // 0xFF0D
+        else if (c === "‧") s += "-"; // 0x2027
+
+        else if (c === "՚") s += "'";
+
+        else if (c === "…") s += "...";
+
+        else if (c === "•") s += "*";
+        else if (c === "‣") s += "*";
+
+        else if (c === "‼") s += "!!";
+        else if (c === "⁇") s += "??";
+        else if (c === "⁈") s += "?!";
+        else if (c === "⁉") s += "!?";
+        else if (c === "‽") s += "?!";
+
+        else s += c;
+      }
+    }
+
+    // symbol
+
+    else if (/\p{S}/v.test(c)) {
+      if (c === "❛") s += '"';
+      else if (c === "❜") s += '"';
+      else if (c === "❝") s += '"';
+      else if (c === "❞") s += '"';
+      else if (c === "❟") s += '"';
+      else if (c === "❠") s += '"';
+      else if (c === "❮") s += '"';
+      else if (c === "❯") s += '"';
+      else if (c === "⹂") s += '"';
+      else if (c === "`") s += "'";
+      else if (c === "´") s += "'";
+      else if (c === "℃") s += "°C";
+      else if (c === "℉") s += "°F";
+      else s += c;
+    }
     
-    else {
-      const sign = o.groups.sign !== undefined ? o.groups.sign
-        : o.groups.postsign !== undefined ? o.groups.postsign
-        : "";
+    // separator
 
-      return `${sign}${o.groups.int}.${o.groups.frac}`};
+    else if (/\p{Z}/v.test(c)) {
+
+      // space
+      
+      if (c.codePointAt(0) <= 127) s += c;
+      else s += " ";
+    }
+
+    else throw new Err(`unknown char "${c}"/${c.codePointAt(0)}`);
   }
 
-  throw new Err(`invalid number string "${s}`);
+  return This(s)
+    .map(s2 => s2
+      .replace(/\n{2,}/g, "\n")
+      .replace(/ +\n/g, "\n")
+      .replace(/\n +/g, "\n")
+      .replace(/ {2,}/g, " ")
+      .replace(/^ +/g, "")
+      .replace(/ +$/g, ""))
+    .map(s2 => s2 + "<doc/>")
+    .unthis;
 };
 
 
