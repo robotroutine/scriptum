@@ -10744,91 +10744,36 @@ Rex.classes.latin1.curr = {
 
 
 /*
+█████ Extracting ██████████████████████████████████████████████████████████████*/
+
+
+/* Take an object with properties holding regular expressions and apply each
+to the provided string. Store each match under the respective property. */
+
+Rex.extract = o => s =>
+  O.fromIt(It.map(([k, rx]) => [k, Rex.matchFirst(rx) (s)]) (O.entries(o)));
+
+
+/*
 █████ Matching ████████████████████████████████████████████████████████████████*/
 
 
-// consistent interface (returns an array that may be empty)
-
-Rex.match = rx => s => {
-  const r = s.match(rx);
-  if (r === null) return [];
-  else return [r];
-};
+Rex.matchAll = rx => s => s.matchAll(rx);
 
 
 // strict variant
 
-Rex.matchAll = rx => s => Array.from(s.matchAll(rx));
-
-
-// variant that considers overlapping patterns
-
-Rex.matchAll_ = rx => s => {
-  const xs = [];
-  let offset = 1;
-
-  if (rx.flags.includes("g")) throw new Err("unexpected global flag");
-
-  for (let i = 0; i < s.length; i++) {
-    const o = s.slice(i).match(rx);
-
-    if (o === null) break;
-    
-    else if (xs.length) {
-      const i2 = xs[xs.length - 1].index
-        + xs[xs.length - 1] [0].length;
-
-      const i3 = o.index + o[0].length + offset;
-
-      if (i3 <= i2) {
-        offset++;
-        continue;
-      }
-
-      else {
-        offset = 1;
-        xs.push(o);
-      }
-    }
-
-    else xs.push(o);
-  }
-
-  return xs;
-};
+Rex.matchAll_ = rx => s => Array.from(s.matchAll(rx));
 
 
 Rex.matchAllWith = p => rx => s => Rex.matchAll(rx) (s).filter(p);
 
 
-// variant that considers overlapping patterns
-
-Rex.matchAllWith_ = p => rx => s => Rex.matchAll_(rx) (s).filter(p);
-
-
-/* Match beginning and end of an repetitive region of interest. Pass either
-`matchAll` or `matchAllWith`. */
-
-Rex.matchBound = f => s => {
-  const xs = f(s);
-  if (xs.length <= 1) return [];
-  else if (xs.length === 2) return xs;
-  else return [xs[0], xs[xs.length - 1]];
+Rex.matchFirst = rx => s => {
+  const r = s.match(rx);
+  if (r === null) return [];
+  else return [r];
 };
-
-
-// match beginning and end of a region of interest using two different matchers
-
-Rex.matchBounds = (f, g) => s => {
-  const xs = f(s), ys = g(s);
-  if (xs.length === 0) return [];
-  else if (ys.length === 0) return [];
-  else if (xs[0] [0] === ys[0] [0]) return [];
-  else return [xs[xs.length - 1], ys[ys.length - 1]];
-};
-
-
-// `Rex.matchFirst` would be redundant
 
 
 Rex.matchFirstWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(0, 1);
@@ -10837,43 +10782,25 @@ Rex.matchFirstWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(0, 1);
 Rex.matchLast = rx => s => Rex.matchAll(rx) (s).slice(-1);
 
 
-Rex.matchLast_ = rx => s => Rex.matchAll_(rx) (s).slice(-1);
-
-
 Rex.matchLastWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(-1);
 
 
-Rex.matchLastWith_ = p => rx => s => Rex.matchAllWith_(p) (rx) (s).slice(-1);
-
-
-// considers negatives indices like slice
+// considers negative indices like slice
 
 Rex.matchNth = (rx, i) => s => {
   const xs = Rex.matchAll(rx) (s);
-  if (i >= 0) return xs.slice(i, i + 1);
+  if (xs.length - 1 < i) return [];
+  else if (i >= 0) return xs.slice(i, i + 1);
   else return [xs.slice(i) [0]];
 };
 
 
-Rex.matchNth_ = (rx, i) => s => {
-  const xs = Rex.matchAll_(rx) (s);
-  if (i >= 0) return xs.slice(i, i + 1);
-  else return [xs.slice(i) [0]];
-};
+// considers negative indices like slice
 
-
-// considers negatives indices like slice
-
-Rex.matchNthWith = p => rx => s => {
+Rex.matchNthWith = p => (rx, i) => s => {
   const xs = Rex.matchAllWith(rx) (s), o = xs[i];
-  if (i >= 0) return xs.slice(i, i + 1);
-  else return [xs.slice(i) [0]];
-};
-
-
-Rex.matchNthWith_ = p => rx => s => {
-  const xs = Rex.matchAllWith_(rx) (s), o = xs[i];
-  if (i >= 0) return xs.slice(i, i + 1);
+  if (xs.length - 1 < i) return [];
+  else if (i >= 0) return xs.slice(i, i + 1);
   else return [xs.slice(i) [0]];
 };
 
@@ -10934,7 +10861,10 @@ Rex.i18n = {
 █████ Replacing ███████████████████████████████████████████████████████████████*/
 
 
-Rex.replaceAllWith = (rx, f) => s => {
+Rex.replaceAll = t => rx => s => s.replaceAll(rx, t);
+
+
+Rex.replaceAllWith = f => rx => s => {
   return s.replaceAll(rx, (...args) => {
     const groups = typeof args[args.length - 1] === "object"
       ? args.pop() : {};
@@ -10958,15 +10888,15 @@ Rex.replaceAllWith = (rx, f) => s => {
 };
 
 
-Rex.replaceFirst = (rx, f) => s => {
+Rex.replaceFirst = t => rx => s => {
   if (rx.flags.search("g") !== NOT_FOUND)
     throw new Err("unexpected global flag");
 
-  return s.replace(rx);
+  return s.replace(rx, t);
 };
 
 
-Rex.replaceFirstWith = (rx, f) => s => {
+Rex.replaceFirstWith = f => rx => s => {
   if (rx.flags.search("g") !== NOT_FOUND)
     throw new Err("unexpected global flag");
 
@@ -10993,7 +10923,7 @@ Rex.replaceFirstWith = (rx, f) => s => {
 };
 
 
-Rex.replaceLast = (rx, t) => s => {
+Rex.replaceLast = t => rx => s => {
   if (rx.flags.search("g") === NOT_FOUND)
     throw new Err("missing global flag");
 
@@ -11003,14 +10933,15 @@ Rex.replaceLast = (rx, t) => s => {
 
   else {
     const match = xs[xs.length - 1],
-      i = s.lastIndexOf(match);
+      i = match.index
+      len = match.length;
     
-    return str.slice(0, i) + t + str.slice(i + match.length);
+    return str.slice(0, i) + t + str.slice(i + len);
   }
 };
 
 
-Rex.replaceLastWith = (rx, f) => s => {
+Rex.replaceLastWith = f => rx => s => {
   if (rx.flags.search("g") === NOT_FOUND)
     throw new Err("missing global flag");
 
@@ -11020,43 +10951,75 @@ Rex.replaceLastWith = (rx, f) => s => {
 
   else {
     const match = xs[xs.length - 1],
-      i = s.lastIndexOf(match);
-    
-    return str.slice(0, i) + f(match) + str.slice(i + match.length);
+      matches = Array.from(match),
+      i = match.index
+      len = match.length;
+
+    return str.slice(0, i)
+      + f({s, i, matches, groups: match.groups})
+      + str.slice(i + len);
   }
 };
 
 
-Rex.replaceNth = (rx, t, n) => s => {
+// considers negative indices like slice
+
+Rex.replaceNth = t => (rx, i) => s => {
   if (rx.flags.search("g") === NOT_FOUND)
     throw new Err("missing global flag");
 
   const xs = s.match(rx);
 
-  if (xs.length < n - 1) return s;
+  if (xs.length - 1 < i) return s;
+
+  else if (i >= 0) {
+    const match = xs[i - 1],
+      j = match.index
+      len = match.length;
+    
+    return str.slice(0, j) + t + str.slice(j + len);
+  }
 
   else {
-    const match = xs[n - 1],
-      i = s.lastIndexOf(match);
+    const match = xs[xs.length + i],
+      j = match.index
+      len = match.length;
     
-    return str.slice(0, i) + t + str.slice(i + match.length);
+    return str.slice(0, j) + t + str.slice(j + len);
   }
 };
 
 
-Rex.replaceNthWith = (rx, f, n) => s => {
+// considers negative indices like slice
+
+Rex.replaceNthWith = f => (rx, i) => s => {
   if (rx.flags.search("g") === NOT_FOUND)
     throw new Err("missing global flag");
 
   const xs = s.match(rx);
 
-  if (xs.length < n - 1) return s;
+  if (xs.length - 1 < i) return s;
+
+  else if (i >= 0) {
+    const match = xs[i],
+      matches = Array.from(match),
+      j = match.index
+      len = match.length;
+    
+    return str.slice(0, j)
+      + f({s, i: j, matches, groups: match.groups})
+      + str.slice(j + len);
+  }
 
   else {
-    const match = xs[n],
-      i = s.lastIndexOf(match);
+    const match = xs[xs.length + i],
+      matches = Array.from(match),
+      j = match.index
+      len = match.length;
     
-    return str.slice(0, i) + f(match) + str.slice(i + match.length);
+    return str.slice(0, j)
+      + f({s, i: j, matches, groups: match.groups})
+      + str.slice(j + len);
   }
 };
 
@@ -11065,26 +11028,119 @@ Rex.replaceNthWith = (rx, f, n) => s => {
 █████ Searching ███████████████████████████████████████████████████████████████*/
 
 
-// consistent interface (returns an array that may be empty)
+Rex.searchAll = rx => s =>
+  Array.from(s.matchAll(rx)).map(ix => ix.index);
 
-Rex.search = flags => rx => s => {
-  for (const ix of s.matchAll(rx)) {
-    return [ix.index];
-  }
+
+Rex.searchAllWith = p => rx => s =>
+  Rex.matchAll(rx) (s).filter(p).map(ix => ix.index);
+
+
+Rex.searchFirst = rx => s => {
+  if (rx.flags.search("g") !== NOT_FOUND)
+    throw new Err("unexpected global flag");
+
+  const i = s.search(rx);
+
+  if (i === NOT_FOUND) return []
+  else return [i];
+};
+
+
+Rex.searchFirstWith = p => rx => s => {
+  for (const ix of s.matchAll(rx))
+    if (p(ix)) return [ix.index];
 
   return [];
 };
 
 
-Rex.searchAll = flags => rx => s =>
-  Array.from(s.matchAll(rx)).map(ix => ix.index);
+Rex.searchLast = rx => s => {
+  let last = [];
+
+  for (const ix of s.matchAll(rx))
+    last = [ix.index];
+
+  return last;
+};
+
+
+Rex.searchLastWith = p => rx => s => {
+  let last = [];
+
+  for (const ix of s.matchAll(rx))
+    if (p(ix)) last = [ix.index];
+
+  return last;
+};
+
+
+Rex.searchNth = (rx, i) => s => {
+  const xs = [];
+
+  for (const ix of s.matchAll(rx))
+    xs.push(ix.index);
+
+  if (xs.length - 1 < i) return [];
+  else return [xs[i]];
+};
+
+
+Rex.searchNthWith = p => (rx, i) => s => {
+  const xs = [];
+
+  for (const ix of s.matchAll(rx))
+    if (p(ix)) xs.push(ix.index);
+
+  if (xs.length - 1 < i) return [];
+  else return [xs[i]];
+};
+
+
+/*
+█████ Slicing █████████████████████████████████████████████████████████████████*/
+
+
+// composable combinators to slice substrings of greater strings
+
+
+Rex.sliceFrom = f => s => {
+  const is = f(s);
+  if (is.length === 0) return s;
+  else return s.slice(is[0]);
+};
+
+
+// excluding the delimiter
+
+Rex.sliceFrom_ = f => s => {
+  const is = f(s);
+  if (is.length === 0) return s;
+  else return s.slice(is[0] + 1);
+};
+
+
+Rex.sliceUpTo = f => s => {
+  const is = f(s);
+  if (is.length === 0) return s;
+  else return s.slice(0, is[0] + 1);
+};
+
+
+// excluding the delimiter
+
+Rex.sliceUpTo_ = f => s => {
+  const is = f(s);
+  if (is.length === 0) return s;
+  else return s.slice(0, is[0]);
+};
 
 
 /*
 █████ Splitting ███████████████████████████████████████████████████████████████*/
 
 
-// consolidate a splitted string
+// TODO: consolidate a splitted string
 
 Rex.consolidate = xs => {
 
