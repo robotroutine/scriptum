@@ -12164,8 +12164,26 @@ Str.Diff.eval = o => {
 
     // left partial ("zur Zeit" instead of "zurzeit")
 
-    if (right.s.slice(-left.s.length) === left.s[0].toLowerCase() + left.s.slice(1)) {
-        if (left.s[0].toLowerCase() === left.s[0]) {
+    if (right.s.slice(-left.s.length).toLowerCase() === left.s.toLowerCase()) {
+        if (right.s.slice(-left.s.length) === left.s) {
+          desc.push("partiality");
+          score += 1;
+        }
+
+        else {
+          desc.push("partiality");
+          score += 1.25;
+        }
+
+        ls.length = 0;
+        rs.length = 0;
+        continue;
+    }
+
+    // left partial ("Ort" instead of "Ortstermin")
+
+    if (right.s.slice(0, left.s.length).toLowerCase() === left.s.toLowerCase()) {
+        if (right.s.slice(0, left.s.length) === left.s) {
           desc.push("partiality");
           score += 1;
         }
@@ -12182,8 +12200,26 @@ Str.Diff.eval = o => {
 
     // right partial ("vorort" instead of "vor Ort")
 
-    if (left.s.slice(-right.s.length) === right.s[0].toLowerCase() + right.s.slice(1)) {
-        if (right.s[0].toLowerCase() === right.s[0]) {
+    if (left.s.slice(-right.s.length).toLowerCase() === right.s.toLowerCase()) {
+        if (left.s.slice(-right.s.length) === right.s) {
+          desc.push("partiality");
+          score += 1;
+        }
+
+        else {
+          desc.push("partiality");
+          score += 1.25;
+        }
+
+        ls.length = 0;
+        rs.length = 0;
+        continue;
+    }
+
+    // right partial ("Zeitreise" instead of "Zeit")
+
+    if (left.s.slice(0, right.s.length).toLowerCase() === right.s.toLowerCase()) {
+        if (left.s.slice(0, right.s.length) === right.s) {
           desc.push("partiality");
           score += 1;
         }
