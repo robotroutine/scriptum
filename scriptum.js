@@ -13,18 +13,11 @@ functional library for the Node.js environment */
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-import __child from "node:child_process";
-import __fs from "node:fs";
-import __path from "node:path";
-import __stream from "node:stream";
-
-
-const Node = {
-  child: __child,
-  fs: __fs,
-  path: __path,
-  stream: __stream
-};
+import nodeChild from "node:child_process";
+import nodeCrypto from "node:crypto";
+import nodeFs from "node:fs";
+import nodePath from "node:path";
+import nodeStream from "node:stream";
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -5038,6 +5031,9 @@ export const D = DateTime; // shortcut
 █████ Constants ███████████████████████████████████████████████████████████████*/
 
 
+D.secInMs = 1000;
+
+
 D.minInMs = 60000;
 
 
@@ -5048,6 +5044,18 @@ D.dayInMs = 86400000;
 
 
 D.weekInMs = 604800000;
+
+
+/*
+█████ Calculation █████████████████████████████████████████████████████████████*/
+
+
+D.calcMonthInMs = y => m => new Date(y, m, 0).getDate() * D.dayInMs;
+
+
+D.calcYearInMs = y =>
+  ((year % 4 === 0 && y % 100 > 0) || y %400 == 0)
+    ? 366 * D.dayInMs : 365 * D.dayInMs;
 
 
 /*
@@ -5094,7 +5102,7 @@ D.fromStr = (locale, century = 20) => s => {
 
 // parse the time string and add it to the date object
 
-D.fromTimeStr = locale => d => s => {
+D.fromTimeStr = d => s => {
   for (const rx of Rex.iso.times) {
     if (rx.test(s)) {
       const o = s.match(rx),
@@ -5125,7 +5133,7 @@ D.fromTimeStr = locale => d => s => {
     }
   }
 
-  throw new Err(`invalid ${locale} time string "${s}"`);
+  throw new Err(`invalid iso time string "${s}"`);
 };
 
 
@@ -10688,6 +10696,7 @@ Rex.classes.ascii.punct = {
 
 Rex.classes.latin1 = {};
 
+
 Rex.classes.latin1.letter = {
   rex: /[a-zßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]/i,
 
@@ -13783,6 +13792,234 @@ Yo.lower = tx => tx.yo(id);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ VALIDATION ██████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+/* Strings of date, datetime and numbers are not validated because such values
+are meant to be used encoded by their native types `Number`, `BigInt` or `Date`.
+If you need a string, simply convert. */
+
+
+export const Validate = {};
+
+
+// can also be used to calculate a check sum
+
+Validate.batchTotal = xs => x => {
+  xs.push(x);
+  return xs;
+};
+
+
+Validate.bic = s =>
+  /^([A-Z]{6}[A-Z2-9][A-NP-Z1-9])(X{3}|[A-WY-Z0-9][A-Z0-9]{2})?$/.test(s);
+
+
+Validate.charset = charset => s => {
+  switch (charset) {
+
+    // ASCII
+
+    case "ascii": {
+      if (new RegExp(Str.cat(
+        "^(?:",
+        "[a-z0-9]",
+        "|",
+        Rex.classes.ascii.punct.rex,
+        "|",
+        Rex.classes.ascii.ctrl,
+        ")+$"), "i").test(s))
+          return {valid: true};
+
+      else return {reason: "non-ascii character(s)", valid: false};
+    }
+
+    case "asciiLetter": {
+      if (/^[a-z]$/i.test(s)) return {valid: true};
+      else return {reason: "non-ascii letter(s)", valid: false};
+    }
+
+    case "asciiLcl": {
+      if (/^[a-z]$/.test(s)) return {valid: true};
+      else return {reason: "non-ascii lower-case letter(s)", valid: false};
+    }
+
+    case "asciiUcl": {
+      if (/^[A-Z]$/.test(s)) return {valid: true};
+      else return {reason: "non-ascii upper-case letter(s)", valid: false};
+    }
+
+    // Latin1 (ISO-8859-1)
+
+    case "latin1": {
+      if (new RegExp(Str.cat(
+        "^(?:",
+        Rex.classes.latin1.letter.rex,
+        "|",
+        "\\d",
+        "|",
+        Rex.classes.latin1.punct.rex,
+        "|",
+        Rex.classes.ascii.ctrl,
+        ")+$"), "i").test(s))
+          return {valid: true};
+
+      else return {reason: "non-latin1 characters", valid: false};
+    }
+
+    case "latin1Letter": {
+      if (new RegExp(`^${Rex.classes.latin1.letter.rex}+$`, "iv").test(s)) return {valid: true};
+      else return {reason: "non-latin1 letter(s)", valid: false};
+    }
+
+    case "latin1Lcl": {
+      if (new RegExp(`^${Rex.classes.latin1.lcl.rex}+$`, "v").test(s)) return {valid: true};
+      else return {reason: "non-latin1 lower-case letter(s)", valid: false};
+    }
+
+    case "latin1Ucl": {
+      if (new RegExp(`^${Rex.classes.latin1.ucl.rex}+$`, "v").test(s)) return {valid: true};
+      else return {reason: "non-latin1 upper-case letter(s)", valid: false};
+    }
+
+    // UTF-8
+
+    case "utf8": return {valid: true};
+
+    case "utf8Letter": {
+      if (/^\p{L}+$/v.test(s)) return {valid: true};
+      else return {reason: "non-utf8 letter(s)", valid: false};
+    }
+
+    case "utf8Lcl": {
+      if (/^\p{Ll}+$/v.test(s)) return {valid: true};
+      else return {reason: "non-utf8 lower-case letter(s)", valid: false};
+    }
+
+    case "utf8Ucl": {
+      if (/^\p{Lu}+$/v.test(s)) return {valid: true};
+      else return {reason: "non-utf8 upper-case letter(s)", valid: false};
+    }
+
+    // others
+
+    case "decimal": {
+      if (/[0-9.,\-+e]/.test(s)) return {valid: true};
+      else return {reason: "non-decimal-number character(s)", valid: false};
+    }
+
+    case "digits": {
+      if (/^\d+$/.test(s)) return {valid: true};
+      else return {reason: "non-digit character(s)", valid: false};
+    }
+
+    case "phone": {
+      if (/(\(?([\d \-\)\+\/\(]+){6,}\)?([ .\-–\/]?)([\d]+))/.test(s))
+        return {valid: true};
+
+      else return {reason: "non-phone character(s)", valid: false};
+    }
+
+    case "properName": {
+      if (/^[\p{L} \-'.]+$/v.test(s)) return {valid: true};
+      else return {reason: "non-proper-name character(s)", valid: false};
+    }
+
+    case "street": {
+      if (/^[\p{L}\d \-./]+$/.test(s)) return {valid: true};
+      else return {reason: "non-street character(s)", valid: false};
+    }
+
+    case "email": {
+      if (/^[\p{L}\d\-.@_']+$/.test(s)) return {valid: true};
+      else return {reason: "non-digit character(s)", valid: false};
+    }
+
+    default: throw new Err(`unknown charset "${charset}"`);
+  }
+};
+
+
+Validate.iban = input => {
+  const codeLen = 22;
+
+  const iban = input.toUpperCase(),
+    code = iban.match(/^([A-Z]{2})(\d{2})([A-Z\d]+)$/);
+
+  let digits;
+
+  if (!code || iban.length !== codeLen) return false;
+
+  digits = (code[3] + code[1] + code[2]).replace(/[A-Z]/g, letter => {
+    return letter.charCodeAt(0) - 55;
+  });
+
+  let checksum = digits.slice(0, 2),
+    fragment;
+
+  for (let offset = 2; offset < digits.length; offset += 7) {
+    fragment = String(checksum) + digits.substring(offset, offset + 7);
+    checksum = parseInt(fragment, 10) % 97;
+  }
+
+  return checksum === 1;
+};
+
+
+Validate.length = ([from, to]) => x => {
+  if (x.length < from) return {reason: "out of range", valid: false};
+  else if (x.length > to) return {reason: "out of range", valid: false};
+  else return {valid: true};
+};
+
+
+Validate.range = ([from, to]) => n => {
+  if (n < from) return {reason: "out of range", valid: false};
+  else if (n > to) return {reason: "out of range", valid: false};
+  else return {valid: true};
+};
+
+
+Validate.member = s => x => {
+  if (s.has(x)) return {valid: true};
+  else return {reason: `no member "${x}"`, valid: false};
+};
+
+
+Validate.unique = s => x => {
+  if (s.has(x)) return {reason: `not unique "${x}"`, valid: false};
+
+  else {
+    s.add(x);
+    return {valid: true};
+  }
+};
+
+
+Validate.value = x => {
+  if (x === undefined)
+    return {reason: "null-pointer", valid: {valid: false}};
+
+  else if (x === null) return {reason: "no value", valid: false};
+  else if (x !== x) return {reason: "not a number", valid: false};
+  else if (isNaN(x)) return {reason: "invalid date", valid: false};
+  
+  else if (typeof x === "number") {
+    if (!Number.isFinite(x))
+      return {reason: "infinite number", valid: false};
+
+    else if (!Number.isSafeInteger(x))
+      return {reason: "too big a number", valid: false};
+
+    else return {valid: true};
+  }
+
+  else return {valid: true};
+};
+
+
+/*█████████████████████████████████████████████████████████████████████████████
 ████████████████████████████████ RESOLVE DEPS █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
@@ -13842,6 +14079,9 @@ O.fromAit = O.fromAit();
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
+export const Node = {};
+
+
 /*█████████████████████████████████████████████████████████████████████████████
 ████████████████████████████████ CHILD PROCESS ████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -13855,12 +14095,12 @@ Example of use:
 Yields either the text file or an error message from the executable (installed
 pdftotext assumed). */
 
-export const Child_ = Cons => {
+Node.Child = Cons => {
   const o = {};
 
   o.handle = reify(p => {
     p.exec = cmd => Cons(k =>
-      Node.child.exec(cmd, (e, stdout, stderr) => {
+      nodeChild.exec(cmd, (e, stdout, stderr) => {
         if (e) return k(new Err(e));
         else if (stderr) return k(new Err(stderr));
         else return k(stdout);
@@ -13871,7 +14111,7 @@ export const Child_ = Cons => {
 
   o.throw = reify(p => {
     p.exec = cmd => Cons(k =>
-      Node.child.exec(cmd, (e, stdout, stderr) => {
+      nodeChild.exec(cmd, (e, stdout, stderr) => {
         if (e) throw e;
         else if (stderr) throw stderr;
         else return k(stdout);
@@ -13888,7 +14128,7 @@ export const Child_ = Cons => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-export const CLA = {};
+Node.CLA = {};
 
 
 /* Take an object of mandatory and optional command line arguments each and
@@ -13896,7 +14136,7 @@ check if all mandatory arguments are supplied. If a property of the mandatory
 or optional object includes a predicate, use it to validate the respective
 argument value. */
 
-CLA.scan = ({mandatory, optional = {}}) => {
+Node.CLA.scan = ({mandatory, optional = {}}) => {
   const o = {}, xs = [];
 
   process.argv.slice(2).forEach(arg => {
@@ -13940,7 +14180,7 @@ CLA.scan = ({mandatory, optional = {}}) => {
 };
 
 
-CLA.setEnv = o => {
+Node.CLA.setEnv = o => {
   Object.keys(o).forEach(k => {
     if (k in process.env) console.warn(`overwrite property "${k}"`);
     process.env[k] = o[k];
@@ -13951,13 +14191,60 @@ CLA.setEnv = o => {
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████ CRYPTO ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+Node.Crypto = {};
+
+
+Node.Crypto.createKey256 = () => crypto.randomBytes(32).toString("base64");
+
+
+/* decrypt a cypther text:
+
+  const plaintext = Node.Crypto.decryptSym(key, ciphertext, iv, tag); */
+
+Node.Crypto.decryptSym = (key, ciphertext, iv, tag) => {
+  const decipher = crypto.createDecipheriv(
+    "aes-256-gcm", 
+    Buffer.from(key, "base64"),
+    Buffer.from(iv, "base64")
+  );
+  
+  decipher.setAuthTag(Buffer.from(tag, "base64"));
+
+  let plaintext = decipher.update(ciphertext, "base64", "utf8");
+  plaintext += decipher.final("utf8");
+  return plaintext;
+}
+
+
+/* encrypt a plain text:
+
+  const key = Node.Crypto.createKey256();
+    {ciphertext, iv, tag} = Node.Crypto.encryptSym(key, plaintext); */
+
+Node.Crypto.encryptSym = (key, plaintext) => {
+  const iv = crypto.randomBytes(12).toString("base64"),
+    cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+
+  let ciphertext = cipher.update(plaintext, "utf8", "base64");
+  ciphertext += cipher.final("base64");
+  
+  const tag = cipher.getAuthTag();
+  return { ciphertext, iv, tag };
+};
+
+
+/*█████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████ FILE SYSTEM █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
 // pass an asynchronous type (`Serial`/`Parallel`) to get a file system instance
 
-export const FS_ = Cons => {
+Node.FS = Cons => {
   const o = {};
 
   // file system that imposes error handling on the calling site
@@ -14101,7 +14388,7 @@ export const FS_ = Cons => {
 
 // pass an asynchronous type (`Serial`/`Parallel`) to get a SQL instance
 
-export const SQL_ = Cons => {
+Node.SQL = Cons => {
   const o = {};
 
   // meta is additional data passed to the query
