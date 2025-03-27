@@ -2868,22 +2868,49 @@ A.fromAitValues = () => comp(S.fromPromise) (async function (ix) {
 });
 
 
-A.fromCsv = ({sep, delim, headings}) => csv => {
-  const table = csv.trim()
+/* Parse csv data with and without headings. Consider an optional header for
+additional, file-wide meta data. Consecutive double or triple delimiters are
+considered as escaped and thus part of the content, not the syntax. Separators
+within delimiters are alos considered as part of the content, not the syntax. */
+
+A.fromCsv = ({sep, delim, header, headings}) => csv => {
+  const csv2 = csv.trim()
+    .replaceAll(new RegExp(`${delim}{2,3}`, "gv"), "<delim/>");
+  
+  const xs = csv2.split(new RegExp(`(${delim})`));
+
+  if (csv[0] === delim) xs.shift();
+  if (csv[csv.length - 1] === delim) xs.pop();
+
+  const ys = xs.map(s => {
+    if (s[0] !== sep) {
+      if (s[s.length - 1] === sep) throw new Err("invalid csv data");
+      else return s.replaceAll(new RegExp(sep, "g"), "<sep/>");
+    }
+
+    else return s;
+  });
+
+  const table = ys.join("")
     .replaceAll(new RegExp(`${delim}${sep}`, "g"), sep)
     .replaceAll(new RegExp(`${sep}${delim}`, "g"), sep)
     .replaceAll(new RegExp(`^${delim}`, "gm"), "")
     .replaceAll(new RegExp(`${delim}$`, "gm"), "")
+    .replaceAll("<delim/>", delim)
     .split(/\r?\n/)
-    .map(row => row.split(sep));
+    .map(row => row.split(sep)
+      .map(col => col.replaceAll(/<sep\/>/g, sep)));
 
-  let names;
+  if (header) table.meta = table.shift();
 
-  if (headings) names = table.shift();
+  if (headings) {
+    const names = table.shift();
 
-  return headings
-    ? table.map(cols => cols.reduce((acc, col, i) => (acc[names[i]] = col, acc), {}))
-    : table;
+    return table.map(cols =>
+      cols.reduce((acc, col, i) => (acc[names[i]] = col, acc), {}));
+  }
+
+  else return table;
 };
 
 
@@ -5245,6 +5272,22 @@ D.formatTz = digits => d => {
 };
 
 
+// DDMMYY
+
+D.formatDe6 = D.format("") (
+  D.formatDay(2),
+  D.formatMonth({digits: 2}),
+  D.formatYear(2));
+
+
+// DDMMYYYY
+
+D.formatDe8_ = D.format("") (
+  D.formatDay(2),
+  D.formatMonth({digits: 2}),
+  D.formatYear(4));
+
+
 // DD.MM.YY
 
 D.formatDe8 = D.format(".") (
@@ -5259,6 +5302,22 @@ D.formatDe10 = D.format(".") (
   D.formatDay(2),
   D.formatMonth({digits: 2}),
   D.formatYear(4));
+
+
+// YYMMDD
+
+D.formatIso6 = D.format("") (
+  D.formatYear(2),
+  D.formatMonth({digits: 2}),
+  D.formatDay(2));
+
+
+// YYYYMMDD
+
+D.formatIso8 = D.format("") (
+  D.formatYear(4),
+  D.formatMonth({digits: 2}),
+  D.formatDay(2));
 
 
 // YY-MM-DD
@@ -7905,6 +7964,13 @@ Num.formatSign = ({pos, neg}) => n =>
 
 
 Num.formatSep = sep => n => sep;
+
+
+Num.formatDe = Num.format(
+  Num.formatSign({pos: "", neg: "-"}),
+  Num.formatInt(""),
+  Num.formatSep(","),
+  Num.formatFrac(2));
 
 
 Num.formatIso = Num.format(
@@ -13804,6 +13870,11 @@ If you need a string, simply convert. */
 export const Validate = {};
 
 
+// TODO: Validate.cardinality
+// TODO: Validate.order
+// TODO: Validate.structuralIntegrity
+
+
 // can also be used to calculate a check sum
 
 Validate.batchTotal = xs => x => {
@@ -13832,22 +13903,22 @@ Validate.charset = charset => s => {
         ")+$"), "i").test(s))
           return {valid: true};
 
-      else return {reason: "non-ascii character(s)", valid: false};
+      else return {reasons: ["non-ascii character(s)"], valid: false};
     }
 
     case "asciiLetter": {
       if (/^[a-z]$/i.test(s)) return {valid: true};
-      else return {reason: "non-ascii letter(s)", valid: false};
+      else return {reasons: ["non-ascii letter(s)"], valid: false};
     }
 
     case "asciiLcl": {
       if (/^[a-z]$/.test(s)) return {valid: true};
-      else return {reason: "non-ascii lower-case letter(s)", valid: false};
+      else return {reasons: ["non-ascii lower-case letter(s)"], valid: false};
     }
 
     case "asciiUcl": {
       if (/^[A-Z]$/.test(s)) return {valid: true};
-      else return {reason: "non-ascii upper-case letter(s)", valid: false};
+      else return {reasons: ["non-ascii upper-case letter(s)"], valid: false};
     }
 
     // Latin1 (ISO-8859-1)
@@ -13865,22 +13936,22 @@ Validate.charset = charset => s => {
         ")+$"), "i").test(s))
           return {valid: true};
 
-      else return {reason: "non-latin1 characters", valid: false};
+      else return {reasons: ["non-latin1 characters"], valid: false};
     }
 
     case "latin1Letter": {
       if (new RegExp(`^${Rex.classes.latin1.letter.rex}+$`, "iv").test(s)) return {valid: true};
-      else return {reason: "non-latin1 letter(s)", valid: false};
+      else return {reasons: ["non-latin1 letter(s)"], valid: false};
     }
 
     case "latin1Lcl": {
       if (new RegExp(`^${Rex.classes.latin1.lcl.rex}+$`, "v").test(s)) return {valid: true};
-      else return {reason: "non-latin1 lower-case letter(s)", valid: false};
+      else return {reasons: ["non-latin1 lower-case letter(s)"], valid: false};
     }
 
     case "latin1Ucl": {
       if (new RegExp(`^${Rex.classes.latin1.ucl.rex}+$`, "v").test(s)) return {valid: true};
-      else return {reason: "non-latin1 upper-case letter(s)", valid: false};
+      else return {reasons: ["non-latin1 upper-case letter(s)"], valid: false};
     }
 
     // UTF-8
@@ -13889,51 +13960,17 @@ Validate.charset = charset => s => {
 
     case "utf8Letter": {
       if (/^\p{L}+$/v.test(s)) return {valid: true};
-      else return {reason: "non-utf8 letter(s)", valid: false};
+      else return {reasons: ["non-utf8 letter(s)"], valid: false};
     }
 
     case "utf8Lcl": {
       if (/^\p{Ll}+$/v.test(s)) return {valid: true};
-      else return {reason: "non-utf8 lower-case letter(s)", valid: false};
+      else return {reasons: ["non-utf8 lower-case letter(s)"], valid: false};
     }
 
     case "utf8Ucl": {
       if (/^\p{Lu}+$/v.test(s)) return {valid: true};
-      else return {reason: "non-utf8 upper-case letter(s)", valid: false};
-    }
-
-    // others
-
-    case "decimal": {
-      if (/[0-9.,\-+e]/.test(s)) return {valid: true};
-      else return {reason: "non-decimal-number character(s)", valid: false};
-    }
-
-    case "digits": {
-      if (/^\d+$/.test(s)) return {valid: true};
-      else return {reason: "non-digit character(s)", valid: false};
-    }
-
-    case "phone": {
-      if (/(\(?([\d \-\)\+\/\(]+){6,}\)?([ .\-–\/]?)([\d]+))/.test(s))
-        return {valid: true};
-
-      else return {reason: "non-phone character(s)", valid: false};
-    }
-
-    case "properName": {
-      if (/^[\p{L} \-'.]+$/v.test(s)) return {valid: true};
-      else return {reason: "non-proper-name character(s)", valid: false};
-    }
-
-    case "street": {
-      if (/^[\p{L}\d \-./]+$/.test(s)) return {valid: true};
-      else return {reason: "non-street character(s)", valid: false};
-    }
-
-    case "email": {
-      if (/^[\p{L}\d\-.@_']+$/.test(s)) return {valid: true};
-      else return {reason: "non-digit character(s)", valid: false};
+      else return {reasons: ["non-utf8 upper-case letter(s)"], valid: false};
     }
 
     default: throw new Err(`unknown charset "${charset}"`);
@@ -13941,10 +13978,52 @@ Validate.charset = charset => s => {
 };
 
 
-Validate.iban = input => {
+Validate.date = ([from, to]) => d => {
+  if (intro(d) !== "Date")
+    return {reasons: ["date expected"], valid: false};
+
+  else if (d < from || d > to)
+    return {reasons: ["date out of range"], valid: false};
+
+  else return {valid: true};
+};
+
+
+Validate.decimal = ([from, to]) => n => {
+  const [int, dec] = String(n).split(/\./);
+
+  if (dec.length < from) return {reasons: ["out of range"], valid: false};
+  else if (dec.length > to) return {reasons: ["out of range"], valid: false};
+};
+
+
+Validate.empty = x => {
+  const tag = intro(x);
+
+  if (tag === "Array") {
+    if (x.length === 0) return {valid: true};
+  }
+
+  if (tag === "Number") {
+    if (x === 0) return {valid: true};
+  }
+    
+  if (tag === "Object") {
+    if (Object.keys(x).length === 0) return {valid: true};
+  }
+    
+  if (tag === "String") {
+    if (x === "") return {valid: true};
+  }
+  
+  return {reasons: ["not empty"], valid: false};
+};
+
+
+Validate.iban = s => {
   const codeLen = 22;
 
-  const iban = input.toUpperCase(),
+  const iban = s.toUpperCase(),
     code = iban.match(/^([A-Z]{2})(\d{2})([A-Z\d]+)$/);
 
   let digits;
@@ -13967,28 +14046,120 @@ Validate.iban = input => {
 };
 
 
-Validate.length = ([from, to]) => x => {
-  if (x.length < from) return {reason: "out of range", valid: false};
-  else if (x.length > to) return {reason: "out of range", valid: false};
+Validate.integer = n => {
+  if (typeof n !== "number") 
+    return {reasons: ["natural expected"], valid: false};
+
+  else if (n % 1 !== 0)
+    return {reasons: ["natural expected"], valid: false};
+
   else return {valid: true};
 };
 
 
-Validate.range = ([from, to]) => n => {
-  if (n < from) return {reason: "out of range", valid: false};
-  else if (n > to) return {reason: "out of range", valid: false};
+Validate.length = ([from, to]) => x => {
+  if (x.length < from) return {reasons: ["out of range"], valid: false};
+  else if (x.length > to) return {reasons: ["out of range"], valid: false};
   else return {valid: true};
 };
 
 
 Validate.member = s => x => {
   if (s.has(x)) return {valid: true};
-  else return {reason: `no member "${x}"`, valid: false};
+  else return {reasons: [`no member "${x}"`], valid: false};
+};
+
+
+Validate.natural = n => {
+  if (typeof n !== "number") 
+    return {reasons: ["natural expected"], valid: false};
+
+  else if (n <= 0)
+    return {reasons: ["natural expected"], valid: false};
+
+  else if (n % 1 !== 0)
+    return {reasons: ["natural expected"], valid: false};
+
+  else return {valid: true};
+};
+
+
+Validate.negative = n => {
+  if (typeof n !== "number")
+    return {reasons: ["negative number expected"], valid: false};
+
+  else if (n >= 0)
+    return {reasons: ["negative number expected"], valid: false};
+
+  else return {valid: true};
+};
+
+
+Validate.number = n => {
+  if (typeof n === "number") return {valid: true};
+  else return {reasons: ["number expected"], valid: false};
+};
+
+
+Validate.pattern = rx => s => {
+  if (rx.test(s) === true) return {valid: true};
+  else return {reasons: [`pattern mismatch "${rx.source}"`], valid: false};
+};
+
+
+Validate.range = ([from, to]) => n => {
+  if (n < from) return {reasons: ["out of range"], valid: false};
+  else if (n > to) return {reasons: ["out of range"], valid: false};
+  else return {valid: true};
+};
+
+
+Validate.scheme = scheme => s => {
+  switch (scheme) {
+    case "decimal": {
+      if (/[0-9.,\-+e]/.test(s)) return {valid: true};
+      else return {reasons: ["non-decimal-number character(s)"], valid: false};
+    }
+
+    case "digits": {
+      if (/^\d+$/.test(s)) return {valid: true};
+      else return {reasons: ["non-digit character(s)"], valid: false};
+    }
+
+    case "phone": {
+      if (/(\(?([\d \-\)\+\/\(]+){6,}\)?([ .\-–\/]?)([\d]+))/.test(s))
+        return {valid: true};
+
+      else return {reasons: ["non-phone character(s)"], valid: false};
+    }
+
+    case "poBox": {
+      if (/^[\d ]+$/.test(s)) return {valid: true};
+      else return {reasons: ["non-po-box character(s)"], valid: false};
+    }
+
+    case "properName": {
+      if (/^[\p{L} \-'.]+$/v.test(s)) return {valid: true};
+      else return {reasons: ["non-proper-name character(s)"], valid: false};
+    }
+
+    case "street": {
+      if (/^[\p{L}\d \-./]+$/.test(s)) return {valid: true};
+      else return {reasons: ["non-street character(s)"], valid: false};
+    }
+
+    case "email": {
+      if (/^[\p{L}\d\-.@_']+$/.test(s)) return {valid: true};
+      else return {reasons: ["non-digit character(s)"], valid: false};
+    }
+
+    default: throw new Err(`unknown charset "${charset}"`);
+  }
 };
 
 
 Validate.unique = s => x => {
-  if (s.has(x)) return {reason: `not unique "${x}"`, valid: false};
+  if (s.has(x)) return {reasons: [`not unique "${x}"`], valid: false};
 
   else {
     s.add(x);
@@ -13999,23 +14170,101 @@ Validate.unique = s => x => {
 
 Validate.value = x => {
   if (x === undefined)
-    return {reason: "null-pointer", valid: {valid: false}};
+    return {reasons: ["type error"], valid: {valid: false}};
 
-  else if (x === null) return {reason: "no value", valid: false};
-  else if (x !== x) return {reason: "not a number", valid: false};
-  else if (isNaN(x)) return {reason: "invalid date", valid: false};
+  else if (x === null) return {reasons: ["missing result"], valid: false};
+  else if (x !== x) return {reasons: ["not a number"], valid: false};
+  else if (isNaN(x)) return {reasons: ["invalid date"], valid: false};
   
   else if (typeof x === "number") {
     if (!Number.isFinite(x))
-      return {reason: "infinite number", valid: false};
+      return {reasons: ["infinite number"], valid: false};
 
     else if (!Number.isSafeInteger(x))
-      return {reason: "too big a number", valid: false};
+      return {reasons: ["integer out of range"], valid: false};
 
     else return {valid: true};
   }
 
   else return {valid: true};
+};
+
+
+Validate.with = p => s => {
+  const r = p(s);
+  if (r === true) return {valid: true};
+  else if (typeof r === "string") return {reasons: [r], valid: false};
+  else return {reasons: ["unmet predicate"], valid: false};
+};
+
+
+/*
+█████ Accumulate ██████████████████████████████████████████████████████████████*/
+
+
+Validate.accum = (...os) => {
+  const reasons = [];
+
+  for (const o of os)
+    if (o.valid === false) A.pushn(o.reasons) (reasons);
+
+  if (reasons.length === 0) return {valid: true};
+  else return {reasons, valid: false};
+};
+
+
+/*
+█████ Logic ███████████████████████████████████████████████████████████████████*/
+
+
+Validate.and = (f, g) => s => {
+  const o = f(s), p = g(s), reasons = [];
+
+  if (o.valid === false) A.pushn(o.reasons) (reasons);
+  if (p.valid === false) A.pushn(p.reasons) (reasons);
+
+  if (reasons.length === 0) return {valid: true};
+  else return {reasons, valid: false};
+};
+
+
+Validate.all = (...fs) => s => {
+  const reasons = [];
+
+  for (const f of fs) {
+    const o = f(s);
+    if (o.valid === false) A.pushn(o.reasons) (reasons);
+  }
+
+  if (reasons.length === 0) return {valid: true};
+  else return {reasons, valid: false};
+};
+
+
+Validate.or = (f, g) => s => {
+  const o = f(s), p = g(s), reasons = [];
+
+  if (o.valid) return {valid: true};
+  else A.pushn(o.reasons) (reasons);
+
+  if (p.valid) return {valid: true};
+  else A.pushn(p.reasons) (reasons);
+
+  return {reasons, valid: false};
+};
+
+
+Validate.any = (...fs) => s => {
+  const reasons = [];
+
+  for (const f of fs) {
+    const o = f(s);
+
+    if (o.valid) return {valid: true};
+    else A.pushn(o.reasons) (reasons);
+  }
+
+  return {reasons, valid: false};
 };
 
 
