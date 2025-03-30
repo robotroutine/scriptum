@@ -4754,9 +4754,6 @@ Const.Applicative = {
 // encode stack-safe continuation passing style using a trampoline
 
 
-// TODO: remove trampoline at less expensive combinators
-
-
 export const Cont = type("Cont");
 
 
@@ -4981,8 +4978,6 @@ Cont.callcc = f => Cont(k => f(x => Cont(_ => k(x))).cont(k));
 
 Cont.Tramp = {};
 
-
-// TODO: consider call2/call2_
 
 // strictly call the deferred function call tree
 
@@ -11215,32 +11210,317 @@ Rex.sliceUpTo_ = f => s => {
 █████ Splitting ███████████████████████████████████████████████████████████████*/
 
 
-// TODO: consolidate a splitted string
+/* Re-merge tokens that form a meaningful composition and were separated with
+`Rex.splitAtToken` or another splitting combinator. */
 
-Rex.consolidate = xs => {
+Rex.consolidate = xs => {debugger;
+  const ys = [];
 
-  // A-Dur
+  for (let i = 0; i < xs.length; i++) {
+    const prev2 = i <= 1 ? "" : xs[i - 2],
+      prev = i === 0 ? "" : xs[i - 1],
+      curr = xs[i],
+      next = i + 1 >= xs.length ? "" : xs[i + 1],
+      next2 = i + 2 >= xs.length ? "" : xs[i + 2];
 
-  // Dipl.-Ing.
+    if (curr === " ") {
 
-  // 3-fach
+      // id S . -> idS .
 
-  // -fach
+      if (/^\p{Ll}{1,2}$/v.test(prev) && /^\p{Lu}$/v.test(next))
+        ys.push({s: prev + next, is: [i - 1, i, i + 1]});
+    }
 
-  // Fach-
 
-  // Max'
+    else if (curr === "-") {
 
-  // O'Hara
+      // Mund-zu-Mund-Beatmung
 
-  // Newton'sche
+      if (/\p{L}/v.test(prev) && /\p{L}/v.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
 
-  // 'ne
+      // 3-fach
 
-  // u.s.w.
+      else if (/\p{N}/v.test(prev) && /\p{L}/v.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
 
-  // usw.
+      // -fach
 
+      else if (prev === " " && /\p{L}/v.test(next))
+        ys.push({s: curr + next, is: [i, i + 1]});
+
+      // Fach-
+
+      else if (/\p{L}/v.test(prev) && next === " ")
+        ys.push({s: prev + curr, is: [i - 1, i]});
+
+      // Fach-\nschule
+
+      else if (/\p{L}/v.test(prev)
+        && /\r?\n/.test(next)
+        && /\p{L}/v.test(next2))
+          ys.push({s: prev + next2, is: [i - 1, i, i + 1, i + 2]});
+
+      // -123
+
+      else if (prev === " " && /\p{N}/v.test(next))
+        ys.push({s: curr + next, is: [i, i + 1]});
+
+      // 1-100
+
+      else if (/\d/.test(prev) && /\d/.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      // 1.--
+
+      else if (/\d/.test(prev2)
+        && prev === "."
+        && next === "-")
+          ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      else if (prev2 === "."
+        && prev === "-"
+        && /[ .;\r\n]|^$/.test(next))
+          ys.push({s: prev + curr, is: [i - 1, i]});
+
+      // 1,--
+
+      else if (/\d/.test(prev2)
+        && prev === ","
+        && next === "-")
+          ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      else if (prev2 === ","
+        && prev === "-"
+        && /[ .;\r\n]|^$/.test(next))
+          ys.push({s: prev + curr, is: [i - 1, i]});
+
+      // Dipl.-Ing.
+
+      else if (/\p{L}/v.test(prev2)
+        && prev === "."
+        && /\p{L}/v(next))
+          ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+    }
+
+    else if (curr === ".") {
+
+      // z.B.
+
+      if (/\p{L}/v.test(prev) && /\p{L}/v.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      else if (/\p{L}/v.test(prev) && /[ .;\r\n]|^$/.test(next))
+        ys.push({s: prev + curr, is: [i - 1, i]});
+
+      // Dipl.-Ing.
+
+      else if (/\p{L}/v.test(prev)
+        && next === "-"
+        && /\p{L}/v.test(next2))
+          ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      // 0.1
+
+      else if (/\d/.test(prev) && /\d/.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      // 1.-
+    
+      else if (/\d/.test(prev) && next === "-")
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      // 1..10
+
+      else if (/\d/.test(prev) && next === ".")
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      else if (prev === "." && /\d/.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+    }
+
+    else if (curr === "'") {
+    
+      // Max'
+
+      if (/\p{L}/v.test(prev) && /[ .;\r\n]|^$/.test(next))
+        ys.push({s: prev + curr, is: [i - 1, i]});
+
+      // 'ne
+
+      else if (/[ .;\r\n]|^$/.test(prev) && /\p{L}/v.test(next))
+        ys.push({s: curr + next, is: [i, i + 1]});
+
+      // Newton'sche
+
+      else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+    }
+
+    else if (curr === ",") {
+
+      // 0,1
+
+      if (/\d/.test(prev) && /\d/.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      // 1,-
+
+      else if (/\d/.test(prev) && next === "-")
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+    }
+
+    else if (curr === "/") {
+
+      // 1/3
+
+      if (/\d/.test(prev) && /\d/.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      // http://www
+
+      else if (prev === ":" && next === "/")
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      else if (prev2 === ":" && prev === "/" && /\p{L}/v.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+    }
+
+    else if (curr === ":") {
+
+      // Lehrer:innen
+
+      if (/\p{L}/v.test(prev) && /\p{L}/v.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      // http://www
+
+      else if (/\p{L}/v.test(prev) && next === "/" && next2 === "/")
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+    }
+
+    else if (curr === '"') {
+
+      // 19"
+
+      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
+        ys.push({s: prev + curr, is: [i - 1, i]});
+    }
+
+    else if (curr === "%") {
+
+      // 100%
+
+      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
+        ys.push({s: prev + curr, is: [i - 1, i]});
+    }
+
+    else if (curr === "&") {
+
+      // H&M
+
+      if (/\p{L}/v.test(prev) && /\p{L}/v.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+
+      // H & M
+
+      if (/\p{L}/v.test(prev2)
+        && prev === " "
+        && next === " "
+        && /\p{L}/v.test(next2)) {
+          ys.push({
+            s: prev2 + prev + curr + next + next2,
+            is: [i - 2, i - 1, i, i + 1, i + 2]
+          });
+      }
+    }
+
+    else if (curr === "€") {
+
+      // 10€
+
+      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
+        ys.push({s: prev + curr, is: [i - 1, i]});
+
+      // 10 €
+      
+      if (/\d/.test(prev2) && prev === " " && /[ .;\r\n]|^$/.test(next))
+        ys.push({s: prev2 + prev + curr, is: [i - 2, i - 1, i]});
+    }
+
+    else if (curr === "$") {
+
+      // 10$
+
+      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
+        ys.push({s: prev + curr, is: [i - 1, i]});
+
+      // 10 $
+      
+      if (/\d/.test(prev2) && prev === " " && /[ .;\r\n]|^$/.test(next))
+        ys.push({s: prev2 + prev + curr, is: [i - 2, i - 1, i]});
+    }
+
+    else if (curr === "+") {
+      
+      // +100
+
+      if (/[ .;\r\n]|^$/.test(prev) && /\d/.test(next))
+        ys.push({s: prev + curr, is: [i - 1, i]});
+    }
+
+    else if (curr === "@") {
+
+      // info@mail.com
+
+      if (/\p{L}/v.test(prev) && /\p{L}/v.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+    }
+    
+    else if (curr === "*") {
+
+      // Lehrer*innen
+
+      if (/\p{L}/v.test(prev) && /\p{L}/v.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+    }
+
+    else if (curr === "_") {
+
+      // Lehrer_innen
+
+      if (/\p{L}/v.test(prev) && /\p{L}/v.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+    }
+
+    else if (curr === "§") {
+      
+      // §100
+
+      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
+        ys.push({s: prev + curr, is: [i - 1, i]});
+    }
+
+    else if (curr === "%") {
+
+      // 100°
+
+      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
+        ys.push({s: prev + curr, is: [i - 1, i]});
+
+      // 100°C
+
+      if (/\d/.test(prev)
+        && next === "C"
+        && /[ .;\r\n]|^$/.test(next2))
+          ys.push({s: prev + curr, next, is: [i - 1, i, i + 1]});
+    }
+
+    else ys.push({s: curr, is: [i]});
+  }
+
+  return ys;
 };
 
 
@@ -11257,12 +11537,6 @@ Rex.splitAt = flags => (...rs) => s => s.split(
   new RegExp(rs.map(rx => rx.source).join("|"), flags));
 
 
-Rex.splitAtAlnum = Rex.splitAt("v") (Rex.classes.alnum.split);
-
-
-Rex.splitAtAldig = Rex.splitAt("v") (Rex.classes.aldig.split);
-
-
 Rex.splitAtLetter = Rex.splitAt("v") (Rex.classes.letter.split);
 
 
@@ -11270,10 +11544,20 @@ Rex.splitAtCasing = Rex.splitAt("v")
   (Rex.classes.ucl.split, Rex.classes.lcl.split);
 
 
+// unicode number class
+
 Rex.splitAtNum = Rex.splitAt("v") (Rex.classes.num.split);
 
 
+// only ascii digits
+
 Rex.splitAtDig = Rex.splitAt("v") (Rex.classes.digit.split);
+
+
+Rex.splitAtAlnum = Rex.splitAt("v") (Rex.classes.alnum.split);
+
+
+Rex.splitAtAldig = Rex.splitAt("v") (Rex.classes.aldig.split);
 
 
 Rex.splitAtNonAlnum = Rex.splitAt("v") (
@@ -11281,6 +11565,17 @@ Rex.splitAtNonAlnum = Rex.splitAt("v") (
   Rex.classes.sym.split,
   Rex.classes.space.split,
   Rex.classes.crnl.split);
+
+
+// split into the smallest possible tokens
+
+Rex.splitAtToken = Rex.splitAt("v") (
+  Rex.classes.num.split,
+  Rex.classes.punct.split,
+  Rex.classes.sym.split,
+  Rex.classes.space.split,
+  Rex.classes.crnl.split,
+  /(?<=\p{Ll})(?=\p{Lu})/v); // "fooBar" -> "foo Bar"
 
 
 /*
@@ -14319,6 +14614,64 @@ _Map.fromAit = _Map.fromAit();
 
 
 O.fromAit = O.fromAit();
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████ VECTOR ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+export const Vector = {};
+
+
+export const cosine = (xs, ys) => {
+  if (xs.length !== ys.length) throw new Err("same length expected");
+  else if (xs.length === 0) return 0;
+
+  let n = 0, n2 = 0, n3 = 0;
+
+  for (let i = 0; i < v.length; i++) {
+    n += xs[i] * ys[i];
+    n2 += xs[i] * xs[i];
+    n3 += ys[i] * ys[i];
+  }
+  
+  return n / (Math.sqrt(n2) * Math.sqrt(n3));
+};
+
+
+Vector.dotProduct = (xs, ys) => {
+  if (xs.length !== ys.length) throw new Err("same length expected");
+
+  let n = 0;
+  for (let i = 0; i < xs.length; i++) n += xs[i] * ys[i];
+  return n;
+};
+
+
+Vector.euclidean = (xs, ys) => {
+  if (xs.length !== ys.length) throw new Err("same length expected");
+  else if (xs.length === 0) return 0;
+
+  let n = 0;
+
+  for (let i = 0; i < xs.length; i++) {
+    const diff = xs[i] - ys[i];
+    n += diff * diff;
+  }
+
+  return Math.sqrt(n);
+};
+
+
+Vector.manhattan = (xs, ys) => {
+  if (xs.length !== ys.length) throw new Err("same length expected");
+  else if (xs.length === 0) return 0;
+
+  let n = 0;
+  for (let i = 0; i < xs.length; i++) n += Math.abs(xs[i] - ys[i]);
+  return n;
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
