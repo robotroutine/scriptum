@@ -11213,7 +11213,7 @@ Rex.sliceUpTo_ = f => s => {
 /* Re-merge tokens that form a meaningful composition and were separated with
 `Rex.splitAtToken` or another splitting combinator. */
 
-Rex.consolidate = xs => {debugger;
+Rex.consolidate = xs => {
   const ys = [];
 
   for (let i = 0; i < xs.length; i++) {
@@ -11223,14 +11223,13 @@ Rex.consolidate = xs => {debugger;
       next = i + 1 >= xs.length ? "" : xs[i + 1],
       next2 = i + 2 >= xs.length ? "" : xs[i + 2];
 
-    if (curr === " ") {
+    // edge case: id S . -> idS .
 
-      // id S . -> idS .
-
-      if (/^\p{Ll}{1,2}$/v.test(prev) && /^\p{Lu}$/v.test(next))
-        ys.push({s: prev + next, is: [i - 1, i, i + 1]});
+    if (/^\p{Ll}{1,2}$/v.test(prev)
+      && /^\p{Lu}/v.test(curr)
+      && next === ".") {
+        ys.push({s: prev + curr, is: [i - 1, i]});
     }
-
 
     else if (curr === "-") {
 
@@ -11271,30 +11270,6 @@ Rex.consolidate = xs => {debugger;
       else if (/\d/.test(prev) && /\d/.test(next))
         ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
 
-      // 1.--
-
-      else if (/\d/.test(prev2)
-        && prev === "."
-        && next === "-")
-          ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
-
-      else if (prev2 === "."
-        && prev === "-"
-        && /[ .;\r\n]|^$/.test(next))
-          ys.push({s: prev + curr, is: [i - 1, i]});
-
-      // 1,--
-
-      else if (/\d/.test(prev2)
-        && prev === ","
-        && next === "-")
-          ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
-
-      else if (prev2 === ","
-        && prev === "-"
-        && /[ .;\r\n]|^$/.test(next))
-          ys.push({s: prev + curr, is: [i - 1, i]});
-
       // Dipl.-Ing.
 
       else if (/\p{L}/v.test(prev2)
@@ -11310,8 +11285,7 @@ Rex.consolidate = xs => {debugger;
       if (/\p{L}/v.test(prev) && /\p{L}/v.test(next))
         ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
 
-      else if (/\p{L}/v.test(prev) && /[ .;\r\n]|^$/.test(next))
-        ys.push({s: prev + curr, is: [i - 1, i]});
+      else if (/\p{L}/v.test(prev)) ys.push({s: prev + curr, is: [i - 1, i]});
 
       // Dipl.-Ing.
 
@@ -11324,27 +11298,13 @@ Rex.consolidate = xs => {debugger;
 
       else if (/\d/.test(prev) && /\d/.test(next))
         ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
-
-      // 1.-
-    
-      else if (/\d/.test(prev) && next === "-")
-        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
-
-      // 1..10
-
-      else if (/\d/.test(prev) && next === ".")
-        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
-
-      else if (prev === "." && /\d/.test(next))
-        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
     }
 
     else if (curr === "'") {
     
       // Max'
 
-      if (/\p{L}/v.test(prev) && /[ .;\r\n]|^$/.test(next))
-        ys.push({s: prev + curr, is: [i - 1, i]});
+      if (/\p{L}/v.test(prev)) ys.push({s: prev + curr, is: [i - 1, i]});
 
       // 'ne
 
@@ -11362,11 +11322,6 @@ Rex.consolidate = xs => {debugger;
       // 0,1
 
       if (/\d/.test(prev) && /\d/.test(next))
-        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
-
-      // 1,-
-
-      else if (/\d/.test(prev) && next === "-")
         ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
     }
 
@@ -11403,16 +11358,14 @@ Rex.consolidate = xs => {debugger;
 
       // 19"
 
-      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
-        ys.push({s: prev + curr, is: [i - 1, i]});
+      if (/\d/.test(prev)) ys.push({s: prev + curr, is: [i - 1, i]});
     }
 
     else if (curr === "%") {
 
       // 100%
 
-      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
-        ys.push({s: prev + curr, is: [i - 1, i]});
+      if (/\d/.test(prev)) ys.push({s: prev + curr, is: [i - 1, i]});
     }
 
     else if (curr === "&") {
@@ -11440,12 +11393,11 @@ Rex.consolidate = xs => {debugger;
 
       // 10€
 
-      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
-        ys.push({s: prev + curr, is: [i - 1, i]});
+      if (/\d/.test(prev)) ys.push({s: prev + curr, is: [i - 1, i]});
 
       // 10 €
       
-      if (/\d/.test(prev2) && prev === " " && /[ .;\r\n]|^$/.test(next))
+      if (/\d/.test(prev2) && prev === " ")
         ys.push({s: prev2 + prev + curr, is: [i - 2, i - 1, i]});
     }
 
@@ -11453,12 +11405,11 @@ Rex.consolidate = xs => {debugger;
 
       // 10$
 
-      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
-        ys.push({s: prev + curr, is: [i - 1, i]});
+      if (/\d/.test(prev)) ys.push({s: prev + curr, is: [i - 1, i]});
 
       // 10 $
       
-      if (/\d/.test(prev2) && prev === " " && /[ .;\r\n]|^$/.test(next))
+      if (/\d/.test(prev2) && prev === " ")
         ys.push({s: prev2 + prev + curr, is: [i - 2, i - 1, i]});
     }
 
@@ -11498,29 +11449,79 @@ Rex.consolidate = xs => {debugger;
       
       // §100
 
-      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
-        ys.push({s: prev + curr, is: [i - 1, i]});
+      if (/\d/.test(prev)) ys.push({s: prev + curr, is: [i - 1, i]});
     }
 
-    else if (curr === "%") {
-
-      // 100°
-
-      if (/\d/.test(prev) && /[ .;\r\n]|^$/.test(next))
-        ys.push({s: prev + curr, is: [i - 1, i]});
+    else if (curr === "°") {
 
       // 100°C
 
-      if (/\d/.test(prev)
-        && next === "C"
-        && /[ .;\r\n]|^$/.test(next2))
-          ys.push({s: prev + curr, next, is: [i - 1, i, i + 1]});
+      if (/\d/.test(prev) && next === "C")
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+
+      // 100°
+
+      else if (/\d/.test(prev)) ys.push({s: prev + curr, is: [i - 1, i]});
+
+    }
+
+    else if (curr === ".." || curr === "...") {
+      
+      // 1..10 or 1...10
+
+      if (/\d/.test(prev) && /\d/.test(next))
+        ys.push({s: prev + curr + next, is: [i - 1, i, i + 1]});
+    }
+
+    else if (curr === ".-" || curr === ".--") {
+
+      // 1.- or 1.--
+
+      if (/\d/.test(prev)) ys.push({s: prev + curr, is: [i - 1, i]});
+    }
+
+    else if (curr === ",-" || curr === ",--") {
+
+      // 1.- or 1.--
+
+      if (/\d/.test(prev)) ys.push({s: prev + curr, is: [i - 1, i]});
     }
 
     else ys.push({s: curr, is: [i]});
   }
 
-  return ys;
+  const zs = [ys[0]];
+
+  for (const curr of ys) {
+    const last = zs[zs.length - 1],
+      dupes = curr.is.length + last.is.length,
+      uniqs = new Set([...curr.is, ...last.is]);
+
+    if (last === curr) continue;
+    else if (dupes === uniqs.size) zs.push(curr);
+
+    else if (dupes - uniqs.size === last.is.length
+      || dupes - uniqs.size === curr.is.length) {
+        if (last.is.length < curr.is.length) {
+          last.s = curr.s;
+          last.is = curr.is;
+        }
+    }
+
+    else {
+      const o = {s: "", is: []};
+
+      Array.from(uniqs).sort((m, n) => m - n).forEach(i => {
+        o.s += xs[i];
+        o.is.push(i);
+      });
+
+      last.s = o.s;
+      last.is = o.is;
+    }
+  }
+
+  return zs.map(o => o.s);
 };
 
 
