@@ -10576,45 +10576,6 @@ Rex.classes.lcl = {
 };
     
 
-// latin vowels
-
-Rex.classes.vowels = {
-  rex: /[aeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]/i,
-  
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
-    return this.split;
-  },
-};
-
-
-// latin upper-case vowels
-
-Rex.classes.ucv = {
-  rex: /[AEUIOÁÀĂÂÅÄÃĀÐÉÈÊĚËĖĘÍÌÎÏĮĪÓÒÔÖŐÕØŌÚÙŬÛŮÜŰŨŲŪ]/,
-  
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
-    return this.split;
-  },
-};
-
-
-// latin lower-case vowels
-
-Rex.classes.lcv = {
-  rex: /[aeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]/,
-  
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
-    return this.split;
-  },
-};
-
-
 Rex.classes.num = {
   rex: /\p{N}/v,
 
@@ -10711,31 +10672,90 @@ Rex.classes.crnl = {
 };
 
 
-// position (beginning/end of input or boi/eoi)
-
-Rex.classes.pos = {
-  rex: /(?:\x02|\x03)/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
-    return this.split;
-  },
-};
-
-
 // ASCII
 
 
 Rex.classes.ascii = {};
 
 
-Rex.classes.ascii.ctrl = {
-  rex: /[\0\a\b\t\v\f\r\n\cZ]/,
+Rex.classes.ascii.aldig = {
+  rex: /[[A-Za-z\d]/,
 
   get split() {
     delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
+};
+
+
+Rex.classes.ascii.letter = {
+  rex: /[A-Za-z]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
+};
+
+
+Rex.classes.ascii.ucl = {
+  rex: /[A-Z]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
+};
+
+
+Rex.classes.ascii.lcl = {
+  rex: /[a-z]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
+};
+
+
+// vowels
+
+Rex.classes.ascii.vowels = {
+  rex: /[AEUIOaeuio]/,
+  
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
+    return this.split;
+  },
+};
+
+
+// upper-case vowels
+
+Rex.classes.ascii.ucv = {
+  rex: /[AEUIO]/,
+  
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
+    return this.split;
+  },
+};
+
+
+// lower-case vowels
+
+Rex.classes.ascii.lcv = {
+  rex: /[aeuio]/,
+  
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
     return this.split;
   },
 };
@@ -10752,14 +10772,47 @@ Rex.classes.ascii.punct = {
 };
 
 
+Rex.classes.ascii.ctrl = {
+  rex: /[\0\a\b\t\v\f\r\n\cZ]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
+    return this.split;
+  },
+};
+
+
 // Latin1 (ISO-8859-1)
 
 
 Rex.classes.latin1 = {};
 
 
+Rex.classes.ascii.alnum = {
+  rex: /[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\d²³¹¼½¾]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
+};
+
+
+Rex.classes.ascii.aldig = {
+  rex: /[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\d]/,
+
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
+    return this.split;
+  },
+};
+
+
 Rex.classes.latin1.letter = {
-  rex: /[a-zßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]/i,
+  rex: /[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]/,
 
   get split() {
     delete this.split;
@@ -10786,6 +10839,45 @@ Rex.classes.latin1.lcl = {
   get split() {
     delete this.split;
     this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
+    return this.split;
+  },
+};
+
+
+// vowels
+
+Rex.classes.latin1.vowels = {
+  rex: /[AEUIOÁÀĂÂÅÄÃĀÐÉÈÊĚËĖĘÍÌÎÏĮĪÓÒÔÖŐÕØŌÚÙŬÛŮÜŰŨŲŪaeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]/,
+  
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
+    return this.split;
+  },
+};
+
+
+// upper-case vowels
+
+Rex.classes.latin1.ucv = {
+  rex: /[AEUIOÁÀĂÂÅÄÃĀÐÉÈÊĚËĖĘÍÌÎÏĮĪÓÒÔÖŐÕØŌÚÙŬÛŮÜŰŨŲŪ]/,
+  
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
+    return this.split;
+  },
+};
+
+
+// lower-case vowels
+
+Rex.classes.latin1.lcv = {
+  rex: /[aeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]/,
+  
+  get split() {
+    delete this.split;
+    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
     return this.split;
   },
 };
@@ -11589,6 +11681,35 @@ Rex.count = rx => s => Array.from(s.matchAll(rx)).length;
 Rex.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 
+// generalize from character classes
+
+Rex.generalize = casing => s => {
+  if (casing) return s
+    .replaceAll(/\p{Lu}/gv, "A")
+    .replaceAll(/\p{Ll}/gv, "a")
+    .replaceAll(/\p{P}/gv, "·")
+    .replaceAll(/\p{S}/gv, "$")
+    .replaceAll(/\d/g, "#")
+    .replaceAll(/\p{N}/gv, "N")
+    .replaceAll(/\p{Z}/gv, "_")
+    .replaceAll(/\p{C}/gv, "^")
+
+  else return s
+    .replaceAll(/\p{Lu}/gv, "@")
+    .replaceAll(/\p{P}/gv, "·")
+    .replaceAll(/\p{S}/gv, "$")
+    .replaceAll(/\d/g, "#")
+    .replaceAll(/\p{N}/gv, "N")
+    .replaceAll(/\p{Z}/gv, "_")
+    .replaceAll(/\p{C}/gv, "^");
+};
+
+
+// generalize from repetition
+
+Rex.generalize2 = s => s.replaceAll(/(.)\1{1,}/g, "$1");
+
+
 /* Replace the following characters:
 
   * redundant newlines or spaces
@@ -12328,6 +12449,62 @@ Str.Diff.keyb = new Map([
   ["n", ["b", "m"]],
   ["m", ["n"]],
 ]);
+
+
+/* Evaluate the difference between two numbers. The algorithm doesn't cover the
+following cases:
+
+  * number/letter confusion (e.g. oo123 instead of 00123)
+  * unexpected structure (e.g. 123-456 instead of 123456) */
+
+Str.Diff.nums = l => r => {
+  let score = 0;
+
+  // too long
+
+  if (l.length > r.length) {
+    let offset = 0, s = "";
+
+    for (let i = 0; i < r.length; i++) {
+      if (l[i + offset] === r[i]) s += l[i + offset];
+      else if (l[i + offset - 1] !== l[i + offset]) continue;
+      else (score++, offset++, i--);
+    }
+
+    return {score, valid: s === r};
+  }
+
+  // too short
+
+  else if (l.length < r.length) {
+    let offset = 0, s = "";
+
+    for (let i = 0; i < r.length; i++) {
+      if (l[i + offset] === r[i]) s += r[i];
+      else if (r[i - 1] !== r[i]) continue;
+      else (s += r[i], score++, offset--);
+    }
+
+    return {score, valid: s === r};
+  }
+
+  // flipped digits
+
+  else {
+    let s = "";
+
+    for (let i = 0; i < r.length; i++) {
+      if (l[i] === r[i]) s += r[i];
+      
+      else if (l[i + 1] === r[i] && l[i] === r[i + 1])
+        (s += r[i], s += r[i + 1], i++, score += 2);
+
+      else score++;
+    }
+
+    return {score, valid: s === r};
+  }
+};
 
 
 /* Determine all shared letters while preserving their order for two word-like
@@ -13290,7 +13467,7 @@ Str.splitChunk = ({size, pad = " ", overlap = false}) => s => {
 
 
 /*
-█████ Template ████████████████████████████████████████████████████████████████*/
+█████ Misc. ████████████████████████████████████████████████████████████████*/
 
 
 /* Plain applicator but with a telling name. Intended use:
@@ -13301,6 +13478,53 @@ Str.splitChunk = ({size, pad = " ", overlap = false}) => s => {
 Yields "Happy Thanksgiving, Muad'dib!" */
 
 Str.template = f => o => f(o);
+
+
+/* Try to estimate how likely the given string is a password. Use length,
+string entropy, number of used character classes, and number of character
+class transitions as indicators. */
+
+Str.isPwd = s => {
+  const m = new Map(), m2 = new Map();    
+
+  // upper-case letter in the middle/at the end
+  // uses digits and punctuation
+
+  for (let i = 0; i < s.length; i++) {
+    let n = 0;
+
+    if (!m.has(s[i])) m.set(s[i], n);
+
+    if (/\p{Lu}/v.test(s[i])) {
+      if (!m2.has("Lu")) m2.set("Lu", 26);
+    }
+
+    else if (/\p{Ll}/v.test(s[i])) {
+      if (!m2.has("Ll")) m2.set("Ll", 26);
+    }
+
+    else if (/\p{N}/v.test(s[i])) {
+      if (!m2.has("N")) m2.set("N", 10);
+    }
+
+    else if (/\p{P}|\p{S}/v.test(s[i])) {
+      if (!m2.has("S")) m2.set("S", 32);
+    }
+
+    else throw Err(`unexpected character "${s[i]}"`);
+  }
+
+  const sum = Array.from(m2)
+    .reduce((acc, pair) => acc + pair[1], 0);
+
+  const entropy = sum + Math.log2(m.size),
+    numClasses = m2.size,
+    numTrans = Rex.splitAtToken(s).length,
+    features = numClasses + numTrans,
+    score = entropy * Math.log2(numClasses + numTrans);
+
+  return {entropy, numClasses, numTrans, features, score};
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -14171,7 +14395,7 @@ export const Validate = {};
 // TODO: Validate.structuralIntegrity
 
 
-// can also be used to calculate a check sum
+// count data (and calculate its sum afterwards)
 
 Validate.batchTotal = xs => x => {
   xs.push(x);
@@ -14193,9 +14417,9 @@ Validate.charset = charset => s => {
         "^(?:",
         "[a-z0-9]",
         "|",
-        Rex.classes.ascii.punct.rex,
+        Rex.classes.ascii.punct.rex.source,
         "|",
-        Rex.classes.ascii.ctrl,
+        Rex.classes.ascii.ctrl.rex.source,
         ")+$"), "i").test(s))
           return {valid: true};
 
@@ -14222,13 +14446,13 @@ Validate.charset = charset => s => {
     case "latin1": {
       if (new RegExp(Str.cat(
         "^(?:",
-        Rex.classes.latin1.letter.rex,
+        Rex.classes.latin1.letter.rex.source,
         "|",
         "\\d",
         "|",
-        Rex.classes.latin1.punct.rex,
+        Rex.classes.latin1.punct.rex.source,
         "|",
-        Rex.classes.ascii.ctrl,
+        Rex.classes.ascii.ctrl.rex.source,
         ")+$"), "i").test(s))
           return {valid: true};
 
@@ -14236,17 +14460,17 @@ Validate.charset = charset => s => {
     }
 
     case "latin1Letter": {
-      if (new RegExp(`^${Rex.classes.latin1.letter.rex}+$`, "iv").test(s)) return {valid: true};
+      if (new RegExp(`^${Rex.classes.latin1.letter.rex.source}+$`, "iv").test(s)) return {valid: true};
       else return {reasons: ["non-latin1 letter(s)"], valid: false};
     }
 
     case "latin1Lcl": {
-      if (new RegExp(`^${Rex.classes.latin1.lcl.rex}+$`, "v").test(s)) return {valid: true};
+      if (new RegExp(`^${Rex.classes.latin1.lcl.rex.source}+$`, "v").test(s)) return {valid: true};
       else return {reasons: ["non-latin1 lower-case letter(s)"], valid: false};
     }
 
     case "latin1Ucl": {
-      if (new RegExp(`^${Rex.classes.latin1.ucl.rex}+$`, "v").test(s)) return {valid: true};
+      if (new RegExp(`^${Rex.classes.latin1.ucl.rex.source}+$`, "v").test(s)) return {valid: true};
       else return {reasons: ["non-latin1 upper-case letter(s)"], valid: false};
     }
 
@@ -14625,13 +14849,13 @@ O.fromAit = O.fromAit();
 export const Vector = {};
 
 
-export const cosine = (xs, ys) => {
+Vector.cosine = (xs, ys) => {
   if (xs.length !== ys.length) throw new Err("same length expected");
   else if (xs.length === 0) return 0;
 
   let n = 0, n2 = 0, n3 = 0;
 
-  for (let i = 0; i < v.length; i++) {
+  for (let i = 0; i < xs.length; i++) {
     n += xs[i] * ys[i];
     n2 += xs[i] * xs[i];
     n3 += ys[i] * ys[i];
