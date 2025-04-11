@@ -239,10 +239,12 @@ export const flip = f => y => x => f(x) (y);
 export const app = f => x => f(x);
 
 
-export const ppa = x => f => f(x);
+export const appr = x => f => f(x);
 
 
-export const appr = (f, y) => x => f(x) (y);
+// flipped arguments
+
+export const appf = (f, y) => x => f(x) (y);
 
 
 // object notation with self-reference like `this`
@@ -1073,10 +1075,37 @@ A.foldMap = dict => f => xs => {
 };
 
 
-A.sum = xs => xs.reduce((m, n) => m + n, 0);
+A.sum = xs => {
+  let m = 0;
+  for (const n of xs) m += n;
+  return m;
+};
 
 
-// TODO: min, max, any, all, etc.
+A.any = p => xs => {
+  for (const x of xs) if (p(x) === true) return true;
+  return false;
+};
+
+
+A.all = p => xs => {
+  for (const x of xs) if (p(x) === false) return false;
+  return true;
+};
+
+
+A.min = xs => {
+  let m = Number.POSITIVE_INFINITY
+  for (const n of xs) if (n < m) m = n;
+  return m;
+};
+
+
+A.max = xs => {
+  let m = Number.NEGATIVE_INFINITY
+  for (const n of xs) if (n > m) m = n;
+  return m;
+};
 
 
 A.map = f => xs => xs.map(f);
@@ -1332,40 +1361,30 @@ A.union = xs => ys => Array.from(new Set(xs.concat(ys)));
 
 // group all consecutive, i.e. partly overlapping elements of a certain length
 
-A.consecs = chunkLen => xs => {
+A.consec = len => xs => {
   const ys = [];
 
-  if (chunkLen > xs.length) return ys;
+  if (len > xs.length) return ys;
 
   else {
-    for (let i = 0; i + chunkLen <= xs.length; i++)
-      ys.push(xs.slice(i, i + chunkLen));
+    for (let i = 0; i + len <= xs.length; i++)
+      ys.push(xs.slice(i, i + len));
   }
 
   return ys;
 };
 
 
-// determine all permutations
-
-A.perms = xs => {
-  if (xs.length === 0) return [[]];
-  
-  else return xs.flatMap((x, i) =>
-    A.perms(xs.filter((y, j) => i !== j))
-      .map(ys => [x, ...ys]));
-};
-
-
 // collect all subsequences while prohibiting index gaps
 
-/* TODO sliding windows:
+A.consecs = ({min, max}) => xs => {
+  let ys = xs;
 
-1 2 3 4 5
-12 23 34 45
-123 234 345
-1234 2345
-12345 */
+  for (let i = min; i <= max && i < xs.length - 1; i++)
+    ys = ys.concat(A.consec(i) (xs));
+
+  return ys;
+};
 
 
 // collect all subsequences while allowing index gaps
@@ -1384,6 +1403,17 @@ A.subseqs = xs => function go(i) {
     return (zss.push.apply(zss, yss), zss);
   }
 } (0);
+
+
+// determine all permutations
+
+A.perms = xs => {
+  if (xs.length === 0) return [[]];
+  
+  else return xs.flatMap((x, i) =>
+    A.perms(xs.filter((y, j) => i !== j))
+      .map(ys => [x, ...ys]));
+};
 
 
 A.transpose = xss => {
@@ -7571,6 +7601,213 @@ Trans.Append.set = p => acc => x => k => p(acc) ? k(acc.add(x)) : acc;
 
 Trans.Append.obj = p => acc => pair => k =>
   p(acc) ? k(Object.assign(acc, {[pair[0]]: pair[1]})) : acc;
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+████████████████████████████████████ TREE █████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+/* Unbalanced binary search tree as a persitent data structure with structural
+sharing. Once build a tree can be rebalanced for subsequent membership or search
+operations. */
+
+
+const Tree = value => ({value, left: null, right: null});
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+// uncurried for performance
+
+Tree.insert = (node, value) => {
+  if (node === null) return Tree(value);
+
+  else if (value < node.value)
+    return {...node, left: Tree.insert(node.left, value)};
+
+  else return {...node, right: Tree.insert(node.right, value)};
+};
+
+
+Tree.delete = value => node => {
+  if (node === null) return null;
+
+  else if (value < node.value) {
+    const newLeft = Tree.delete(value)(node.left);
+    return {...node, left: newLeft};
+  }
+
+  else if (value > node.value) {
+    const newRight = Tree.delete(value)(node.right);
+    return {...node, right: newRight};
+  }
+
+  else {
+    if (node.left === null) return node.right;
+    else if (node.right === null) return node.left;
+
+    else {
+      const value2 = Tree.findMin(node.right),
+        right2 = Tree.delete(value2) (node.right);
+
+      return {
+        ...node,
+        value: value2,
+        right: right2
+      };
+    }
+  }
+};
+
+
+Tree.has = value => node => {
+  if (node === null) return false;
+  else if (value === node.value) return true;
+
+  return value < node.value
+    ? Tree.has(node.left, value)
+    : Tree.has(node.right, value);
+};
+
+
+Tree.find = value => node => {
+  if (node === null) return null;
+  else if (value === node.value) return node;
+
+  return value < node.value
+    ? Tree.find(value)(node.left)
+    : Tree.find(value)(node.right);
+};
+
+
+Tree.findMin = node => {
+  if (node === null) return null;
+  let current = node;
+  while (current.left !== null) current = current.left;
+  return current.value;
+};
+
+
+Tree.findMax = node => {
+  if (node === null) return null;
+  let current = node;
+  while (current.right !== null) current = current.right;
+  return current.value;
+};
+
+
+// inorder fold
+
+Tree.foldl = f => init => node => function go(acc, currNode) {
+  if (currNode === null) return acc;
+
+  const accLeft = go(acc, currNode.left),
+    accRight = go(f(accLeft) (currNode.value), currNode.right);
+
+  return accRight;
+} (init, node);
+
+
+Tree.Traversal = {};
+
+
+Tree.Traversal.preorder = node => {
+  if (node === null) return [];
+
+  return [node.value]
+    .concat(Tree.Traversal.preorder(node.left))
+    .concat(Tree.Traversal.preorder(node.right));
+};
+
+
+Tree.Traversal.inorder = node => {
+  if (node === null) return [];
+
+  return Tree.Traversal.inorder(node.left)
+    .concat([node.value])
+    .concat(Tree.Traversal.inorder(node.right));
+};
+
+
+Tree.Traversal.postorder = node => {
+  if (node === null) return [];
+
+  return Tree.Traversal.postorder(node.left)
+    .concat(Tree.Traversal.postorder(node.right))
+    .concat([node.value]);
+};
+
+
+Tree.Traversal.levelOrder = node => {
+  if (node === null) return [];
+  const queue = [node], result = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    result.push(current.value);
+    if (current.left) queue.push(current.left);
+    if (current.right) queue.push(current.right);
+  }
+
+  return result;
+};
+
+
+Tree.getHeight = node => {
+  if (node === null) return -1;
+
+  const leftHeight = Tree.getHeight(node.left),
+    rightHeight = Tree.getHeight(node.right);
+
+  return 1 + Math.max(leftHeight, rightHeight);
+};
+
+
+Tree.countNodes = node => {
+  if (node === null) return 0;
+  return 1 + Tree.countNodes(node.left) + Tree.countNodes(node.right);
+};
+
+
+// balance an existing tree
+
+Tree.balance = node => {
+  if (node === null) return null;
+  const xs = Tree.Traversal.inorder(node);
+  return Tree.reconstruct(xs, 0, xs.length - 1);
+};
+
+
+// create a balanced tree from a sorted array
+
+Tree.reconstruct = (xs, start, end) => {
+  if (start > end) return null;
+
+  const mid = Math.floor((start + end) / 2),
+    value = xs[mid],
+    node = Tree(value);
+
+  node.left = Tree.reconstruct(xs, start, mid - 1);
+  node.right = Tree.reconstruct(xs, mid + 1, end);
+
+  return node;
+};
+
+
+Tree.fromArr = xs => {
+  let node = null;
+  for (const x of xs) node = Tree.insert(node, x);
+  return node;
+};
+
+
+Tree.fromSortedArr = xs => Tree.reconstruct(xs, 0, xs.length - 1);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
