@@ -1359,50 +1359,44 @@ A.union = xs => ys => Array.from(new Set(xs.concat(ys)));
 //█████ Subarrays █████████████████████████████████████████████████████████████
 
 
-// group all consecutive, i.e. partly overlapping elements of a certain length
+// group all overlapping, consecutive elements of a predefined length
 
 A.consec = len => xs => {
   const ys = [];
 
   if (len > xs.length) return ys;
 
-  else {
-    for (let i = 0; i + len <= xs.length; i++)
-      ys.push(xs.slice(i, i + len));
-  }
+  else for (let i = 0; i + len <= xs.length; i++)
+    ys.push(xs.slice(i, i + len));
 
   return ys;
 };
 
 
-// collect all subsequences while prohibiting index gaps
+// group all overlapping, consecutive elements within a predefined range
 
 A.consecs = ({min, max}) => xs => {
-  let ys = xs;
-
-  for (let i = min; i <= max && i < xs.length - 1; i++)
-    ys = ys.concat(A.consec(i) (xs));
-
+  let ys = [];
+  for (let i = min; i <= max; i++) ys = ys.concat(A.consec(i) (xs));
   return ys;
 };
 
 
-// collect all subsequences while allowing index gaps
+// collect all subsequences including those with index gaps
 
-A.subseqs = xs => function go(i) {
-  if (i === xs.length) return [[]];
-  
-  else {
-    const yss = go(i + 1);
+A.powerset = ({min, max}) => xs => {
+  let xss = [[]];
 
-    const zss = yss.map(ys => {
-      const zs = [xs[i]];
-      return (zs.push.apply(zs, ys), zs);
-    });
+  for (const x of xs) {
+    const yss = [];
 
-    return (zss.push.apply(zss, yss), zss);
+    for (const ys of xss) yss.push(ys.concat(x));
+    xss = xss.concat(yss);
+    xss = xss.filter(s => s.length <= max);
   }
-} (0);
+
+  return xss.filter(ys => ys.length >= min && ys.length <= max);
+};
 
 
 // determine all permutations
