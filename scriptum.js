@@ -1382,7 +1382,10 @@ A.consecs = ({min, max}) => xs => {
 };
 
 
-// collect all subsequences including those with index gaps
+/* Collect all subsequences including those with index gaps. Since for the
+general type [a] there is no effective pruning, the algorithm becomes slow very
+quickly. In this case, you can implement a version for a specialized type that
+relies on pruning like the version for [Number] below. */
 
 A.powerset = ({min, max}) => xs => {
   let xss = [[]];
@@ -1391,7 +1394,7 @@ A.powerset = ({min, max}) => xs => {
     const yss = [];
 
     for (const ys of xss) yss.push(ys.concat(x));
-    xss = xss.concat(yss);
+    xss.push.apply(xss, yss);
     xss = xss.filter(s => s.length <= max);
   }
 
@@ -1399,7 +1402,38 @@ A.powerset = ({min, max}) => xs => {
 };
 
 
-// determine all permutations
+// specialized pruned powerset
+
+A.powersetNum = ({ min, max, sumThreshold }) => xs => {
+  let os = [{subset: [], sum: 0}],
+    ys = [];
+
+  if (min <= 0 && max >= 0 && 0 <= sumThreshold) ys.push([]);
+
+  for (const x of xs) {
+    const bound = os.length;
+
+    for (let i = 0; i < bound; i++) {
+      const o = os[i],
+        {subset, sum} = o,
+        len = subset.length + 1,
+        sum2 = sum + x;
+
+      if (len > max) continue; // prune
+      else if (sum2 > sumThreshold) continue; // prune
+
+      const subset2 = subset.concat(x);
+
+      os.push({subset: subset2, sum: sum2});
+      if (len >= min) ys.push(subset2);
+    }
+  }
+
+  return ys;
+};
+
+
+// determine all permutations (only use with very constrained arrays)
 
 A.perms = xs => {
   if (xs.length === 0) return [[]];
