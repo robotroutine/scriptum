@@ -68,7 +68,7 @@ that can have different shapes and are still type safe.
     tag: "Option",
     cons: "None",
     keys: ["none", "some"] // order matters
-  }),
+  });
 
   const Some = variant({
     tag: "Option",
@@ -76,12 +76,12 @@ that can have different shapes and are still type safe.
     keys: ["some", "none"] // order matters
   });
 
-  const sqr = f => f({
+  const sqr = k => k({
     some: x => x * x,
     none: () => 0
   });
 
-  const inc = f => f({
+  const inc = k => k({
     done: x => x + 1,
     none: () => 0
   });
@@ -93,7 +93,7 @@ that can have different shapes and are still type safe.
   inc(o) // throws missing key "some" */
 
 
-const variant0 = ({tag, cons, keys}) => {
+export const variant0 = ({tag, cons, keys}) => {
   const prop = keys[0];
 
   const wrapper = {
@@ -113,7 +113,7 @@ const variant0 = ({tag, cons, keys}) => {
   return wrapper[prop];
 };
 
-const variant = ({tag, cons, keys}) => x => {
+export const variant = ({tag, cons, keys}) => x => {
   const prop = keys[0];
 
   const wrapper = {
@@ -134,7 +134,7 @@ const variant = ({tag, cons, keys}) => x => {
 };
 
 
-const variant2 = ({tag, cons, keys}) => x => y => {
+export const variant2 = ({tag, cons, keys}) => x => y => {
   const prop = keys[0];
 
   const wrapper = {
@@ -142,7 +142,7 @@ const variant2 = ({tag, cons, keys}) => x => y => {
       for (const k of keys)
         if (!(k in o)) throw new Err(`missing key "${k}"`);
 
-      const r = o[prop] (x);
+      const r = o[prop] (x) (y);
 
       if (r === undefined || r !== r) throw new Err(r);
       else return r;
@@ -155,7 +155,7 @@ const variant2 = ({tag, cons, keys}) => x => y => {
 };
 
 
-const variantn = ({tag, cons, keys}) => (...args) => {
+export const variantn = ({tag, cons, keys}) => (...args) => {
   const prop = keys[0];
 
   const wrapper = {
@@ -416,7 +416,7 @@ class PatternMatch {
 }
 
 
-const pattern = o => new PatternMatch(o);
+export const pattern = o => new PatternMatch(o);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -445,7 +445,7 @@ Or simply rely on reference mutation of the original recursive function with
 `let fib = n => {...}; fib = memo(fib)` */
 
 
-const memoize = f => {
+export const memoize = f => {
   const m = new Map();
 
   return x => {
@@ -462,7 +462,7 @@ const memoize = f => {
 
 // more general version where the key is derived from the value
 
-const memoize_ = f => g => {
+export const memoize_ = f => g => {
   const m = new Map();
 
   return x => {
@@ -2352,7 +2352,7 @@ D.fromTimeStr = d => s => {
 explicit error type from all other type. */
 
 
-const Er = {};
+export const Er = {};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -4303,7 +4303,7 @@ export class MultiMap extends Map {
 Distinguishes the null type from all other types. */
 
 
-const Null = {};
+export const Null = {};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -4735,16 +4735,60 @@ O.fromPairs = pairs => pairs.reduce((acc, [k, v]) => (acc[k] = v, acc), {});
 
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
-███████████████████████████████████ OPTION ████████████████████████████████████
+███████████████████████████████████ EFFECT ████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Computations that might not yield a result value (algebraic). Encodes the
-type in continuation passing style. */
+/* Effect type as a function encoding. Handles the following effects at once:
+
+  * exception
+  * null pointer
+  * short circuit
+  * non-determinism */
 
 
-const Opt = {};
+export const Eff = {};
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+████████████████████████████████████ TYPES ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+Eff.Left = variant({
+  tag: "Eff",
+  cons: "Eff.Left",
+  keys: ["left", "right", "null", "short", "defer"]
+});
+
+
+Eff.Right = variant2({
+  tag: "Eff",
+  cons: "Eff.Right",
+  keys: ["right", "left", "null", "short", "defer"]
+});
+
+
+Eff.Short = variant({
+  tag: "Eff",
+  cons: "Eff.Short",
+  keys: ["short", "left", "right", "null", "defer"]
+});
+
+
+Eff.Null = variant0({
+  tag: "Eff",
+  cons: "Eff.Null",
+  keys: ["null", "left", "right", "short", "defer"]
+});
+
+
+Eff.Defer = variant({
+  tag: "Eff",
+  cons: "Eff.Defer",
+  keys: ["defer", "left", "right", "null", "short"]
+});
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -4752,46 +4796,35 @@ const Opt = {};
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-Opt.None = variant0({
-  tag: "Option",
-  cons: "None",
-  keys: ["none", "some"] // order matters
-}),
+// functor
+
+Eff.map = f => function go(k) { // TODO: make stack-safe
+  return k({
+    left: e => Eff.Left(e),
+    right: head => tail => Eff.Right(f(head)) (go(tail)),
+    null: () => Eff.Null,
+    short: head => Eff.Short(f(head)),
+    defer: thunk => Eff.Defer(() => go(thunk()))
+  });
+};
 
 
-Opt.Some = variant({
-  tag: "Option",
-  cons: "Some",
-  keys: ["some", "none"] // order matters
+// catamorphism
+
+Eff.cata = k => k({ // TODO: make stack-safe
+  left: e => {throw e},
+  
+  right: head => tail => tail[$$] === "Eff.Null"
+    ? head
+    : [head].concat(Eff.cata(tail)),
+  
+  null: () => null,
+  short: head => head,
+  defer: thunk => Eff.cata(thunk())
 });
 
 
-Opt.map = f => g => g({
-  none: Opt.None,
-  some: x => Opt.Some(f(x))
-});
-
-
-Opt.ap = f => g => f({
-  none: Opt.None,
-
-  some: h => g({
-    none: Opt.None,
-    some: x => Opt.Some(h(x))
-  })
-});
-
-
-Opt.of = x => Opt.Some(x);
-
-
-Opt.chain = f => g => g({
-  none: Opt.None,
-  some: x => f(x)
-});
-
-
-// TODO: Opt.mapA, Opt.seqA, Opt.append, Opt.empty, Opt.alt, Opt.zero
+// TODO: add standard combinators
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -7659,7 +7692,7 @@ sharing. Once build a tree can be rebalanced for subsequent membership or search
 operations. */
 
 
-const Tree = value => ({value, left: null, right: null});
+export const Tree = value => ({value, left: null, right: null});
 
 
 /*█████████████████████████████████████████████████████████████████████████████
