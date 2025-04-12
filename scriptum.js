@@ -41,10 +41,10 @@ import nodeStream from "node:stream";
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-const $ = Symbol.toStringTag;
+export const $ = Symbol.toStringTag;
 
 
-const $$ = Symbol("constructor");
+export const $$ = Symbol("constructor");
 
 
 export const Err = Error;
@@ -59,19 +59,6 @@ export const not_found = -1;
 /*█████████████████████████████████████████████████████████████████████████████
 ████████████████████████████████████ TYPES ████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
-
-
-/* Tag a zero-argument function as a thunk. The idea is to distinguish thunks
-for deferred evaluation of expressions from arbitrary zero-argument functions. */
-
-export const Thunk = thunk => ({
-  [$]: "Thunk",
-  [$$]: "Thunk",
-  thunk
-});
-
-
-//█████ Sum Types █████████████████████████████████████████████████████████████*/
 
 
 /* Define sum types in continuation passing style. Sum types represent values
@@ -497,36 +484,32 @@ const memoize_ = f => g => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
+// trampoline mechanism to achieve stack-safety in Javascript
+
 
 //█████ Tail Recursion ████████████████████████████████████████████████████████
-
-
-// stack-safe tail-recursion using a trampoline
 
 
 export const Loop = f => x => {
   let o = f(x);
 
-  while (o?.constructor === Loop.rec) {
-    switch (o.constructor) {
-      case Loop.call: {
+  while (o?.[$$] === "Loop.Rec") {
+    switch (o[$$]) {
+      case "Loop.Call": {
         o = o.f(o.x);
         break;
       }
 
-      case Loop.rec: {
+      case "Loop.Rec": {
         o = f(o.x);
         break;
       }
 
-      default: {
-        if (o?.[$] === "Thunk") o = o();
-        else throw new Err("trampoline constructor expected");
-      }
+      default: throw new Err("trampoline constructor expected");
     }
   }
 
-  if (o?.constructor === Loop.base) return o.x;
+  if (o?.[$$] === "Loop.Base") return o.x;
   else return o;
 };
 
@@ -534,26 +517,23 @@ export const Loop = f => x => {
 export const Loop2 = f => (x, y) => {
   let o = f(x, y);
 
-  while (o?.constructor === Loop2.rec) {
-    switch (o.constructor) {
-      case Loop2.call: {
+  while (o?.[$$] === "Loop2.Rec") {
+    switch (o[$$]) {
+      case "Loop2.Call": {
         o = o.f(o.x, o.y);
         break;
       }
 
-      case Loop2.rec: {
+      case "Loop2.Rec": {
         o = f(o.x, o.y);
         break;
       }
 
-      default: {
-        if (o?.[$] === "Thunk") o = o();
-        else throw new Err("trampoline constructor expected");
-      }
+      default: throw new Err("trampoline constructor expected");
     }
   }
 
-  if (o?.constructor === Loop2.base) return o.x;
+  if (o?.[$$] === "Loop2.Base") return o.x;
   else return o;
 };
 
@@ -561,238 +541,290 @@ export const Loop2 = f => (x, y) => {
 export const Loop3 = f => (x, y, z) => {
   let o = f(x, y, z);
 
-  while (o?.constructor === Loop3.rec) {
-    switch (o.constructor) {
-      case Loop3.call: {
+  while (o?.[$$] === "Loop3.Rec") {
+    switch (o[$$]) {
+      case "Loop3.Call": {
         o = o.f(o.x, o.y, o.z);
         break;
       }
 
-      case Loop3.rec: {
+      case "Loop3.Rec": {
         o = f(o.x, o.y, o.z);
         break;
       }
 
-      default: {
-        if (o?.[$] === "Thunk") o = o();
-        else throw new Err("trampoline constructor expected");
-      }
+      default: throw new Err("trampoline constructor expected");
     }
   }
 
-  if (o?.constructor === Loop3.base) return o.x;
+  if (o?.[$$] === "Loop3.Base") return o.x;
   else return o;
 };
 
 
-Loop.call = function call(f, x) {
-  return {constructor: Loop.call, f, x};
+Loop.Call = function Call(f, x) {
+  return {[$]: "Loop", [$$]: Loop.Call, f, x};
 };
 
 
-Loop.rec = function rec(x) {
-  return {constructor: Loop.rec, x};
+Loop.Rec = function Rec(x) {
+  return {[$]: "Loop", [$$]: Loop.Rec, x};
 };
 
 
-Loop.base = function base(x) {
-  return {constructor: Loop.base, x};
+Loop.Base = function Base(x) {
+  return {[$]: "Loop", [$$]: "Loop.Base", x};
 };
 
 
-Loop2.call = function call(f, x, y) {
-  return {constructor: Loop2.call, f, x, y};
+Loop2.Call = function Call2(f, x, y) {
+  return {[$]: "Loop2", [$$]: "Loop2.Call", f, x, y};
 };
 
 
-Loop2.rec = function rec(x, y) {
-  return {constructor: Loop2.rec, x, y};
+Loop2.Rec = function Rec2(x, y) {
+  return {[$]: "Loop2", [$$]: "Loop2.Rec", x, y};
 };
 
 
-Loop2.base = function base(x) {
-  return {constructor: Loop2.base, x};
+Loop2.Base = function Base2(x) {
+  return {[$]: "Loop2", [$$]: "Loop2.Base", x};
 };
 
 
-Loop3.call = function call(f, x, y, z) {
-  return {constructor: Loop3.call, f, x, y, z};
+Loop3.Call = function Call3(f, x, y, z) {
+  return {[$]: "Loop3", [$$]: "Loop3.Call", f, x, y, z};
 };
 
 
-Loop3.rec = function rec(x, y, z) {
-  return {constructor: Loop3.rec, x, y, z};
+Loop3.Rec = function Rec3(x, y, z) {
+  return {[$]: "Loop3", [$$]: "Loop3.Rec", x, y, z};
 };
 
 
-Loop3.base = function base(x) {
-  return {constructor: Loop3.base, x};
+Loop3.Base = function Base3(x) {
+  return {[$]: "Loop3", [$$]: "Loop3.Base", x};
 };
 
 
 //█████ Virtual Stack █████████████████████████████████████████████████████████
 
 
-/* Reify the stack and make even non-tail-recursion stack-safe using a trampoline.
-This goes way beyond tail-recursion modulo cons et al.:
+/* Create a virtual stack and make even recursive calls in non-tail position
+stack-safe using a trampoline. This goes way beyond tail-recursion modulo cons
+et al.:
+
+The Fibonacci sequence in its naive recursive implementation
 
   const fib_ = n =>
     n <= 1 ? n
       : fib_(n - 1) + fib_(n - 2);
 
-Transformed into the trampoline version it becomes:
+is transoformed into a stack-safe variant
 
-  const add = x => y => x + y;
+  const add = x => y => x + y,
+    add_ = (x, y) => x + y;
 
-  const fib = Stack(n =>
-    n <= 1
-      ? Stack.base(n)
-      : Stack.call2(
+  const fib = Stack(n => n <= 1
+      ? Stack.Base(n)
+      : Stack.Call2(
           add,
-          Stack.rec(n - 1),
-          Stack.rec(n - 2))); */
+          Stack.Rec(n - 1),
+          Stack.Rec(n - 2)));
+
+  fib(10) // 55
+
+or into the uncurried variant
+  
+  const fib = Stack(n => n <= 1
+    ? Stack.Base(n)
+    : Stack.Calln(
+        add_,
+        Stack.Rec(n - 1),
+        Stack.Rec(n - 2)
+      ));
+
+Here is the stack-safe factorial number:
+
+  const fact = Stack(n => n <= 1
+    ? Stack.Base(1)
+    : Stack.Call(
+        x => n * x,
+        Stack.Rec(n - 1)));
+
+  fact(20) // 2432902008176640000 */
 
 
-export const Stack = f => x => {
-  const stack = [f(x)];
+export const Stack = f => args => {
+  const stack = [f(args)];
 
-  while (stack.length > 1 || stack[0].constructor !== Stack.base) {
+  while (stack.length > 1 || (stack.length === 1 && stack[0]?.[$$] !== "Stack.Base")) {
     let o = stack[stack.length - 1];
 
-    switch (o.constructor) {
-      case Stack.call:
-      case Stack.call2: {
-        o = f(o.x.x); // likely not general enough
-        stack.push(o);
+    // handle raw value edge case
+
+    /*if (!o?.[$$]) {
+      if (stack.length > 1) {
+         const raw = stack.pop(), p = stack.pop();
+
+         switch (p?.[$$]) {
+            case "Stack.Call": {
+              stack.push(Stack.Base(p.f(raw)));
+              break;
+            }
+
+            case "Stack.Call2": {
+               stack.push(Stack.Call(p.f(raw), p.y));
+               break;
+            }
+
+            case "Stack.Calln": {
+              p.r = p.r || [];
+              p.i = p.i !== undefined ? p.i : 0;
+
+              p.r[p.i] = raw;
+              p.i++;
+
+              if (p.i < p.args.length) {
+                stack.push(p);
+                stack.push(p.args[p.i]);
+              }
+
+              else {
+                const r = p.f(...p.r);
+                delete p.i;
+                delete p.r;
+                stack.push(Stack.Base(r));
+              }
+
+              break;
+            }
+
+            default: throw new Err("unexpected raw value");
+         }
+
+         continue;
+      }
+
+      else {
+        console.warn("finished with a raw value");
+        return stack[0];
+      }
+    }*/
+
+    switch (o[$$]) {
+      case "Stack.Rec": {
+        const r = o.x;
+        stack.pop();
+        stack.push(f(r));
         break;
       }
 
-      case Stack.base: {
-        while (stack.length > 1 && stack[stack.length - 1].constructor === Stack.base) {
-          const p = (stack.pop(), stack.pop());
+      case "Stack.Call":
+      case "Stack.Call2": {
+        stack.push(o.x);
+        break;
+      }
 
-          switch (p.constructor) {
-            case Stack.call: {
-              o = Stack.base(p.f(o.x));
-              stack.push(o);
-              break;
-            }
+      case "Stack.Calln": {
+        if (o.i === undefined) {
+          o.i = 0;
+          o.r = [];
+        }
 
-            case Stack.call2: {
-              o = Stack.call(p.f(o.x), p.y);
-              stack.push(o);
-              break;
-            }
+        if (o.i < o.args.length) stack.push(o.args[o.i]);
 
-            default: throw new Err("trampoline constructor expected");
-          }
+        else {
+           const r = o.f(...o.r);
+           delete o.i;
+           delete o.r;
+           stack.pop();
+           stack.push(Stack.Base(r));
+           console.warn("unexpected variadic call");
         }
 
         break;
       }
 
-      default: {
-        if (o?.[$] === "Thunk") o = o();
-        else throw new Err("trampoline constructor expected");
-      }
-    }
-  }
+      case "Stack.Base": {
+        if (stack.length === 1) break;
 
-  return stack[0].x;
-};
+        const r = stack.pop().x, p = stack.pop();
 
-
-export const Stack2 = f => (x, y) => {
-  const stack = [f(x, y)];
-
-  while (stack.length > 1 || stack[0].constructor !== Stack2.base) {
-    let o = stack[stack.length - 1];
-
-    switch (o.constructor) {
-      case Stack2.call:      
-      case Stack2.call2: {
-        o = f(o.x.x, o.x.y); // likely not general enough
-        stack.push(o);
-        break;
-      }
-
-      case Stack2.base: {
-        while (stack.length > 1 && stack[stack.length - 1].constructor === Stack2.base) {
-          const p = (stack.pop(), stack.pop());
-
-          switch (p.constructor) {
-            case Stack2.call: {
-              o = Stack2.base(p.f(o.x, o.y));
-              stack.push(o);
-              break;
-            }
-
-            case Stack2.call2: {
-              o = Stack2.call(p.f(o.x, o.y), p.y);
-              stack.push(o);
-              break;
-            }
-
-            default: throw new Err("trampoline constructor expected");
+        switch (p[$$]) {
+          case "Stack.Call": {
+            stack.push(Stack.Base(p.f(r)));
+            break;
           }
+
+          case "Stack.Call2": {
+            const partiallyAppliedFn = p.f(r);
+            stack.push(Stack.Call(partiallyAppliedFn, p.y));
+            break;
+          }
+
+          case "Stack.Calln": {
+            p.r[p.i] = r;
+            p.i++;
+
+            if (p.i < p.args.length) {
+              stack.push(p);
+              stack.push(p.args[p.i]);
+            }
+
+            else {
+              const r2 = p.f(...p.r);
+              delete p.i;
+              delete p.r;
+              stack.push(Stack.Base(r2));
+            }
+
+            break;
+          }
+
+          default: throw new Err("unexpected stack after base case");
         }
 
         break;
       }
 
-      default: {
-        if (o?.[$] === "Thunk") o = o();
-        else throw new Err("trampoline constructor expected");
-      }
+      default:
+        throw new Err("trampoline constructor expected");
     }
   }
 
-  return stack[0].x;
+  if (stack.length === 1 && stack[0]?.[$$] === "Stack.Base")
+    return stack[0].x;
+  
+  else throw new Err("unexpected stack after completion");
 };
 
 
 // constructors
 
 
-Stack.call = function call(f, x) {
-  return {constructor: Stack.call, f, x};
+Stack.Call = function Call(f, x) {
+  return {[$]: "Stack", [$$]: "Stack.Call", f, x};
 };
 
 
-Stack.call2 = function call2(f, x, y) {
-  return {constructor: Stack.call2, f, x, y};
+Stack.Call2 = function Call2(f, x, y) {
+  return {[$]: "Stack", [$$]: "Stack.Call2", f, x, y};
 };
 
 
-Stack.rec = function rec(x) {
-  return {constructor: Stack.rec, x};
+Stack.Calln = function Calln(f, ...args) {
+  return {[$]: "Stack", [$$]: "Stack.Calln", f, args};
 };
 
 
-Stack.base = function base(x) {
-  return {constructor: Stack.base, x};
+Stack.Rec = function Rec(x) {
+  return {[$]: "Stack", [$$]: "Stack.Rec", x};
 };
 
 
-Stack2.call = function call(f, x) {
-  return {constructor: Stack2.call, f, x};
-};
-
-
-Stack2.call2 = function call2(f, x, y) {
-  return {constructor: Stack2.call2, f, x, y};
-};
-
-
-Stack2.rec = function rec(x) {
-  return function rec(y) {
-    return {constructor: Stack2.rec, x, y};
-  };
-};
-
-
-Stack2.base = function base(x) {
-  return {constructor: Stack2.base, x};
+Stack.Base = function Base(x) {
+  return {[$]: "Stack", [$$]: "Stack.Base", x};
 };
 
 
@@ -973,17 +1005,8 @@ A.init = xs => xs.length === 0 ? null : xs.slice(0, -1);
 
 
 A.inits = (arr) => {
-  if (!Array.isArray(arr)) {
-    throw new TypeError("Input must be an array.");
-  }
-
-  const n = arr.length;
-  const result = [];
-
-  for (let i = n - 1; i >= 1; i--) {
-    result.push(arr.slice(0, i));
-  }
-
+  const n = arr.length, result = [];
+  for (let i = n - 1; i >= 1; i--) result.push(arr.slice(0, i));
   return result;
 };
 
@@ -992,17 +1015,8 @@ A.tail = xs => xs.length === 0 ? null : xs.slice(1);
 
 
 A.tails = (arr) => {
-  if (!Array.isArray(arr)) {
-    throw new TypeError("Input must be an array.");
-  }
-
-  const n = arr.length;
-  const result = [];
-
-  for (let i = 1; i <= n - 1; i++) {
-    result.push(arr.slice(i));
-  }
-
+  const n = arr.length, result = [];
+  for (let i = 1; i <= n - 1; i++) result.push(arr.slice(i));
   return result;
 };
 
@@ -1035,11 +1049,11 @@ A.foldi = f => init => xs => {
 // stack-safe right-associative
 
 A.foldr = f => acc => xs => Stack(i => {
-  if (i === xs.length) return Stack.base(acc);
+  if (i === xs.length) return Stack.Base(acc);
 
-  else return Stack.call(
+  else return Stack.Call(
     f(xs[i]),
-    Stack.rec(i + 1));
+    Stack.Rec(i + 1));
 }) (0);
 
 
@@ -1228,16 +1242,16 @@ A.span = p => xs => {
 // use native slice for take
 
 A.takeWhile = p => xs => Loop2((acc, i) => {
-  if (i === xs.length) return Loop2.base(acc);
-  else return p(xs[i]) ? Loop2.rec((acc.push(xs[i]), acc), i + 1) : Loop2.base(acc);
+  if (i === xs.length) return Loop2.Base(acc);
+  else return p(xs[i]) ? Loop2.Rec((acc.push(xs[i]), acc), i + 1) : Loop2.Base(acc);
 }) ([], 0);
 
 
 // use native slice for drop
 
 A.dropWhile = p => xs => Loop2((acc, i) => {
-  if (i === xs.length) return Loop2.base(acc);
-  else return p(xs[i]) ? Loop2.rec(acc, i + 1) : Loop2.base(xs.slice(i));
+  if (i === xs.length) return Loop2.Base(acc);
+  else return p(xs[i]) ? Loop2.Rec(acc, i + 1) : Loop2.Base(xs.slice(i));
 }) ([], 0);
 
 
@@ -1246,17 +1260,17 @@ If the predicate succeeds the element is pushed onto the current subgroup,
 otherwise a new subgroup is created. */
 
 A.groupBy = p => xs => Loop2((acc, i) => {
-  if (i >= xs.length) return Loop2.base(acc);
+  if (i >= xs.length) return Loop2.Base(acc);
   if (acc.length === 0) acc.push([xs[0]]);
 
   if (p(xs[i])) {
     acc[acc.length - 1].push(xs[i]);
-    return Loop2.rec(acc, i + 1);
+    return Loop2.Rec(acc, i + 1);
   }
   
   else {
     acc.push([xs[i]]);
-    return Loop2.rec(acc, i + 1);
+    return Loop2.Rec(acc, i + 1);
   }
 }) ([], 1);
 
@@ -1264,20 +1278,20 @@ A.groupBy = p => xs => Loop2((acc, i) => {
 // zipping
 
 A.zip = xs => ys => Loop2((acc, i) => {
-  if (i === xs.length) return Loop2.base(acc);
-  else if (i === ys.length) return Loop2.base(acc);
+  if (i === xs.length) return Loop2.Base(acc);
+  else if (i === ys.length) return Loop2.Base(acc);
 
   else {
     acc.push(Pair(xs[i], ys[i]));
-    return Loop2.rec(acc, i + 1);
+    return Loop2.Rec(acc, i + 1);
   }
 }) ([], 0);
 
 
 A.zipWith = f => xs => ys => Loop2((acc, i) => {
-  if (i === xs.length) return Loop2.base(acc);
-  else if (i === ys.length) return Loop2.base(acc);
-  else return Loop2.rec((acc.push(f(xs[i]) (ys[i])), acc), i + 1);
+  if (i === xs.length) return Loop2.Base(acc);
+  else if (i === ys.length) return Loop2.Base(acc);
+  else return Loop2.Rec((acc.push(f(xs[i]) (ys[i])), acc), i + 1);
 }) ([], 0);
 
 
@@ -2334,7 +2348,8 @@ D.fromTimeStr = d => s => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-// computation that might throw an error (non-algebraic)
+/* Computations that might throw an error (non-algebraic). Distinguishes the
+explicit error type from all other type. */
 
 
 const Er = {};
@@ -2972,7 +2987,6 @@ It.zygo = f => g => acc => acc2 => function* (ix) {
       yield value[1];
   }
 };
-
 
 
 // mutumorphism: two folds that depend on each other (mutual recursion asa fold)
@@ -4285,7 +4299,8 @@ export class MultiMap extends Map {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-// computation that might not yield a result value (non-algebraic)
+/* Computations that might not yield a result value (non-algebraic).
+Distinguishes the null type from all other types. */
 
 
 const Null = {};
@@ -4725,7 +4740,8 @@ O.fromPairs = pairs => pairs.reduce((acc, [k, v]) => (acc[k] = v, acc), {});
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-// computation that might not yield a result value
+/* Computations that might not yield a result value (algebraic). Encodes the
+type in continuation passing style. */
 
 
 const Opt = {};
@@ -7544,8 +7560,8 @@ Trans.fold = f => init => it => Loop2((acc, ix) => {
   const o = ix.next();
 
   return o.done
-    ? Loop2.base(acc)
-    : f(acc) (o.value) (acc2 => Loop2.rec(acc2, ix));
+    ? Loop2.Base(acc)
+    : f(acc) (o.value) (acc2 => Loop2.Rec(acc2, ix));
 }) (init, it[Symbol.iterator] ());
 
 
