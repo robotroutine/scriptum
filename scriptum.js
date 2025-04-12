@@ -487,88 +487,92 @@ export const memoize_ = f => g => {
 // trampoline mechanism to achieve stack-safety in Javascript
 
 
-//█████ Tail Recursion ████████████████████████████████████████████████████████
+//█████ Tail Recursion Modulo Cons ████████████████████████████████████████████
 
 
 export const Loop = f => x => {
+  const stack = [];
   let o = f(x);
 
-  while (o?.[$$] === "Loop.Rec") {
-    switch (o[$$]) {
-      case "Loop.Call": {
-        o = o.f(o.x);
-        break;
-      }
-
+  while (true) {
+    switch (o?.[$$]) {
       case "Loop.Rec": {
         o = f(o.x);
         break;
       }
 
-      default: throw new Err("trampoline constructor expected");
+      case "Loop.Cons": {
+        stack.push(o.f);
+        o = f(o.x);
+        break;
+      }
+
+      case "Loop.Base": {
+        if (stack.length === 0) return o.x;
+        
+        else {
+          const g = stack.pop();
+          o = Loop.Base(g(o.x));
+        }
+
+        break;
+      }
+
+      default: {
+        if (stack.length === 0) {
+          console.warn("unexpected raw value");
+          return o;
+        }
+
+        else {
+          console.warn("unexpected stack");
+          const g = stack.pop();
+          o = Loop.Base(g(o));
+        }
+      }
     }
   }
-
-  if (o?.[$$] === "Loop.Base") return o.x;
-  else return o;
 };
 
 
 export const Loop2 = f => (x, y) => {
-  let o = f(x, y);
+  const stack = [];
+  let o = f(x);
 
-  while (o?.[$$] === "Loop2.Rec") {
-    switch (o[$$]) {
-      case "Loop2.Call": {
-        o = o.f(o.x, o.y);
-        break;
-      }
-
+  while (true) {
+    switch (o?.[$$]) {
       case "Loop2.Rec": {
         o = f(o.x, o.y);
         break;
       }
 
-      default: throw new Err("trampoline constructor expected");
-    }
-  }
-
-  if (o?.[$$] === "Loop2.Base") return o.x;
-  else return o;
-};
-
-
-export const Loop3 = f => (x, y, z) => {
-  let o = f(x, y, z);
-
-  while (o?.[$$] === "Loop3.Rec") {
-    switch (o[$$]) {
-      case "Loop3.Call": {
-        o = o.f(o.x, o.y, o.z);
+      case "Loop2.Cons": {
+        stack.push(o.f);
+        o = f(o.x, o.y);
         break;
       }
 
-      case "Loop3.Rec": {
-        o = f(o.x, o.y, o.z);
+      case "Loop2.Base": {
+        if (stack.length === 0) return o.x;
+        
+        else {
+          const g = stack.pop();
+          o = Loop2.Base(g(o.x, o.y));
+        }
+
         break;
       }
 
-      default: throw new Err("trampoline constructor expected");
+      default: {
+        if (stack.length === 0) {
+          console.warn("unexpected raw value");
+          return o;
+        }
+
+        else throw new Err("unexpected stack");
+      }
     }
   }
-
-  if (o?.[$$] === "Loop3.Base") return o.x;
-  else return o;
-};
-
-
-Loop.Call = function Call(f, x) {
-  return {[$]: "Loop", [$$]: Loop.Call, f, x};
-};
-
-
-Loop.Rec = function Rec(x) {
-  return {[$]: "Loop", [$$]: Loop.Rec, x};
 };
 
 
@@ -577,13 +581,13 @@ Loop.Base = function Base(x) {
 };
 
 
-Loop2.Call = function Call2(f, x, y) {
-  return {[$]: "Loop2", [$$]: "Loop2.Call", f, x, y};
+Loop.Rec = function Rec(x) {
+  return {[$]: "Loop", [$$]: "Loop.Rec", x};
 };
 
 
-Loop2.Rec = function Rec2(x, y) {
-  return {[$]: "Loop2", [$$]: "Loop2.Rec", x, y};
+Loop.Cons = function Cons(f, x) {
+  return {[$]: "Loop", [$$]: "Loop.Cons", f, x};
 };
 
 
@@ -592,18 +596,13 @@ Loop2.Base = function Base2(x) {
 };
 
 
-Loop3.Call = function Call3(f, x, y, z) {
-  return {[$]: "Loop3", [$$]: "Loop3.Call", f, x, y, z};
+Loop2.Rec = function Rec2(x, y) {
+  return {[$]: "Loop2", [$$]: "Loop2.Rec", x, y};
 };
 
 
-Loop3.Rec = function Rec3(x, y, z) {
-  return {[$]: "Loop3", [$$]: "Loop3.Rec", x, y, z};
-};
-
-
-Loop3.Base = function Base3(x) {
-  return {[$]: "Loop3", [$$]: "Loop3.Base", x};
+Loop2.Cons = function Cons2(f, x, y) {
+  return {[$]: "Loop", [$$]: "Loop.Cons", f, x, y};
 };
 
 
@@ -2339,6 +2338,147 @@ D.fromTimeStr = d => s => {
 
   throw new Err(`invalid iso time string "${s}"`);
 };
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████ EFFECT ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+/* Effect type as a function encoding. Handles the following effects at once:
+
+  * exception
+  * non-determinism
+  * null pointer
+  * short circuit computation
+  * deferred computation
+
+Usage:
+
+  const k = Eff.Right(2) (Eff.Lazy(() =>
+    Eff.Right(3) (
+      Eff.Right(4) (
+        Eff.Right(5) (
+          Eff.Null)))));
+
+  const k2 = Eff.map(x => x * x) (k)
+  
+  // at this point only the first element is evaluated to 4
+
+  // force evaluation:
+
+  Eff.cata(k2); // [4, 9, 16, 25] */
+
+
+export const Eff = {};
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+████████████████████████████████████ TYPES ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+Eff.Left = variant({
+  tag: "Eff",
+  cons: "Eff.Left",
+  keys: ["left", "right", "null", "short", "lazy"]
+});
+
+
+Eff.Right = variant2({
+  tag: "Eff",
+  cons: "Eff.Right",
+  keys: ["right", "left", "null", "short", "lazy"]
+});
+
+
+Eff.Short = variant({
+  tag: "Eff",
+  cons: "Eff.Short",
+  keys: ["short", "left", "right", "null", "lazy"]
+});
+
+
+Eff.Null = variant0({
+  tag: "Eff",
+  cons: "Eff.Null",
+  keys: ["null", "left", "right", "short", "lazy"]
+});
+
+
+Eff.Lazy = variant({
+  tag: "Eff",
+  cons: "Eff.Lazy",
+  keys: ["lazy", "left", "right", "null", "short"]
+});
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+// functor
+
+Eff.map = f => Loop(k => {
+  return k({
+    left: e => Loop.Base(Eff.Left(e)),
+
+    right: head => tail => Loop.Cons(
+      tail2 => Eff.Right(f(head)) (tail2),
+      tail
+    ),
+    
+    null: () => Loop.Base(Eff.Null),
+    short: head => Loop.Base(Eff.Short(f(head))),
+    
+    lazy: thunk => {
+      let computed = false, r = null;
+
+      return Loop.Base(Eff.Lazy(() => {
+        if (!computed) {
+          r = Eff.map(f) (thunk());
+          computed = true;
+        }
+
+        return r;
+      }));
+    }
+  });
+});
+
+
+Eff.foldl = f => init => k => {
+  return Loop(({k, acc}) => {
+    return k({
+      left: e => {throw e},
+      right: head => tail => Loop.Rec({k: tail, acc: f(acc, head)}),
+      null: () => Loop.Base(acc),
+      short: head => Loop.Base(head),
+      lazy: thunk => Loop.Rec({k: thunk(), acc})
+    });
+  }) ({k, acc: init});
+};
+
+
+// catamorphism
+
+Eff.cata = Loop(k => k({
+  left: e => {throw e},
+  
+  right: head => tail => tail[$$] === "Eff.Null"
+    ? Loop.Base(head)
+    : Loop.Cons(tail2 => [head].concat(tail2), tail),
+  
+  null: () => Loop.Base(null),
+  short: head => Loop.Base(head),
+  lazy: thunk => Loop.Base(Eff.cata(thunk()))
+}));
+
+
+// TODO: add standard combinators
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -4731,126 +4871,6 @@ O.fromIt = ix => {
 
 
 O.fromPairs = pairs => pairs.reduce((acc, [k, v]) => (acc[k] = v, acc), {});
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████
-███████████████████████████████████ EFFECT ████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-/* Effect type as a function encoding. Handles the following effects at once:
-
-  * exception
-  * non-determinism
-  * null pointer
-  * short circuit compuation
-  * defer compuation
-
-Usage:
-
-  const k = Eff.Right(2) (Eff.Lazy(() =>
-    Eff.Right(3) (
-      Eff.Right(4) (
-        Eff.Right(5) (
-          Eff.Null)))));
-
-  const k2 = Eff.map(x => x * x) (k)
-  
-  // at this point only the first element is evaluated to 4
-
-  // force evaluation
-
-  Eff.cata(); // [4, 9, 16, 25] */
-
-export const Eff = {};
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-████████████████████████████████████ TYPES ████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-Eff.Left = variant({
-  tag: "Eff",
-  cons: "Eff.Left",
-  keys: ["left", "right", "null", "short", "lazy"]
-});
-
-
-Eff.Right = variant2({
-  tag: "Eff",
-  cons: "Eff.Right",
-  keys: ["right", "left", "null", "short", "lazy"]
-});
-
-
-Eff.Short = variant({
-  tag: "Eff",
-  cons: "Eff.Short",
-  keys: ["short", "left", "right", "null", "lazy"]
-});
-
-
-Eff.Null = variant0({
-  tag: "Eff",
-  cons: "Eff.Null",
-  keys: ["null", "left", "right", "short", "lazy"]
-});
-
-
-Eff.Lazy = variant({
-  tag: "Eff",
-  cons: "Eff.Lazy",
-  keys: ["lazy", "left", "right", "null", "short"]
-});
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-█████████████████████████████████ COMBINATORS █████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-// functor
-
-Eff.map = f => function go(k) { // TODO: make stack-safe
-  return k({
-    left: e => Eff.Left(e),
-    right: head => tail => Eff.Right(f(head)) (go(tail)),
-    null: () => Eff.Null,
-    short: head => Eff.Short(f(head)),
-    
-    get lazy() { // sharing
-      return thunk => {
-        return Eff.Lazy(() => {
-          const r = thunk();
-          delete this.lazy;
-          this.lazy = () => go(r);
-          return go(r);
-        })
-      }
-    }
-  });
-};
-
-
-// catamorphism
-
-Eff.cata = k => k({ // TODO: make stack-safe
-  left: e => {throw e},
-  
-  right: head => tail => tail[$$] === "Eff.Null"
-    ? head
-    : [head].concat(Eff.cata(tail)),
-  
-  null: () => null,
-  short: head => head,
-  lazy: thunk => Eff.cata(thunk())
-});
-
-
-// TODO: add standard combinators
 
 
 /*█████████████████████████████████████████████████████████████████████████████
