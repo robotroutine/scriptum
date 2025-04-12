@@ -7934,169 +7934,252 @@ Tree.fromSortedArr = xs => Tree.reconstruct(xs, 0, xs.length - 1);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
-█████████████████████████████████ VALIDATION ██████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+████████████████████████████████████ TREE █████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Strings of date, datetime and numbers are not validated because such values
-are meant to be used encoded by their native types `Number`, `BigInt` or `Date`.
-If you need a string, simply convert. */
+/* Validation is a set of predicate-like types. The result sum type:
+
+  Val.True = {valid: Boolean}
+  Val.False = a => {valid: Boolean, reason: String}
+
+They are composable (a => Validate) to form large validation pipelines. */
 
 
-export const Validate = {};
+export const Val = {};
 
 
-// TODO: Validate.cardinality
-// TODO: Validate.order
-// TODO: Validate.structuralIntegrity
+/*█████████████████████████████████████████████████████████████████████████████
+████████████████████████████████████ TYPES ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
 
-// count data (and calculate its sum afterwards)
+Val.True = ({
+  [$]: "Cont.Tramp",
+  [$$]: "Cont.Pause",
+  value: true
+});
 
-Validate.batchTotal = xs => x => {
-  xs.push(x);
-  return xs;
+
+Val.False = reason => ({
+  [$]: "Cont.Tramp",
+  [$$]: "Cont.Pause",
+  value: false,
+  reason
+});
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+/* TODO:
+batchTotal
+checksum
+cardinality/relation
+order
+structuralIntegrity
+binary
+withProp (associate two props)
+withoutProp (disassociate two props)
+objKeys
+includes (arr)
+uri
+hex
+uuid
+domain
+creditCard
+base64
+alphaNum
+*/
+
+
+Val.hasSign = tag => x => {
+  const tag2 = Sign.get(x);
+  if (tag === tag2) return Val.True;
+  else return Val.False(`"${tag}" expected`);
 };
 
 
-Validate.bic = s =>
-  /^([A-Z]{6}[A-Z2-9][A-NP-Z1-9])(X{3}|[A-WY-Z0-9][A-Z0-9]{2})?$/.test(s);
-
-
-Validate.charset = charset => s => {
-  switch (charset) {
-
-    // ASCII
-
-    case "ascii": {
-      if (new RegExp(Str.cat(
-        "^(?:",
-        "[a-z0-9]",
-        "|",
-        Rex.classes.ascii.punct.rex.source,
-        "|",
-        Rex.classes.ascii.ctrl.rex.source,
-        ")+$"), "i").test(s))
-          return {valid: true};
-
-      else return {reasons: ["non-ascii character(s)"], valid: false};
-    }
-
-    case "asciiLetter": {
-      if (/^[a-z]$/i.test(s)) return {valid: true};
-      else return {reasons: ["non-ascii letter(s)"], valid: false};
-    }
-
-    case "asciiLcl": {
-      if (/^[a-z]$/.test(s)) return {valid: true};
-      else return {reasons: ["non-ascii lower-case letter(s)"], valid: false};
-    }
-
-    case "asciiUcl": {
-      if (/^[A-Z]$/.test(s)) return {valid: true};
-      else return {reasons: ["non-ascii upper-case letter(s)"], valid: false};
-    }
-
-    // Latin1 (ISO-8859-1)
-
-    case "latin1": {
-      if (new RegExp(Str.cat(
-        "^(?:",
-        Rex.classes.latin1.letter.rex.source,
-        "|",
-        "\\d",
-        "|",
-        Rex.classes.latin1.punct.rex.source,
-        "|",
-        Rex.classes.ascii.ctrl.rex.source,
-        ")+$"), "i").test(s))
-          return {valid: true};
-
-      else return {reasons: ["non-latin1 characters"], valid: false};
-    }
-
-    case "latin1Letter": {
-      if (new RegExp(`^${Rex.classes.latin1.letter.rex.source}+$`, "iv").test(s)) return {valid: true};
-      else return {reasons: ["non-latin1 letter(s)"], valid: false};
-    }
-
-    case "latin1Lcl": {
-      if (new RegExp(`^${Rex.classes.latin1.lcl.rex.source}+$`, "v").test(s)) return {valid: true};
-      else return {reasons: ["non-latin1 lower-case letter(s)"], valid: false};
-    }
-
-    case "latin1Ucl": {
-      if (new RegExp(`^${Rex.classes.latin1.ucl.rex.source}+$`, "v").test(s)) return {valid: true};
-      else return {reasons: ["non-latin1 upper-case letter(s)"], valid: false};
-    }
-
-    // UTF-8
-
-    case "utf8": return {valid: true};
-
-    case "utf8Letter": {
-      if (/^\p{L}+$/v.test(s)) return {valid: true};
-      else return {reasons: ["non-utf8 letter(s)"], valid: false};
-    }
-
-    case "utf8Lcl": {
-      if (/^\p{Ll}+$/v.test(s)) return {valid: true};
-      else return {reasons: ["non-utf8 lower-case letter(s)"], valid: false};
-    }
-
-    case "utf8Ucl": {
-      if (/^\p{Lu}+$/v.test(s)) return {valid: true};
-      else return {reasons: ["non-utf8 upper-case letter(s)"], valid: false};
-    }
-
-    default: throw new Err(`unknown charset "${charset}"`);
+Val.withPred = p => x => {
+  const r = p(x);
+  if (r === true) return Val.True;
+  
+  else {
+    if (p.name === "") return Val.False("unmet predicate");
+    else return Val.False(`unmet predicate "${p.name}"`);
   }
 };
 
 
-Validate.date = ([from, to]) => d => {
-  if (intro(d) !== "Date")
-    return {reasons: ["date expected"], valid: false};
-
-  else if (d < from || d > to)
-    return {reasons: ["date out of range"], valid: false};
-
-  else return {valid: true};
+Val.withPattern = rx => s => {
+  if (rx.test(s) === true) return Val.True;
+  else return Val.False(`pattern mismatch "${rx.source}"`);
 };
 
 
-Validate.decimal = ([from, to]) => n => {
-  const [int, dec] = String(n).split(/\./);
+Val.value = x => {
+  if (x === undefined) return Val.False("type error");
+  else if (x === null) return Val.False("missing result");
+  else if (x !== x) return Val.False("invalid number");
+  else if (isNaN(x)) return Val.False("invalid date");
 
-  if (dec.length < from) return {reasons: ["out of range"], valid: false};
-  else if (dec.length > to) return {reasons: ["out of range"], valid: false};
+  else if (typeof x === "number") {
+    if (!Number.isFinite(x)) return Val.False("infinite number");
+    else if (!Number.isSafeInteger(x)) return Val.False("number out of range");
+    else return Val.True;
+  }
+
+  else return Val.True;
 };
 
 
-Validate.empty = x => {
+Val.empty = x => {
   const tag = intro(x);
 
-  if (tag === "Array") {
-    if (x.length === 0) return {valid: true};
-  }
+  switch (tag) {
+    case "Array": {
+      if (x.length === 0) return Val.True;
+      break;
+    }
 
-  if (tag === "Number") {
-    if (x === 0) return {valid: true};
-  }
+    case "Bigint": {
+      if (x === 0n) return Val.True;
+      break;
+    }
+
+    case "Map":
+    case "WeakMap": {
+      if (x.size === 0) return Val.True;
+      break;
+    }
+
+    case "Number": {
+      if (x === 0) return Val.True;
+      break;
+    }
+      
+    case "Object": {
+      if (Object.keys(x).length === 0) return Val.True;
+      break;
+    }
+      
+    case "Set":
+    case "WeakSet": {
+      if (x.size === 0) return Val.True;
+      break;
+    }
+
+    case "String": {
+      if (x === "") return Val.True;
+      break;
+    }
     
-  if (tag === "Object") {
-    if (Object.keys(x).length === 0) return {valid: true};
+    return Val.False("not empty");
   }
-    
-  if (tag === "String") {
-    if (x === "") return {valid: true};
-  }
-  
-  return {reasons: ["not empty"], valid: false};
 };
 
 
-Validate.iban = s => {
+//█████ Strings ███████████████████████████████████████████████████████████████
+
+
+Val.ascii = s => {
+  if (new RegExp(Str.cat(
+    "^(?:",
+    "[a-z0-9]",
+    "|",
+    Rex.classes.ascii.punct.rex.source,
+    "|",
+    Rex.classes.ascii.ctrl.rex.source,
+    ")+$"), "i").test(s))
+      return Val.True;
+
+  else return Val.False("ascii character(s) expected");
+};
+
+
+Val.asciiLetters = s => {
+  if (/^[a-z]$/i.test(s)) return Val.True;
+  else return Val.False("ascii letter(s) expected");
+};
+
+
+Val.asciiLcl = s => {
+  if (/^[a-z]$/.test(s)) return Val.True;
+  else return Val.False("ascii lower-case letter(s) expected");
+};
+
+
+Val.asciiUcl = s => {
+  if (/^[A-Z]$/.test(s)) return Val.True;
+  else return Val.False("ascii upper-case letter(s) expected");
+};
+
+
+Val.latin1 = s => {
+  if (new RegExp(Str.cat(
+    "^(?:",
+    Rex.classes.latin1.letter.rex.source,
+    "|",
+    "\\d",
+    "|",
+    Rex.classes.latin1.punct.rex.source,
+    "|",
+    Rex.classes.ascii.ctrl.rex.source,
+    ")+$"), "i").test(s))
+      return Val.True;
+
+  else return Val.False("latin1 characters");
+};
+
+
+Val.latin1Letters = s => {
+  if (new RegExp(`^${Rex.classes.latin1.letter.rex.source}+$`, "iv").test(s))
+    return Val.True;
+
+  else return Val.False("latin1 letter(s) expected");
+};
+
+
+Val.latin1LcL = s => {
+  if (new RegExp(`^${Rex.classes.latin1.lcl.rex.source}+$`, "v").test(s))
+    return Val.True;
+
+  else return Val.False("latin1 lower-case letter(s) expected");
+};
+
+
+Val.latin1Ucl = s => {
+  if (new RegExp(`^${Rex.classes.latin1.ucl.rex.source}+$`, "v").test(s))
+    return Val.True;
+
+  else return Val.False("latin1 upper-case letter(s) expected");
+};
+
+
+Val.utf8Letter = s => {
+  if (/^\p{L}+$/v.test(s)) return Val.True;
+  else return Val.False("utf8 letter(s) expected");
+};
+
+
+Val.utf8Lcl = s => {
+  if (/^\p{Ll}+$/v.test(s)) return Val.True;
+  else return Val.False("utf8 lower-case letter(s) expected");
+};
+
+
+Val.utf8Ucl = s => {
+  if (/^\p{Lu}+$/v.test(s)) return Val.True;
+  else return Val.False("utf8 upper-case letter(s) expected");
+};
+
+
+
+Val.iban = s => {
   const codeLen = 22;
 
   const iban = s.toUpperCase(),
@@ -8118,227 +8201,268 @@ Validate.iban = s => {
     checksum = parseInt(fragment, 10) % 97;
   }
 
-  return checksum === 1;
+  return checksum === 1 ? Val.True : Val.False(`invalid iban "${s}"`);
 };
 
 
-Validate.integer = n => {
-  if (typeof n !== "number") 
-    return {reasons: ["natural expected"], valid: false};
+Val.bic = s => {
+  if (/^([A-Z]{6}[A-Z2-9][A-NP-Z1-9])(X{3}|[A-WY-Z0-9][A-Z0-9]{2})?$/.test(s))
+    return Val.True;
 
-  else if (n % 1 !== 0)
-    return {reasons: ["natural expected"], valid: false};
-
-  else return {valid: true};
+  else return Val.False(`invalid bic "${s}"`);
 };
 
 
-Validate.length = ([from, to]) => x => {
-  if (x.length < from) return {reasons: ["out of range"], valid: false};
-  else if (x.length > to) return {reasons: ["out of range"], valid: false};
-  else return {valid: true};
+Val.decimal = s => {
+  if (/[0-9.,\-+e]/.test(s)) return Val.True;
+  else return Val.False("decimal-number character(s) expected");
 };
 
 
-Validate.member = s => x => {
-  if (s.has(x)) return {valid: true};
-  else return {reasons: [`no member "${x}"`], valid: false};
+Val.digits = s => {
+  if (/^\d+$/.test(s)) return Val.True;
+  else return Val.False("digit character(s) expected");
 };
 
 
-Validate.natural = n => {
-  if (typeof n !== "number") 
-    return {reasons: ["natural expected"], valid: false};
+Val.phone = s => {
+  if (/(\(?([\d \-\)\+\/\(]+){6,}\)?([ .\-–\/]?)([\d]+))/.test(s))
+    return Val.True;
 
-  else if (n <= 0)
-    return {reasons: ["natural expected"], valid: false};
-
-  else if (n % 1 !== 0)
-    return {reasons: ["natural expected"], valid: false};
-
-  else return {valid: true};
+  else return Val.False("phone character(s) expected");
 };
 
 
-Validate.negative = n => {
-  if (typeof n !== "number")
-    return {reasons: ["negative number expected"], valid: false};
-
-  else if (n >= 0)
-    return {reasons: ["negative number expected"], valid: false};
-
-  else return {valid: true};
+Val.poBox = s => {
+  if (/^[\d ]+$/.test(s)) return Val.True;
+  else return Val.False("po-box character(s) expected");
 };
 
 
-Validate.number = n => {
-  if (typeof n === "number") return {valid: true};
-  else return {reasons: ["number expected"], valid: false};
+Val.properName = s => {
+  if (/^[\p{L} \-'.]+$/v.test(s)) return Val.True;
+  else return Val.False("proper-name character(s) expected");
 };
 
 
-Validate.pattern = rx => s => {
-  if (rx.test(s) === true) return {valid: true};
-  else return {reasons: [`pattern mismatch "${rx.source}"`], valid: false};
+Val.street = s => {
+  if (/^[\p{L}\d \-./]+$/.test(s)) return Val.True;
+  else return Val.False("street character(s) expected");
 };
 
 
-Validate.range = ([from, to]) => n => {
-  if (n < from) return {reasons: ["out of range"], valid: false};
-  else if (n > to) return {reasons: ["out of range"], valid: false};
-  else return {valid: true};
+Val.email = s => {
+  if (/^[\p{L}\d\-.@_']+$/.test(s)) return Val.True;
+  else return Val.False("digit character(s) expected");
 };
 
 
-Validate.scheme = scheme => s => {
-  switch (scheme) {
-    case "decimal": {
-      if (/[0-9.,\-+e]/.test(s)) return {valid: true};
-      else return {reasons: ["non-decimal-number character(s)"], valid: false};
-    }
+//█████ Numbers ███████████████████████████████████████████████████████████████
 
-    case "digits": {
-      if (/^\d+$/.test(s)) return {valid: true};
-      else return {reasons: ["non-digit character(s)"], valid: false};
-    }
 
-    case "phone": {
-      if (/(\(?([\d \-\)\+\/\(]+){6,}\)?([ .\-–\/]?)([\d]+))/.test(s))
-        return {valid: true};
-
-      else return {reasons: ["non-phone character(s)"], valid: false};
-    }
-
-    case "poBox": {
-      if (/^[\d ]+$/.test(s)) return {valid: true};
-      else return {reasons: ["non-po-box character(s)"], valid: false};
-    }
-
-    case "properName": {
-      if (/^[\p{L} \-'.]+$/v.test(s)) return {valid: true};
-      else return {reasons: ["non-proper-name character(s)"], valid: false};
-    }
-
-    case "street": {
-      if (/^[\p{L}\d \-./]+$/.test(s)) return {valid: true};
-      else return {reasons: ["non-street character(s)"], valid: false};
-    }
-
-    case "email": {
-      if (/^[\p{L}\d\-.@_']+$/.test(s)) return {valid: true};
-      else return {reasons: ["non-digit character(s)"], valid: false};
-    }
-
-    default: throw new Err(`unknown charset "${charset}"`);
-  }
+Val.num = n => {
+  if (typeof n !== "number") throw new Err("number expected");
+  if (!Number.isFinite(n)) return Val.False("finite number expected");
+  if (!Number.isSafeInteger(n)) return Val.False("number out of range");
+  else return Val.True;
 };
 
 
-Validate.unique = s => x => {
-  if (s.has(x)) return {reasons: [`not unique "${x}"`], valid: false};
+Val.int = n => {
+  const o = Val.num(n), reasons = [];
+  if (o.valid === false) reasons.push(o.reason);
+  if (n % 1 !== 0) reasons.push("integer expected");
+  
+  if (reasons.length === 0) return Val.True;
+  else return Val.False(reasons.join(", "));
+};
+
+
+Val.nat = n => {
+  const o = Val.num(n), reasons = [];
+  if (o.valid === false) reasons.push(o.reason);
+  if (n <= 0) return Val.False("natural number expected");
+  if (n % 1 !== 0) return Val.False("natural number expected");
+
+  if (reasons.length === 0) return Val.True;
+  else return Val.False(reasons.join(", "));
+};
+
+
+Val.neg = n => {
+  const o = Val.num(n), reasons = [];
+  if (o.valid === false) reasons.push(o.reason);
+  if (n > 0) return Val.False("negative number expected");
+  
+  if (reasons.length === 0) return Val.True;
+  else return Val.False(reasons.join(", "));
+};
+
+
+Val.minNum = min => n => {
+  const o = Val.num(n), reasons = [];
+  if (o.valid === false) reasons.push(o.reason);
+  if (n < min) reasons.push("number too small");
+  
+  if (reasons.length === 0) return Val.True;
+  else return Val.False(reasons.join(", "));
+};
+
+
+Val.maxNum = max => n => {
+  const o = Val.num(n), reasons = [];
+  if (o.valid === false) reasons.push(o.reason);
+  if (n > max) reasons.push("number too small");
+  
+  if (reasons.length === 0) return Val.True;
+  else return Val.False(reasons.join(", "));
+};
+
+
+Val.minPrecision = min => n => {
+  const [, dec] = String(n).split(/\./);
+  if (dec.length >= min) return Val.True;
+  else return Val.False("too few decimal digits");
+};
+
+
+Val.maxPrecision = max => n => {
+  const [, dec] = String(n).split(/\./);
+  if (dec.length <= max) return Val.True;
+  else return Val.False("too many decimal digits");
+};
+
+
+//█████ Object Types ██████████████████████████████████████████████████████████
+
+
+Val.minLen = min => xs => { // also string
+  if ("length" in xs) xs.length >= min ? Val.True : Val.False("too short");
+  else throw new Err("length property expected");
+};
+
+
+Val.maxLen = max => xs => { // also string
+  if ("length" in xs) xs.length <= max ? Val.True : Val.False("too long");
+  else throw new Err("length property expected");
+};
+
+
+Val.isMember = o => o => {
+  if (o.has(o)) return Val.True;
+  else return Val.False(`missing member "${x}"`);
+};
+
+
+Val.isProp = o => k => {
+  if (k in o) return Val.True;
+  else return Val.False(`missing property "${x}"`);
+};
+
+
+Val.minSize = min => o => {
+  if ("size" in o) o.size >= min ? Val.True : Val.False("too short");
+  else throw new Err("size property expected");
+};
+
+
+Val.maxSize = max => o => {
+  if ("size" in o) o.size <= max ? Val.True : Val.False("too long");
+  else throw new Err("size property expected");
+};
+
+
+Val.minDate = min => d => {
+  if (d.getTime() >= min) return Val.True;
+  else return Val.False("date out of range");
+};
+
+
+Val.maxDate = max => d => {
+  if (d.getTime() <= max) return Val.True;
+  else return Val.False("date out of range");
+};
+
+
+//█████ Stateful ██████████████████████████████████████████████████████████████
+
+
+Val.unique = s => x => {
+  if (s.has(x)) return Val.False(`not unique "${x}"`);
 
   else {
     s.add(x);
-    return {valid: true};
+    return Val.True;
   }
 };
 
 
-Validate.value = x => {
-  if (x === undefined)
-    return {reasons: ["type error"], valid: {valid: false}};
+//█████ Folds █████████████████████████████████████████████████████████████████
 
-  else if (x === null) return {reasons: ["missing result"], valid: false};
-  else if (x !== x) return {reasons: ["not a number"], valid: false};
-  else if (isNaN(x)) return {reasons: ["invalid date"], valid: false};
-  
-  else if (typeof x === "number") {
-    if (!Number.isFinite(x))
-      return {reasons: ["infinite number"], valid: false};
 
-    else if (!Number.isSafeInteger(x))
-      return {reasons: ["integer out of range"], valid: false};
+Val.and = f => g => x => {
+  const o = f(x), p = g(x), reasons = [];
 
-    else return {valid: true};
-  }
+  if (o.valid === false) reasons.push(o.reason);
+  if (p.valid === false) reasons.push(p.reason);
 
-  else return {valid: true};
+  if (reasons.length === 0) return Val.True;
+  else return Val.False(reasons.join(", "));
 };
 
 
-Validate.with = p => s => {
-  const r = p(s);
-  if (r === true) return {valid: true};
-  else if (typeof r === "string") return {reasons: [r], valid: false};
-  else return {reasons: ["unmet predicate"], valid: false};
-};
-
-
-//█████ Accumulate ████████████████████████████████████████████████████████████
-
-
-Validate.accum = (...os) => {
-  const reasons = [];
-
-  for (const o of os)
-    if (o.valid === false) A.pushn(o.reasons) (reasons);
-
-  if (reasons.length === 0) return {valid: true};
-  else return {reasons, valid: false};
-};
-
-
-//█████ Logic █████████████████████████████████████████████████████████████████
-
-
-Validate.and = (f, g) => s => {
-  const o = f(s), p = g(s), reasons = [];
-
-  if (o.valid === false) A.pushn(o.reasons) (reasons);
-  if (p.valid === false) A.pushn(p.reasons) (reasons);
-
-  if (reasons.length === 0) return {valid: true};
-  else return {reasons, valid: false};
-};
-
-
-Validate.all = (...fs) => s => {
+Val.all = (...fs) => s => {
   const reasons = [];
 
   for (const f of fs) {
     const o = f(s);
-    if (o.valid === false) A.pushn(o.reasons) (reasons);
+    if (o.valid === false) reasons.push(o.reason);
   }
 
-  if (reasons.length === 0) return {valid: true};
-  else return {reasons, valid: false};
+  if (reasons.length === 0) return Val.True;
+  else return Val.False(reasons.join(", "));
 };
 
 
-Validate.or = (f, g) => s => {
-  const o = f(s), p = g(s), reasons = [];
+Val.or = f => g => x => {
+  const o = f(x), p = g(x), reasons = [];
 
-  if (o.valid) return {valid: true};
-  else A.pushn(o.reasons) (reasons);
+  if (o.valid === false) reasons.push(o.reason);
+  if (p.valid === false) reasons.push(p.reason);
 
-  if (p.valid) return {valid: true};
-  else A.pushn(p.reasons) (reasons);
-
-  return {reasons, valid: false};
+  if (reasons.length <= 1) return Val.True;
+  else return Val.False(reasons.join(", "));
 };
 
 
-Validate.any = (...fs) => s => {
+Val.any = (...fs) => s => {
   const reasons = [];
 
   for (const f of fs) {
     const o = f(s);
-
-    if (o.valid) return {valid: true};
-    else A.pushn(o.reasons) (reasons);
+    if (o.valid === false) reasons.push(o.reason);
   }
 
-  return {reasons, valid: false};
+  if (reasons.length < fs.length) return Val.True;
+  else return Val.False(reasons.join(", "));
+};
+
+
+Val.xor = f => g => x => {
+  const o = f(x), p = g(x), reasons = [];
+
+  if (o.valid === false) reasons.push(o.reason);
+  if (p.valid === false) reasons.push(p.reason);
+
+  if (reasons.length === 1) return Val.True;
+  else return Val.False(reasons.join(", "));
+};
+
+
+Val.not = f => x => {
+  const o = f(x);
+  if (o.valid === true) return Val.False("not true");
+  else return Val.True;
 };
 
 
