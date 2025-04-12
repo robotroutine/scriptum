@@ -4743,10 +4743,26 @@ O.fromPairs = pairs => pairs.reduce((acc, [k, v]) => (acc[k] = v, acc), {});
 /* Effect type as a function encoding. Handles the following effects at once:
 
   * exception
+  * non-determinism
   * null pointer
-  * short circuit
-  * non-determinism */
+  * short circuit compuation
+  * defer compuation
 
+Usage:
+
+  const k = Eff.Right(2) (Eff.Lazy(() =>
+    Eff.Right(3) (
+      Eff.Right(4) (
+        Eff.Right(5) (
+          Eff.Null)))));
+
+  const k2 = Eff.map(x => x * x) (k)
+  
+  // at this point only the first element is evaluated to 4
+
+  // force evaluation
+
+  Eff.cata(); // [4, 9, 16, 25] */
 
 export const Eff = {};
 
@@ -4759,35 +4775,35 @@ export const Eff = {};
 Eff.Left = variant({
   tag: "Eff",
   cons: "Eff.Left",
-  keys: ["left", "right", "null", "short", "defer"]
+  keys: ["left", "right", "null", "short", "lazy"]
 });
 
 
 Eff.Right = variant2({
   tag: "Eff",
   cons: "Eff.Right",
-  keys: ["right", "left", "null", "short", "defer"]
+  keys: ["right", "left", "null", "short", "lazy"]
 });
 
 
 Eff.Short = variant({
   tag: "Eff",
   cons: "Eff.Short",
-  keys: ["short", "left", "right", "null", "defer"]
+  keys: ["short", "left", "right", "null", "lazy"]
 });
 
 
 Eff.Null = variant0({
   tag: "Eff",
   cons: "Eff.Null",
-  keys: ["null", "left", "right", "short", "defer"]
+  keys: ["null", "left", "right", "short", "lazy"]
 });
 
 
-Eff.Defer = variant({
+Eff.Lazy = variant({
   tag: "Eff",
-  cons: "Eff.Defer",
-  keys: ["defer", "left", "right", "null", "short"]
+  cons: "Eff.Lazy",
+  keys: ["lazy", "left", "right", "null", "short"]
 });
 
 
@@ -4804,7 +4820,17 @@ Eff.map = f => function go(k) { // TODO: make stack-safe
     right: head => tail => Eff.Right(f(head)) (go(tail)),
     null: () => Eff.Null,
     short: head => Eff.Short(f(head)),
-    defer: thunk => Eff.Defer(() => go(thunk()))
+    
+    get lazy() { // sharing
+      return thunk => {
+        return Eff.Lazy(() => {
+          const r = thunk();
+          delete this.lazy;
+          this.lazy = () => go(r);
+          return go(r);
+        })
+      }
+    }
   });
 };
 
@@ -4820,7 +4846,7 @@ Eff.cata = k => k({ // TODO: make stack-safe
   
   null: () => null,
   short: head => head,
-  defer: thunk => Eff.cata(thunk())
+  lazy: thunk => Eff.cata(thunk())
 });
 
 
