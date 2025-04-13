@@ -347,8 +347,10 @@ export const debugIf = p => expr => {
 };
 
 
+// intercept type signatures
+
 export const trace = x => {
-  console.log(JSON.stringify(x));
+  console.log(JSON.stringify(Sign.get(x)));
   return x;
 };
 
@@ -973,10 +975,10 @@ A.unshiftn = ys => xs => (xs.unshift.apply(xs, ys), xs);
 A.unshiftnr = xs => ys => (xs.unshift.apply(xs, ys), xs);
 
 
-A.pop = xs => Pair(xs.length === 0 ? null : xs.pop(), xs);
+A.pop = xs => [xs.length === 0 ? null : xs.pop(), xs];
 
 
-A.shift = xs => Pair(xs.length === 0 ? null : xs.shift(), xs);
+A.shift = xs => [xs.length === 0 ? null : xs.shift(), xs];
 
 
 A.cons = x => xs => [x].concat(xs);
@@ -1003,20 +1005,20 @@ A.unsnoc = xs => [
 A.init = xs => xs.length === 0 ? null : xs.slice(0, -1);
 
 
-A.inits = (arr) => {
-  const n = arr.length, result = [];
-  for (let i = n - 1; i >= 1; i--) result.push(arr.slice(0, i));
-  return result;
+A.inits = xs => {
+  const n = xs.length, ys = [];
+  for (let i = n - 1; i >= 1; i--) ys.push(xs.slice(0, i));
+  return ys;
 };
 
 
 A.tail = xs => xs.length === 0 ? null : xs.slice(1);
 
 
-A.tails = (arr) => {
-  const n = arr.length, result = [];
-  for (let i = 1; i <= n - 1; i++) result.push(arr.slice(i));
-  return result;
+A.tails = xs => {
+  const n = xs.length, ys = [];
+  for (let i = 1; i <= n - 1; i++) ys.push(xs.slice(i));
+  return ys;
 };
 
 
@@ -1214,7 +1216,7 @@ A.unfold = f => seed => {
 A.partition = p => xs => xs.reduce((pair, x)=> {
   if (p(x)) return (pair[0].push(x), pair);
   else return (pair[1].push(x), pair);
-}, Pair([], []));
+}, [[], []]);
 
 
 /* A more general partition function that allows dynamic key generation and
@@ -1281,7 +1283,7 @@ A.zip = xs => ys => Loop2((acc, i) => {
   else if (i === ys.length) return Loop2.Base(acc);
 
   else {
-    acc.push(Pair(xs[i], ys[i]));
+    acc.push([xs[i], ys[i]]);
     return Loop2.Rec(acc, i + 1);
   }
 }) ([], 0);
@@ -1295,7 +1297,7 @@ A.zipWith = f => xs => ys => Loop2((acc, i) => {
 
 
 A.unzip = () => A.foldl(([x, y]) => ([xs, ys]) =>
-  Pair((xs.push(x), xs), (ys.push(y), ys))) (Pair([], []));
+  [(xs.push(x), xs), (ys.push(y), ys)]) ([[], []]);
 
 
 // TODO: A.unzipWith
@@ -3123,7 +3125,7 @@ length of the list is even or odd and how long it actual is at the same time. */
 
 It.zygo = f => g => acc => acc2 => function* (ix) {
   for ([value, done] of It.cata(x => pair =>
-    Pair(f(x) (pair[0]), g(x) (pair[0]) (pair[1]))) (Pair(acc, acc2))) {
+    [f(x) (pair[0]), g(x) (pair[0]) (pair[1])]) ([acc, acc2])) {
       yield value[1];
   }
 };
@@ -3133,7 +3135,7 @@ It.zygo = f => g => acc => acc2 => function* (ix) {
 
 It.mutu = f => g => acc => acc2 => function* (ix) {
   for ([value, done] of It.cata(x => pair =>
-    Pair(f(x) (pair[0]) (pair[1]), g(x) (pair[0]) (pair[1]))) (Pair(acc, acc2))) {
+    [f(x) (pair[0]) (pair[1]), g(x) (pair[0]) (pair[1])]) ([acc, acc2])) {
       yield value[1];
   }
 };
@@ -3431,7 +3433,7 @@ It.collate = p => ix => {
   const iy = It.cloneable(ix),
     iz = iy.clone();
 
-  return Pair(
+  return [
     function* () {
       while (true) {
         const o = iy.next();
@@ -3449,7 +3451,7 @@ It.collate = p => ix => {
         else if (p(o.value)) yield o.value;
       }
     } ()
-  );
+  ];
 };
 
 
@@ -3517,7 +3519,7 @@ It.zip = ix => function* (iy) {
   while (true) {
     const o = ix.next(), p = iy.next();
     if (o.done || p.done) return undefined;
-    else yield Pair(o.value, p.value);
+    else yield [o.value, p.value];
   }
 };
 
@@ -4420,14 +4422,14 @@ export class MultiMap extends Map {
 
   *[Symbol.iterator]() {
     for (const [k, s] of super[Symbol.iterator]()) {
-      for (const v of s) yield Pair(k, v);
+      for (const v of s) yield [k, v];
     }
   }
 
   // do not abstract from multiple mapped datasets
 
   *iterate() {
-    for (const [k, s] of super[Symbol.iterator]()) yield Pair(k, s);
+    for (const [k, s] of super[Symbol.iterator]()) yield [k, s];
   }
 };
 
@@ -4697,15 +4699,15 @@ Num.addFracs = frac => frac2 => {
 
   const gcd = Num.gcd(ntor + ntor2, lcm);
 
-  return Pair(
+  return [
     Num.round2((ntor + ntor2) / gcd),
     Num.round2(lcm / gcd)
-  );
+  ];
 };
 
 
 /* Caluclate the average of two fractions. Relies on rounding to avoid exploding
-factions. */
+fractions. */
 
 Num.avgFracs = frac => frac2 => {
   const lcm = Num.lcm(frac[1], frac2[1]);
@@ -4713,7 +4715,7 @@ Num.avgFracs = frac => frac2 => {
   const dtor = Num.round(0) (lcm / frac[1] * frac[0]),
     dtor2 = Num.round(0) (lcm / frac2[1] * frac2[0]);
 
-  const frac3 = Pair(Num.round(0) ((dtor + dtor2) / 2), lcm);
+  const frac3 = [Num.round(0) ((dtor + dtor2) / 2), lcm];
 
   const gcd = Num.gcd(frac3[0], frac3[1]);
 
@@ -7739,6 +7741,16 @@ operations. */
 
 
 export const Tree = value => ({value, left: null, right: null});
+
+
+/* TODO: replace with splay tree with following features:
+
+  * explicit comparator
+  * duplicate/unique value insert
+  * finding successor/predecessor
+  * range queries (keys within a range)
+  * rank queries (nth smallest/biggest element)
+    * requires augmenting nodes with info about the size of their left subtree */
 
 
 /*█████████████████████████████████████████████████████████████████████████████
