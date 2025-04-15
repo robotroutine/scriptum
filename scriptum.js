@@ -18,12 +18,12 @@ Javascript. */
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-import nodeChild from "node:child_process";
-import nodeCrypto from "node:crypto";
-import nodeFs from "node:fs";
-import nodePath from "node:path";
-import nodeStream from "node:stream";
-// TODO: immutable.js
+import Child from "node:child_process";
+import Crypto from "node:crypto";
+import FS from "node:fs";
+import Path from "node:path";
+import Stream from "node:stream";
+// TODO: add immutable.js?
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -61,8 +61,8 @@ export const not_found = -1;
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Define sum types in continuation passing style. Sum types represent values
-that can have different shapes and are still type safe.
+/* Define functionally encoded sum types, which represent values that exhibit
+different compositions/shapes but are still type safe.
 
   const None = variant0({
     tag: "Option",
@@ -112,6 +112,7 @@ export const variant0 = ({tag, cons, keys}) => {
   wrapper[prop] [$$] = cons;
   return wrapper[prop];
 };
+
 
 export const variant = ({tag, cons, keys}) => x => {
   const prop = keys[0];
@@ -367,19 +368,19 @@ swallows actual errors in the match process. It's an unavoidable trade-off.
 After a match downstream matchers are skipped. The default methods terminates
 the chain. You can pass a default to avoid final mismatch.
 
-pattern({foo: [2, 3], bar: 4})
-  .match(({bat: [x, y]}) => x % 2 === 1 ? undefined : x + y)
-  .match(({foo: [,x], bar: [,y]}) => x % 2 === 1 ? undefined : x + y)
-  .match(({foo: x, bar: [,y]}) => x % 2 === 1 ? undefined : x + y)
-  .match(({foo: [,x], bar: y}) => x % 2 === 1 ? undefined : x + y)
-  .default(); // throws "mismatch"
-
 pattern({foo: [1, 2], bar: 3})
   .match(({bat: [x, y]}) => x % 2 === 1 ? undefined : x + y)
   .match(({foo: [,x], bar: [,y]}) => x % 2 === 1 ? undefined : x + y)
   .match(({foo: x, bar: [,y]}) => x % 2 === 1 ? undefined : x + y)
   .match(({foo: [,x], bar: y}) => x % 2 === 1 ? undefined : x + y)
-  .default(); // yields 5 */
+  .default("nothing"); // yields 5
+
+pattern({foo: [2, 3], bar: 4})
+  .match(({bat: [x, y]}) => x % 2 === 1 ? undefined : x + y)
+  .match(({foo: [,x], bar: [,y]}) => x % 2 === 1 ? undefined : x + y)
+  .match(({foo: x, bar: [,y]}) => x % 2 === 1 ? undefined : x + y)
+  .match(({foo: [,x], bar: y}) => x % 2 === 1 ? undefined : x + y)
+  .default("nothing"); // yields "nothing" */
 
 
 class PatternMatch {
@@ -604,7 +605,7 @@ Loop2.Rec = function Rec2(x, y) {
 
 
 Loop2.Cons = function Cons2(f, x, y) {
-  return {[$]: "Loop", [$$]: "Loop.Cons", f, x, y};
+  return {[$]: "Loop2", [$$]: "Loop2.Cons", f, x, y};
 };
 
 
@@ -662,7 +663,7 @@ export const Stack = f => args => {
   while (stack.length > 1 || (stack.length === 1 && stack[0]?.[$$] !== "Stack.Base")) {
     let o = stack[stack.length - 1];
 
-    // handle raw value edge case
+    // handle raw value edge case (disabled for the time being)
 
     /*if (!o?.[$$]) {
       if (stack.length > 1) {
@@ -1525,44 +1526,73 @@ additional, file-wide meta data. Consecutive double or triple delimiters are
 considered as escaped and thus part of the content, not the syntax. Separators
 within delimiters are alos considered as part of the content, not the syntax. */
 
-A.fromCsv = ({sep, delim, header, headings}) => csv => {
-  const csv2 = csv.trim()
-    .replaceAll(new RegExp(`${delim}{2,3}`, "gv"), "<delim/>");
-  
-  const xs = csv2.split(new RegExp(`(${delim})`));
+A.fromCsv = A.fromCsv = ({
+  sep = ";",
+  delim = '"',
+  header = false,
+  headings = false,
+  replace = [/* [RegExp, String] */],
+  strict = false
+}) => csv => {
+  const o = {};
 
-  if (csv[0] === delim) xs.shift();
-  if (csv[csv.length - 1] === delim) xs.pop();
+  /* Sanitize csv as follows:
 
-  const ys = xs.map(s => {
-    if (s[0] !== sep) {
-      if (s[s.length - 1] === sep) throw new Err("invalid csv data");
-      else return s.replaceAll(new RegExp(sep, "g"), "<sep/>");
-    }
+    * '""' => ''
+    * '"""' => '<delim/>'
+    * '"foo;bar"' => '"foo<sep/>bar' */
 
-    else return s;
-  });
+  const csv2 = csv
+    .trim()
+    .replaceAll(new RegExp(`(?<=${sep}|^)${delim}{2}(?=${sep}|$)`, "gmv"), "") 
+    .replaceAll(new RegExp(`${delim}{3}`, "gv"), "<delim/>") 
+    .replaceAll(new RegExp(
+      `((?:${sep}|^)${delim})([^${delim}\n]+)(${delim}(?:${sep}|$))`, "gmv"), (...args) => {
+        let s = args[2].replaceAll(new RegExp(sep, "g"), "<sep/>");
+        if (args[1].startsWith(sep)) s = sep + s;
+        if (args[3].endsWith(sep)) s += sep;
+        return s;
+      });
 
-  const table = ys.join("")
-    .replaceAll(new RegExp(`${delim}${sep}`, "g"), sep)
-    .replaceAll(new RegExp(`${sep}${delim}`, "g"), sep)
-    .replaceAll(new RegExp(`^${delim}`, "gm"), "")
-    .replaceAll(new RegExp(`${delim}$`, "gm"), "")
-    .replaceAll("<delim/>", delim)
+  if (new RegExp(delim, "g").test(csv2)) throw new Err("malformed delimiter")
+
+  o.table = csv2
+    .replaceAll(/<delim\/>/g, delim)
     .split(/\r?\n/)
     .map(row => row.split(sep)
-      .map(col => col.replaceAll(/<sep\/>/g, sep)));
+      .map(col => col.replaceAll(/<sep\/>/g, sep))
+      .map(col => replace.reduce((acc, pair) =>
+        acc.replaceAll(pair[0], pair[1]), col)));
 
-  if (header) table.meta = table.shift();
+  if (header) o.header = o.table.shift();
 
   if (headings) {
-    const names = table.shift();
+    o.headings = o.table.shift();
 
-    return table.map(cols =>
-      cols.reduce((acc, col, i) => (acc[names[i]] = col, acc), {}));
+    o.table.forEach((cols, i) => {
+      if (strict) {
+        if (cols.length < o.headings.length)
+          throw new Err(`missing separator @${i}`);
+
+        else if (strict && cols.length > o.headings.length)
+          throw new Err(`redundant separator @${i}`);
+      }
+
+      cols = cols.reduce((acc, col, i) => (acc[o.headings[i]] = col, acc), {});
+    });
   }
 
-  else return table;
+  else if (strict) {
+    o.table.forEach((cols, i) => {
+      if (cols.length !== o.table[0].length)
+        throw new Err(`missing separator @${i}`);
+
+      else if (cols.length !== o.table[0].length)
+        throw new Err(`missing separator @${i}`);
+    });
+  }
+
+  return o;
 };
 
 
@@ -2344,147 +2374,6 @@ D.fromTimeStr = d => s => {
 
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
-███████████████████████████████████ EFFECT ████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-/* Effect type as a function encoding. Handles the following effects at once:
-
-  * exception
-  * non-determinism
-  * null pointer
-  * short circuit computation
-  * deferred computation
-
-Usage:
-
-  const k = Eff.Right(2) (Eff.Lazy(() =>
-    Eff.Right(3) (
-      Eff.Right(4) (
-        Eff.Right(5) (
-          Eff.Null)))));
-
-  const k2 = Eff.map(x => x * x) (k)
-  
-  // at this point only the first element is evaluated to 4
-
-  // force evaluation:
-
-  Eff.cata(k2); // [4, 9, 16, 25] */
-
-
-export const Eff = {};
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-████████████████████████████████████ TYPES ████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-Eff.Left = variant({
-  tag: "Eff",
-  cons: "Eff.Left",
-  keys: ["left", "right", "null", "short", "lazy"]
-});
-
-
-Eff.Right = variant2({
-  tag: "Eff",
-  cons: "Eff.Right",
-  keys: ["right", "left", "null", "short", "lazy"]
-});
-
-
-Eff.Short = variant({
-  tag: "Eff",
-  cons: "Eff.Short",
-  keys: ["short", "left", "right", "null", "lazy"]
-});
-
-
-Eff.Null = variant0({
-  tag: "Eff",
-  cons: "Eff.Null",
-  keys: ["null", "left", "right", "short", "lazy"]
-});
-
-
-Eff.Lazy = variant({
-  tag: "Eff",
-  cons: "Eff.Lazy",
-  keys: ["lazy", "left", "right", "null", "short"]
-});
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-█████████████████████████████████ COMBINATORS █████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-// functor
-
-Eff.map = f => Loop(k => {
-  return k({
-    left: e => Loop.Base(Eff.Left(e)),
-
-    right: head => tail => Loop.Cons(
-      tail2 => Eff.Right(f(head)) (tail2),
-      tail
-    ),
-    
-    null: () => Loop.Base(Eff.Null),
-    short: head => Loop.Base(Eff.Short(f(head))),
-    
-    lazy: thunk => {
-      let computed = false, r = null;
-
-      return Loop.Base(Eff.Lazy(() => {
-        if (!computed) {
-          r = Eff.map(f) (thunk());
-          computed = true;
-        }
-
-        return r;
-      }));
-    }
-  });
-});
-
-
-Eff.foldl = f => init => k => {
-  return Loop(({k, acc}) => {
-    return k({
-      left: e => {throw e},
-      right: head => tail => Loop.Rec({k: tail, acc: f(acc, head)}),
-      null: () => Loop.Base(acc),
-      short: head => Loop.Base(head),
-      lazy: thunk => Loop.Rec({k: thunk(), acc})
-    });
-  }) ({k, acc: init});
-};
-
-
-// catamorphism
-
-Eff.cata = Loop(k => k({
-  left: e => {throw e},
-  
-  right: head => tail => tail[$$] === "Eff.Null"
-    ? Loop.Base(head)
-    : Loop.Cons(tail2 => [head].concat(tail2), tail),
-  
-  null: () => Loop.Base(null),
-  short: head => Loop.Base(head),
-  lazy: thunk => Loop.Base(Eff.cata(thunk()))
-}));
-
-
-// TODO: add standard combinators
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████
 ████████████████████████████████████ ERROR ████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -2573,7 +2462,9 @@ F.dimap = h => g => f => x => g(f(h(x)));
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ██████████████████████████████████ ITERATOR ███████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
@@ -3540,7 +3431,9 @@ It.ana = It.ana();
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ██████████████████████████████ ITERATOR :: ASYNC ██████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
@@ -3957,7 +3850,9 @@ Ait.takeWhile_ = p => async function* (ix) {
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████ ITERATOR :: IDEMPOTENT ████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
@@ -4061,7 +3956,28 @@ Iit.clear = ix => (ix.prev = null, ix);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+████████████████████████████████████ LAZY █████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+// principled and stack-safe lazy evaluation using a trampoline
+
+export const Lazy = thunk => {
+  thunk[$] = "Lazy";
+  thunk[$$] = "Lazy";
+  return thunk;
+};
+
+
+// TODO
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████████ MAP █████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
@@ -4844,7 +4760,9 @@ Null.zero = Null.empty;
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████ NUMBER ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
@@ -5235,7 +5153,9 @@ O.fromPairs = pairs => pairs.reduce((acc, [k, v]) => (acc[k] = v, acc), {});
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 █████████████████████████████ REGULAR EXPRESSIONS █████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
@@ -6486,7 +6406,9 @@ Rex.normalize = s => s
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████████ SET █████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
@@ -6651,7 +6573,9 @@ _Set.diffr = s => t => {
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████ STRING ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
@@ -8094,19 +8018,18 @@ Trans.Append.obj = p => acc => pair => k =>
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Unbalanced binary search tree as a persitent data structure with structural
-sharing. Once build a tree can be rebalanced for subsequent membership or search
-operations. */
+/* Unbalanced binary search tree as a persistent data structure with structural
+sharing. */
 
 
 export const Tree = value => ({value, left: null, right: null});
 
 
-/* TODO: replace with splay tree with following features:
+/* TODO: replace with splay tree with the following features:
 
   * explicit comparator
-  * duplicate/unique value insert
-  * finding successor/predecessor
+  * allow duplicate or unique value insert
+  * find successor/predecessor
   * range queries (keys within a range)
   * rank queries (nth smallest/biggest element)
     * requires augmenting nodes with info about the size of their left subtree */
@@ -8129,16 +8052,16 @@ Tree.insert = (node, value) => {
 };
 
 
-Tree.delete = value => node => {
+Tree.remove = value => node => {
   if (node === null) return null;
 
   else if (value < node.value) {
-    const newLeft = Tree.delete(value)(node.left);
+    const newLeft = Tree.remove(value) (node.left);
     return {...node, left: newLeft};
   }
 
   else if (value > node.value) {
-    const newRight = Tree.delete(value)(node.right);
+    const newRight = Tree.remove(value) (node.right);
     return {...node, right: newRight};
   }
 
@@ -8148,7 +8071,7 @@ Tree.delete = value => node => {
 
     else {
       const value2 = Tree.findMin(node.right),
-        right2 = Tree.delete(value2) (node.right);
+        right2 = Tree.remove(value2) (node.right);
 
       return {
         ...node,
@@ -8175,8 +8098,8 @@ Tree.find = value => node => {
   else if (value === node.value) return node;
 
   return value < node.value
-    ? Tree.find(value)(node.left)
-    : Tree.find(value)(node.right);
+    ? Tree.find(value) (node.left)
+    : Tree.find(value) (node.right);
 };
 
 
@@ -8306,7 +8229,7 @@ Tree.fromSortedArr = xs => Tree.reconstruct(xs, 0, xs.length - 1);
 
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
-████████████████████████████████████ TREE █████████████████████████████████████
+█████████████████████████████████ VALIDATION ██████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
@@ -8328,16 +8251,16 @@ export const Val = {};
 
 
 Val.True = ({
-  [$]: "Cont.Tramp",
-  [$$]: "Cont.Pause",
-  value: true
+  [$]: "Val",
+  [$$]: "Val.True",
+  valid: true
 });
 
 
 Val.False = reason => ({
-  [$]: "Cont.Tramp",
-  [$$]: "Cont.Pause",
-  value: false,
+  [$]: "Val",
+  [$$]: "Val.False",
+  valid: false,
   reason
 });
 
@@ -8838,11 +8761,16 @@ Val.not = f => x => {
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████ VECTOR ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
 export const Vector = {};
+
+
+// TODO: rename to linear algebra and expand
 
 
 Vector.cosine = (xs, ys) => {
@@ -8927,7 +8855,7 @@ Node.Child = Cons => {
 
   o.handle = reify(p => {
     p.exec = cmd => Cons(k =>
-      nodeChild.exec(cmd, (e, stdout, stderr) => {
+      Child.exec(cmd, (e, stdout, stderr) => {
         if (e) return k(new Err(e));
         else if (stderr) return k(new Err(stderr));
         else return k(stdout);
@@ -8938,7 +8866,7 @@ Node.Child = Cons => {
 
   o.throw = reify(p => {
     p.exec = cmd => Cons(k =>
-      nodeChild.exec(cmd, (e, stdout, stderr) => {
+      Child.exec(cmd, (e, stdout, stderr) => {
         if (e) throw e;
         else if (stderr) throw stderr;
         else return k(stdout);
@@ -9025,15 +8953,24 @@ Node.CLA.setEnv = o => {
 Node.Crypto = {};
 
 
-Node.Crypto.createKey256 = () => crypto.randomBytes(32).toString("base64");
+// encrypt with 256-bit private key
+
+Node.Crypto.encryptSym = key => plaintext => {
+  const iv = Crypto.randomBytes(12).toString("base64"),
+    cipher = Crypto.createCipheriv("aes-256-gcm", key, iv);
+
+  let ciphertext = cipher.update(plaintext, "utf8", "base64");
+  ciphertext += cipher.final("base64");
+  
+  const tag = cipher.getAuthTag();
+  return { ciphertext, iv, tag };
+};
 
 
-/* decrypt a cypther text:
+// decrypt with 256-bit private key
 
-  const plaintext = Node.Crypto.decryptSym(key, ciphertext, iv, tag); */
-
-Node.Crypto.decryptSym = (key, ciphertext, iv, tag) => {
-  const decipher = crypto.createDecipheriv(
+Node.Crypto.decryptSym = ({key, iv, tag}) => ciphertext => {
+  const decipher = Crypto.createDecipheriv(
     "aes-256-gcm", 
     Buffer.from(key, "base64"),
     Buffer.from(iv, "base64")
@@ -9047,21 +8984,9 @@ Node.Crypto.decryptSym = (key, ciphertext, iv, tag) => {
 }
 
 
-/* encrypt a plain text:
+// generate 256-bit private key
 
-  const key = Node.Crypto.createKey256();
-    {ciphertext, iv, tag} = Node.Crypto.encryptSym(key, plaintext); */
-
-Node.Crypto.encryptSym = (key, plaintext) => {
-  const iv = crypto.randomBytes(12).toString("base64"),
-    cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-
-  let ciphertext = cipher.update(plaintext, "utf8", "base64");
-  ciphertext += cipher.final("base64");
-  
-  const tag = cipher.getAuthTag();
-  return { ciphertext, iv, tag };
-};
+Node.Crypto.createKey256 = () => Crypto.randomBytes(32).toString("base64");
 
 
 // TODO: add asymetric encription
@@ -9114,7 +9039,7 @@ Node.FS = Cons => {
     };
 
     p.copy = src => dest => Cons(k =>
-      Node.fs.copyFile(src, dest, e =>
+      FS.copyFile(src, dest, e =>
         e ? k(new Err(e)) : k(null)));
 
     p.move = src => dest =>
@@ -9122,23 +9047,23 @@ Node.FS = Cons => {
         e?.constructor?.name === "Exception" ? Cons.of(e) : p.unlink(src));
 
     p.read = opt => path => Cons(k =>
-      Node.fs.readFile(path, opt, (e, x) =>
+      FS.readFile(path, opt, (e, x) =>
         e ? k(new Err(e)) : k(x)));
 
     p.scanDir = opt => path => Cons(k =>
-      Node.fs.readdir(path, opt, (e, xs) =>
+      FS.readdir(path, opt, (e, xs) =>
         e ? k(new Err(e)) : k(xs)));
 
     p.stat = path => Cons(k =>
-      Node.fs.stat(path, (e, p) =>
+      FS.stat(path, (e, p) =>
         e ? k(new Err(e)) : k(p)));
 
     p.unlink = path => Cons(k =>
-      Node.fs.unlink(path, e =>
+      FS.unlink(path, e =>
         e ? k(new Err(e)) : k(null)));
 
     p.write = opt => path => s => Cons(k =>
-      Node.fs.writeFile(path, s, opt, e =>
+      FS.writeFile(path, s, opt, e =>
         e ? k(new Err(e)) : k(s)));
 
     return p;
@@ -9178,7 +9103,7 @@ Node.FS = Cons => {
     };
 
     p.copy = src => dest => Cons(k =>
-      Node.fs.copyFile(src, dest, e =>
+      FS.copyFile(src, dest, e =>
         e ? _throw(e) : k(null)));
 
     p.move = src => dest =>
@@ -9186,23 +9111,23 @@ Node.FS = Cons => {
         p.unlink(src));
 
     p.read = opt => path => Cons(k =>
-      Node.fs.readFile(path, opt, (e, x) =>
+      FS.readFile(path, opt, (e, x) =>
         e ? _throw(e) : k(x)));
 
     p.scanDir = opt => path => Cons(k =>
-      Node.fs.readdir(path, opt, (e, xs) =>
+      FS.readdir(path, opt, (e, xs) =>
         e ? _throw(e) : k(xs)));
 
     p.stat = path => Cons(k =>
-      Node.fs.stat(path, (e, p) =>
+      FS.stat(path, (e, p) =>
         e ? _throw(e) : k(p)));
 
     p.unlink = path => Cons(k =>
-      Node.fs.unlink(path, e =>
+      FS.unlink(path, e =>
         e ? _throw(e) : k(null)));
 
     p.write = opt => path => s => Cons(k =>
-      Node.fs.writeFile(path, s, opt, e =>
+      FS.writeFile(path, s, opt, e =>
         e ? _throw(e) : k(s)));
 
     return p;
