@@ -100,154 +100,7 @@ export const trace = x => {
 //█████ Visualization █████████████████████████████████████████████████████████
 
 
-/*const ComputationVisualizerProxy = (() => {
-    let indentationLevel = 0;
-    const indentChar = '  ';
 
-    const stringifyArgs = (args) => {
-       try {
-
-            return Array.from(args).map(arg => {
-                if (typeof arg === 'function') return `[Function ${arg.name || 'anonymous'}]`;
-                if (typeof arg === 'undefined') return 'undefined';
-                if (arg === null) return 'null';
-                try {
-                    return JSON.stringify(arg, (key, value) =>
-                        typeof value === 'bigint' ? value.toString() + 'n' : value
-                    );
-                } catch (e) {
-                    return arg.toString();
-                }
-            }).join(', ');
-        } catch (e) {
-            return '[Error stringifying args]';
-        }
-    };
-
-     const stringifyResult = (result) => {
-        if (typeof result === 'undefined') return 'undefined';
-        if (typeof result === 'function') return `[Function ${result.name || 'anonymous'}]`;
-        if (result === null) return 'null';
-        try {
-             return JSON.stringify(result, (key, value) =>
-                 typeof value === 'bigint' ? value.toString() + 'n' : value
-             );
-        } catch (e) {
-              try {
-                 return result.toString();
-              } catch (e2) {
-                 return '[Unstringifiable result]';
-              }
-        }
-     };
-
-    const visualize = (originalFunc, name = originalFunc.name || 'anonymous') => {
-        if (typeof originalFunc !== 'function') {
-            console.warn(`ComputationVisualizerProxy: Input '${name}' is not a function.`);
-            return originalFunc;
-        }
-
-        const handler = {
-            apply(target, thisArg, argumentsList) {
-                const currentIndent = indentChar.repeat(indentationLevel);
-
-
-                if (console.groupCollapsed) {
-                     console.groupCollapsed(`${currentIndent}-> ${name}(${stringifyArgs(argumentsList)})`);
-                } else {
-                     console.log(`${currentIndent}-> ${name}(${stringifyArgs(argumentsList)})`);
-                }
-
-                indentationLevel++;
-
-                let result;
-                try {
-
-
-                    result = Reflect.apply(target, thisArg, argumentsList);
-
-
-                    indentationLevel--;
-                    console.log(`${currentIndent}<- ${name} returned: ${stringifyResult(result)}`);
-
-                } catch (error) {
-
-                    indentationLevel--;
-                    console.error(`${currentIndent}<- ${name} threw: ${error}`);
-
-                    throw error;
-
-                } finally {
-                     if (console.groupEnd) {
-                         console.groupEnd();
-                     }
-
-                     if (indentationLevel < 0) {
-                         console.warn("ComputationVisualizerProxy: Indentation level mismatch detected.");
-                         indentationLevel = 0;
-                     }
-                }
-
-                return result;
-            }
-        };
-
-        return new Proxy(originalFunc, handler);
-    };
-
-
-    return {
-        visualize: visualize
-    };
-})();
-
-
-let fibonacci = (n) => {
-    if (n <= 0) return 0;
-    if (n === 1) return 1;
-
-    return fibonacci(n - 1) + fibonacci(n - 2);
-};
-
-let factorial = function fact(n) {
-    if (n < 0) throw new Error("Negative factorial");
-    if (n === 0) return 1n;
-
-
-
-    return BigInt(n) * factorial(n - 1);
-};
-
-console.log("--- Wrapping functions (rebinding required for recursion) ---");
-fibonacci = ComputationVisualizerProxy.visualize(fibonacci, 'Fibonacci');
-factorial = ComputationVisualizerProxy.visualize(factorial, 'Factorial');
-console.log("--- Functions wrapped ---");
-
-console.log("\n--- Calculating Fibonacci(4) ---");
-const fibResult = fibonacci(4);
-console.log("Final Fibonacci Result:", fibResult);
-
-console.log("\n--- Calculating Factorial(5) ---");
-try {
-    const factResult = factorial(5);
-    console.log("Final Factorial Result:", factResult);
-} catch(e) {
-    console.error("Factorial calculation failed:", e);
-}
-
-let simpleAdd = (a, b) => a + b;
-simpleAdd = ComputationVisualizerProxy.visualize(simpleAdd, 'Add');
-
-console.log("\n--- Calculating Add(10, 25) ---");
-const addResult = simpleAdd(10, 25);
-console.log("Final Add Result:", addResult);
-
-console.log("\n--- Calculating Factorial(-3) ---");
-try {
-    factorial(-3);
-} catch (e) {
-    console.log("Caught expected error from Factorial.");
-}*/
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -3691,7 +3544,74 @@ export const _Map = {}; // namespace
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
+_Map.upd = f => k => m => {
+  if (m.has(k)) return m.set(k, f(m.get(k)));
+  else return m;
+};
+
+
+// monoidal
+
+_Map.updOr = dict => (v, k) => m => {
+  if (m.has(k)) return m.set(k, dict.append(m.get(k)) (v));
+  else return m.set(k, f(dict.empty) (v));
+};
+
+
+_Map.inc = k => m => m.has(k) ? m.set(k, m.get(k) + 1) : m.set(k, 1);
+
+
+_Map.entries = m => m[Symbol.iterator] ();
+
+
+_Map.keys = function* (m) {
+  for (let [k] of m) {
+    yield k;
+  }
+};
+
+
+_Map.values = function* (m) {
+  for (let [, v] in m) {
+    yield v;
+  }
+};
+
+
 _Map.clone = m => new Map(m);
+
+
+//█████ Set Operations ████████████████████████████████████████████████████████
+
+
+_Map.intersect = m => n => {
+  const mn = new Map();
+  for (const [k, v] of m) n.has(x) ? mn.set(k, v) : null;
+  return mn;
+};
+
+
+_Map.union = m => n => {
+  const mn = new Map(m);
+  n.forEach(([k, v]) => mn.set(k, v));
+  return mn;
+};
+
+
+_Map.diff = m => n => {
+  const l = new Map(), r = new Map();
+  for (const [k, v] of m) !n.has(k) ? l.set(k, v) : null;
+  for (const [k, v] of n) !m.has(k) ? r.set(k, v) : null;
+  r.forEach(([k, v]) => l.set(k, v));
+  return l;
+};
+
+
+_Map.diffl = m => n => {
+  const l = new Map();
+  for (const [k, v] of m) !n.has(k) ? l.set(k, v) : null;
+  return l;
+};
 
 
 //█████ Conversion ████████████████████████████████████████████████████████████
@@ -3734,145 +3654,6 @@ _Map.interconvert = f => m => new Map(f(Array.from(m)));
 
 
 _Map.interconvertBy = f => g => m => new Map(f(Array.from(m).map(g)));
-
-
-//█████ Generators ████████████████████████████████████████████████████████████
-
-
-_Map.entries = m => m[Symbol.iterator] ();
-
-
-_Map.keys = function* (m) {
-  for (let [k] of m) {
-    yield k;
-  }
-};
-
-
-_Map.values = function* (m) {
-  for (let [, v] in m) {
-    yield v;
-  }
-};
-
-
-//█████ Getters/Setters ███████████████████████████████████████████████████████
-
-
-_Map.get = k => m => m.has(k) ? m.get(k) : null;
-
-
-_Map.getOr = x => k => m => m.has(k) ? m.get(k) : x;
-
-
-_Map.has = k => m => m.has(k);
-
-
-_Map.inc = k => m => m.has(k) ? m.set(k, m.get(k) + 1) : m.set(k, 1);
-
-
-_Map.set = (k, v) => m => m.set(k, v);
-
-
-_Map.del = k => m => m.delete(k);
-
-
-_Map.upd = f => k => m => {
-  if (m.has(k)) return m.set(k, f(m.get(k)));
-  else return m;
-};
-
-
-/* Either update a key by appending the previous and the provided value or just
-set the provided value. */
-
-_Map.updOr = f => (k, v) => m => {
-  if (m.has(k)) return m.set(k, f(m.get(k)) (v));
-  else return m.set(k, v);
-};
-
-
-_Map.updOr_ = f => (k, v) => m => {
-  if (m.has(k)) return m.set(k, f(m.get(k), v));
-  else return m.set(k, v);
-};
-
-
-//█████ Mappings ████████████████████████████████████████████████████████████████*/
-
-
-_Map.monthsFullDe = new Map([
-  ["Januar", "01"],
-  ["Februar", "02"],
-  ["März", "03"],
-  ["Maerz", "03"],
-  ["April", "04"],
-  ["Mai", "05"],
-  ["Juni", "06"],
-  ["Juli", "07"],
-  ["August", "08"],
-  ["September", "09"],
-  ["Oktober", "10"],
-  ["November", "11"],
-  ["Dezember", "12"]
-]);
-
-
-_Map.monthsShortDe = new Map([
-  ["Jan", "01"],
-  ["Feb", "02"],
-  ["Mär", "03"],
-  ["Mar", "03"],
-  ["Apr", "04"],
-  ["Mai", "05"],
-  ["Jun", "06"],
-  ["Jul", "07"],
-  ["Aug", "08"],
-  ["Sep", "09"],
-  ["Okt", "10"],
-  ["Nov", "11"],
-  ["Dez", "12"]
-]);
-
-
-//█████ Set Operations ████████████████████████████████████████████████████████
-
-
-_Map.intersect = m => n => {
-  const mn = new Map();
-  for (const [k, v] of m) n.has(x) ? mn.set(k, v) : null;
-  return mn;
-};
-
-
-_Map.union = m => n => {
-  const mn = new Map(m);
-  n.forEach(([k, v]) => mn.set(k, v));
-  return mn;
-};
-
-
-_Map.diff = m => n => {
-  const l = new Map(), r = new Map();
-  for (const [k, v] of m) !n.has(k) ? l.set(k, v) : null;
-  for (const [k, v] of n) !m.has(k) ? r.set(k, v) : null;
-  r.forEach(([k, v]) => l.set(k, v));
-  return l;
-};
-
-
-_Map.diffl = m => n => {
-  const l = new Map();
-  for (const [k, v] of m) !n.has(k) ? l.set(k, v) : null;
-  return l;
-};
-
-
-_Map.diffr = m => n => {
-  const r = new Map();
-  for (const [k, v] of n) !m.has(k) ? r.set(k, v) : null;
-  return r;
-};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -6008,7 +5789,43 @@ export const _Set = {}; // namespace
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
+_Set.entries = s => s[Symbol.iterator] ();
+
+
 _Set.clone = s => new Set(s);
+
+
+//█████ Set Operations ████████████████████████████████████████████████████████
+
+
+_Set.intersect = s => t => {
+  const st = new Set();
+  for (const x of s) t.has(x) ? st.add(x) : null;
+  return st;
+};
+
+
+_Set.union = s => t => {
+  const st = new Set(s);
+  t.forEach(x => st.add(x));
+  return st;
+};
+
+
+_Set.diff = s => t => {
+  const l = new Set(), r = new Set();
+  for (const x of s) !t.has(x) ? l.add(x) : null;
+  for (const x of t) !s.has(x) ? r.add(x) : null;
+  r.forEach(x => l.add(x));
+  return l;
+};
+
+
+_Set.diffl = s => t => {
+  const l = new Set();
+  for (const x of s) !t.has(x) ? l.add(x) : null;
+  return l;
+};
 
 
 //█████ Conversion ████████████████████████████████████████████████████████████
@@ -6060,106 +5877,6 @@ _Set.interconvert = f => s => new Set(f(Array.from(s)));
 
 
 _Set.interconvertBy = f => g => s => new Set(f(Array.from(s).map(g)));
-
-
-//█████ Generators ████████████████████████████████████████████████████████████
-
-
-_Set.entries = s => s[Symbol.iterator] ();
-
-
-//█████ Getters/Setters ███████████████████████████████████████████████████████
-
-
-_Set.del = k => s => s.delete(k);
-
-
-_Set.has = k => s => s.has(k);
-
-
-_Set.set = k => s => s.add(k);
-
-
-//█████ Ranges ████████████████████████████████████████████████████████████████
-
-
-Object.defineProperty(_Set, "_0to9", {
-  get() {
-    const s = new Set(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]);
-    delete this._0to9;
-    this._0to9 = s;
-    return s;
-  },
-
-  configurable: true,
-  enumerable: true
-});
-
-
-Object.defineProperty(_Set, "atoz", {
-  get() {
-    const s = new Set(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z"]);
-    delete this.atoz;
-    this.atoz = s;
-    return s;
-  },
-
-  configurable: true,
-  enumerable: true
-});
-
-
-Object.defineProperty(_Set, "atoZ", {
-  get() {
-    const s = new Set(["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"])
-    delete this.atoZ;
-    this.atoZ = s;
-    return s;
-  },
-
-  configurable: true,
-  enumerable: true
-});
-
-
-//█████ Set Operations ████████████████████████████████████████████████████████
-
-
-_Set.intersect = s => t => {
-  const st = new Set();
-  for (const x of s) t.has(x) ? st.add(x) : null;
-  return st;
-};
-
-
-_Set.union = s => t => {
-  const st = new Set(s);
-  t.forEach(x => st.add(x));
-  return st;
-};
-
-
-_Set.diff = s => t => {
-  const l = new Set(), r = new Set();
-  for (const x of s) !t.has(x) ? l.add(x) : null;
-  for (const x of t) !s.has(x) ? r.add(x) : null;
-  r.forEach(x => l.add(x));
-  return l;
-};
-
-
-_Set.diffl = s => t => {
-  const l = new Set();
-  for (const x of s) !t.has(x) ? l.add(x) : null;
-  return l;
-};
-
-
-_Set.diffr = s => t => {
-  const r = new Set();
-  for (const x of t) !s.has(x) ? r.add(x) : null;
-  return r;
-};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
