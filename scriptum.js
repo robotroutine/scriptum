@@ -574,7 +574,7 @@ export const Loop = f => x => {
 
 export const Loop2 = f => (x, y) => {
   const stack = [];
-  let o = f(x);
+  let o = f(x, y);
 
   while (true) {
     switch (o?.[$$]) {
@@ -2973,7 +2973,7 @@ It.alternate = ix => function* (iy) {
 
 // interpolate a string into a stream
 
-It.interpolate = s => function* (ix) {
+It.interpose = s => function* (ix) {
   for (const t of ix) {
     yield t;
     yield s;
@@ -2983,7 +2983,7 @@ It.interpolate = s => function* (ix) {
 
 // interpolate a string into an array
 
-It.interpolateArr = s => function* (xs) {
+It.interposeArr = s => function* (xs) {
   for (let i = 0; i < xs.length; i++) {
     yield xs[i];
     yield s;
@@ -3353,7 +3353,7 @@ Ait.alternate = ix => async function* (iy) {
 
 // interpolate a string into an async iterator
 
-Ait.interpolate = s => async function* (ix) {
+Ait.interpose = s => async function* (ix) {
   for await (const t of ix) {
     yield t;
     yield s;
@@ -3363,7 +3363,7 @@ Ait.interpolate = s => async function* (ix) {
 
 // interpolate a string into an array
 
-Ait.interpolateArr = s => async function* (xs) {
+Ait.interposeArr = s => async function* (xs) {
   for (let i = 0; i < xs.length; i++) {
     const t = await xs[i];
     yield t
@@ -7502,9 +7502,6 @@ Trans.duce(transformer) (appendix) ({}) (props); // {FOO: 1, BAR: 4, BAS: 9} */
 export const Trans = {};
 
 
-// TODO: transform folder from "acc => x => k" to "(acc, x) => k"
-
-
 /*█████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████ COMBINATORS █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -7532,25 +7529,46 @@ Trans.filter = p => append => acc => x => k =>
   p(x) ? append(acc) (x) (k) : k(acc);
 
 
+Trans.chain = f => append => init => x => k => {
+  const ix = f(x);
+  let acc = init, terminated = false;
+
+  for (const x of ix) {
+    const result = append(acc) (x) (acc2 => {
+      acc = acc2;
+      return true;
+    });
+
+    if (result?.[$$] === 'Loop2.Base') {
+      acc = result.x;
+      terminated = true;
+      break;
+    }
+  }
+
+  return terminated ? Loop2.Base(acc) : k(acc);
+};
+
+
 Trans.take = n => append => { 
   let m = 0;
 
   return acc => x => k =>
     m++ < n
       ? append(acc) (x) (k)
-      : acc;
+      : Loop2.Base(acc);
 };
 
 
 Trans.takeWhile = p => append => acc => x => k =>
-  p(x) ? append(acc) (x)(k) : acc;
+  p(x) ? append(acc) (x) (k) : Loop2.Base(acc);
 
 
 Trans.takeNth = n => append => {
   let m = 0;
 
   return acc => x => k => {
-    return (m++ % n === 0) ? append(acc) (x) (k) : acc;
+    return (m++ % n === 0) ? append(acc) (x) (k) : Loop2.Base(acc);
   };
 };
 
@@ -7588,17 +7606,23 @@ Trans.tap = f => append => {
 Trans.Append = {};
 
 
-Trans.Append.arr = p => acc => x => k => p(acc) ? k(acc.concat(x)) : acc;
+Trans.Append.arr = p => acc => x => k => p(acc)
+  ? k(acc.concat(x))
+  : Loop2.Base(acc);
 
 
-Trans.Append.map = p => acc => pair => k => p(acc) ? k(acc.set(...pair)) : acc;
+Trans.Append.map = p => acc => pair => k => p(acc)
+  ? k(acc.set(...pair))
+  : Loop2.Base(acc);
 
 
-Trans.Append.set = p => acc => x => k => p(acc) ? k(acc.add(x)) : acc;
+Trans.Append.set = p => acc => x => k => p(acc)
+  ? k(acc.add(x))
+  : Loop2.Base(acc);
 
 
 Trans.Append.obj = p => acc => pair => k =>
-  p(acc) ? k(Object.assign(acc, {[pair[0]]: pair[1]})) : acc;
+  p(acc) ? k(Object.assign(acc, {[pair[0]]: pair[1]})) : Loop2.Base(acc);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
