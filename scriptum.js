@@ -3686,7 +3686,9 @@ Iit.tails = function* (ix) {
 export const _Map = {}; // namespace
 
 
-//█████ Clone █████████████████████████████████████████████████████████████████
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
 
 _Map.clone = m => new Map(m);
@@ -4746,7 +4748,7 @@ O.fromPairs = pairs => pairs.reduce((acc, [k, v]) => (acc[k] = v, acc), {});
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Regular expresions work best with complex strings using a divide & conquer
+/* Regular expresions work best with complex strings using a divide and conquer
 strategy. First, determine the bounds of the region of interest in the string
 and than extract individual subpatterns within this region independently of
 each other. Accumulate all necessary subpatterns and feed them to a downstream
@@ -4756,7 +4758,9 @@ function along with the original string to take the context into account. */
 export const Rex = {};
 
 
-//█████ Bounds ████████████████████████████████████████████████████████████████
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
 
 /* Create a more general word boundary pattern (`\b`) by combining the passed
@@ -4783,6 +4787,64 @@ Rex.rightBound = right => rx => {
   const flags = right.flags + rx.flags;
   return new RegExp(`${rx.source}(?=$|[${right}])`, flags);
 };
+
+
+/* Take an object with properties holding regular expressions and apply each
+to the provided string. Store each match under the respective property. */
+
+Rex.extract = o => s =>
+  O.fromIt(It.map(([k, rx]) => [k, Rex.matchFirst(rx) (s)]) (O.entries(o)));
+
+
+Rex.count = rx => s => Array.from(s.matchAll(rx)).length;
+
+
+Rex.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+
+// generalize from character classes
+
+Rex.generalize = casing => s => {
+  if (casing) return s
+    .replaceAll(/\p{Lu}/gv, "A")
+    .replaceAll(/\p{Ll}/gv, "a")
+    .replaceAll(/\p{P}/gv, "·")
+    .replaceAll(/\p{S}/gv, "$")
+    .replaceAll(/\d/g, "#")
+    .replaceAll(/\p{N}/gv, "N")
+    .replaceAll(/\p{Z}/gv, "_")
+    .replaceAll(/\p{C}/gv, "^")
+
+  else return s
+    .replaceAll(/\p{Lu}/gv, "@")
+    .replaceAll(/\p{P}/gv, "·")
+    .replaceAll(/\p{S}/gv, "$")
+    .replaceAll(/\d/g, "#")
+    .replaceAll(/\p{N}/gv, "N")
+    .replaceAll(/\p{Z}/gv, "_")
+    .replaceAll(/\p{C}/gv, "^");
+};
+
+
+// generalize from repetition
+
+Rex.generalize2 = s => s.replaceAll(/(.)\1{1,}/g, "$1");
+
+
+/* Replace the following characters:
+
+  * redundant newlines or spaces
+  * all control chars but newline
+  * all special spaces like NBSP */
+
+Rex.normalize = s => s
+  .replaceAll(/\r?\n/g, "<nl/>")
+  .replaceAll(/[\p{C}\p{Z}]/gv, " ")
+  .replaceAll(/ {2,}/g, " ")
+  .replaceAll(/^ +/g, " ")
+  .replaceAll(/ +$/g, " ")
+  .replaceAll(/<nl\/>{2,}/g, "<nl/>")
+  .replaceAll(/<nl\/>/g, "\n");
 
 
 //█████ Character Classes █████████████████████████████████████████████████████
@@ -5179,355 +5241,6 @@ Rex.classes.latin1.curr = {
 };
 
 
-//█████ Extracting ████████████████████████████████████████████████████████████
-
-
-/* Take an object with properties holding regular expressions and apply each
-to the provided string. Store each match under the respective property. */
-
-Rex.extract = o => s =>
-  O.fromIt(It.map(([k, rx]) => [k, Rex.matchFirst(rx) (s)]) (O.entries(o)));
-
-
-//█████ Matching ██████████████████████████████████████████████████████████████
-
-
-Rex.matchAll = rx => s => s.matchAll(rx);
-
-
-// strict variant
-
-Rex.matchAll_ = rx => s => Array.from(s.matchAll(rx));
-
-
-Rex.matchAllWith = p => rx => s => Rex.matchAll(rx) (s).filter(p);
-
-
-Rex.matchFirst = rx => s => {
-  const r = s.match(rx);
-  if (r === null) return [];
-  else return [r];
-};
-
-
-Rex.matchFirstWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(0, 1);
-
-
-Rex.matchLast = rx => s => Rex.matchAll(rx) (s).slice(-1);
-
-
-Rex.matchLastWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(-1);
-
-
-// considers negative indices like slice
-
-Rex.matchNth = (rx, i) => s => {
-  const xs = Rex.matchAll(rx) (s);
-  if (xs.length - 1 < i) return [];
-  else if (i >= 0) return xs.slice(i, i + 1);
-  else return [xs.slice(i) [0]];
-};
-
-
-// considers negative indices like slice
-
-Rex.matchNthWith = p => (rx, i) => s => {
-  const xs = Rex.matchAllWith(rx) (s), o = xs[i];
-  if (xs.length - 1 < i) return [];
-  else if (i >= 0) return xs.slice(i, i + 1);
-  else return [xs.slice(i) [0]];
-};
-
-
-//█████ Patterns ██████████████████████████████████████████████████████████████
-
-
-Rex.iso = {
-  dates: [
-    /^(?<y>\d\d)-(?<m>\d\d)-(?<d>\d\d)$/, // 24-12-01
-    /^(?<y>\d{4})-(?<m>\d\d)-(?<d>\d\d)$/, // 2024-12-01
-  ],
-
-  times: [
-    /^(?<h>\d\d):(?<m>\d\d)$/, // 12:00
-    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)$/, // 12:00:00
-    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})$/, // 12:00:00.123
-    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)Z$/, // 12:00:00Z (UTC)
-    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})Z$/, // 12:00:00.123Z (UTC)
-    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)(?:\+|\-)(?<tzh>\d\d):(?<tzm>\d\d)$/, // 12:00:00+/-01:00 (time zone)
-    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})(?:\+|\-)(?<tzh>\d\d):(?<tzm>\d\d)$/, // 12:00:00.123+/-01:00 (time zone)
-  ],
-
-  nums: [
-    /^(?<int>0|(?:[1-9]\d*))$/, // natural numbers
-    /^(?<sign>\+|\-)?(?<int>[1-9]\d*)$/, // integers
-    /^(?<sign>\+|\-)?(?<int>\d+)\.(?<frac>\d+)$/, // 1234.567
-  ],
-};
-
-
-Rex.i18n = {
-  deDE: {
-    dates: [
-      /^(?<d>\d\d)(?<m>\d\d)(?<y>\d\d)$/, // 011224
-      /^(?<d>\d\d)(?<m>\d\d)(?<y>\d{4})$/, // 01122024
-      /^(?<d>\d{1,2})\.(?<m>\d{1,2})\.(?<y>\d\d)$/, // 01.12.24, 1.12.24
-      /^(?<d>\d\d)\.(?<m>\d\d)\.(?<y>\d\d)$/, // 01.12.24
-      /^(?<d>\d{1,2})\.(?<m>\d{1,2})\.(?<y>\d{4})$/, // 01.12.2024, 1.12.2024
-      /^(?<d>\d\d)\.(?<m>\d\d)\.(?<y>\d{4})$/, // 01.12.2024
-    ],
-
-    // time is equal to iso formats and thus skipped
-
-    nums : [
-      /^(?<sign>\+|\-)?(?<int>\d+),(?<frac>\d+)(?<postsign>\+|\-)?$/, // 1234,567
-      /^(?<sign>\+|\-)?(?<int>\d+(?:\.\d{3})*),(?<frac>\d+)(?<postsign>\+|\-)?$/, // 1.234,567
-    ],
-
-    months: /(\b(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\b)/,
-    months_: /(\b(Jan|Feb|Febr|Mär|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Sept|Okt|Nov|Dez)\b)\.?/,
-  }
-};
-
-
-//█████ Replacing █████████████████████████████████████████████████████████████
-
-
-Rex.replaceAll = t => rx => s => s.replaceAll(rx, t);
-
-
-Rex.replaceAllWith = f => rx => s => {
-  return s.replaceAll(rx, (...args) => {
-    const groups = typeof args[args.length - 1] === "object"
-      ? args.pop() : {};
-
-    const s = args.shift(), matches = [];
-    let i;
-
-    while (true) {
-      const arg = args.shift();
-      
-      if (typeof arg === "number") {
-        i = arg;
-        break;
-      }
-      
-      else matches.push(arg);
-    }
-      
-    return f({s, i, matches, groups});
-  });
-};
-
-
-Rex.replaceFirst = t => rx => s => {
-  if (rx.flags.search("g") !== NOT_FOUND)
-    throw new Err("unexpected global flag");
-
-  return s.replace(rx, t);
-};
-
-
-Rex.replaceFirstWith = f => rx => s => {
-  if (rx.flags.search("g") !== NOT_FOUND)
-    throw new Err("unexpected global flag");
-
-  return s.replace(rx, (...args) => {
-    const groups = typeof args[args.length - 1] === "object"
-      ? args.pop() : {};
-
-    const s = args.shift(), matches = [];
-    let i;
-
-    while (true) {
-      const arg = args.shift();
-      
-      if (typeof arg === "number") {
-        i = arg;
-        break;
-      }
-      
-      else matches.push(arg);
-    }
-      
-    return f({s, i, matches, groups});
-  });
-};
-
-
-Rex.replaceLast = t => rx => s => {
-  if (rx.flags.search("g") === NOT_FOUND)
-    throw new Err("missing global flag");
-
-  const xs = s.match(rx);
-
-  if (xs.length === 0) return s;
-
-  else {
-    const match = xs[xs.length - 1],
-      i = match.index
-      len = match.length;
-    
-    return str.slice(0, i) + t + str.slice(i + len);
-  }
-};
-
-
-Rex.replaceLastWith = f => rx => s => {
-  if (rx.flags.search("g") === NOT_FOUND)
-    throw new Err("missing global flag");
-
-  const xs = s.match(rx);
-
-  if (xs.length === 0) return s;
-
-  else {
-    const match = xs[xs.length - 1],
-      matches = Array.from(match),
-      i = match.index
-      len = match.length;
-
-    return str.slice(0, i)
-      + f({s, i, matches, groups: match.groups})
-      + str.slice(i + len);
-  }
-};
-
-
-// considers negative indices like slice
-
-Rex.replaceNth = t => (rx, i) => s => {
-  if (rx.flags.search("g") === NOT_FOUND)
-    throw new Err("missing global flag");
-
-  const xs = s.match(rx);
-
-  if (xs.length - 1 < i) return s;
-
-  else if (i >= 0) {
-    const match = xs[i - 1],
-      j = match.index
-      len = match.length;
-    
-    return str.slice(0, j) + t + str.slice(j + len);
-  }
-
-  else {
-    const match = xs[xs.length + i],
-      j = match.index
-      len = match.length;
-    
-    return str.slice(0, j) + t + str.slice(j + len);
-  }
-};
-
-
-// considers negative indices like slice
-
-Rex.replaceNthWith = f => (rx, i) => s => {
-  if (rx.flags.search("g") === NOT_FOUND)
-    throw new Err("missing global flag");
-
-  const xs = s.match(rx);
-
-  if (xs.length - 1 < i) return s;
-
-  else if (i >= 0) {
-    const match = xs[i],
-      matches = Array.from(match),
-      j = match.index
-      len = match.length;
-    
-    return str.slice(0, j)
-      + f({s, i: j, matches, groups: match.groups})
-      + str.slice(j + len);
-  }
-
-  else {
-    const match = xs[xs.length + i],
-      matches = Array.from(match),
-      j = match.index
-      len = match.length;
-    
-    return str.slice(0, j)
-      + f({s, i: j, matches, groups: match.groups})
-      + str.slice(j + len);
-  }
-};
-
-
-//█████ Searching █████████████████████████████████████████████████████████████
-
-
-Rex.searchAll = rx => s =>
-  Array.from(s.matchAll(rx)).map(ix => ix.index);
-
-
-Rex.searchAllWith = p => rx => s =>
-  Rex.matchAll(rx) (s).filter(p).map(ix => ix.index);
-
-
-Rex.searchFirst = rx => s => {
-  if (rx.flags.search("g") !== NOT_FOUND)
-    throw new Err("unexpected global flag");
-
-  const i = s.search(rx);
-
-  if (i === NOT_FOUND) return []
-  else return [i];
-};
-
-
-Rex.searchFirstWith = p => rx => s => {
-  for (const ix of s.matchAll(rx))
-    if (p(ix)) return [ix.index];
-
-  return [];
-};
-
-
-Rex.searchLast = rx => s => {
-  let last = [];
-
-  for (const ix of s.matchAll(rx))
-    last = [ix.index];
-
-  return last;
-};
-
-
-Rex.searchLastWith = p => rx => s => {
-  let last = [];
-
-  for (const ix of s.matchAll(rx))
-    if (p(ix)) last = [ix.index];
-
-  return last;
-};
-
-
-Rex.searchNth = (rx, i) => s => {
-  const xs = [];
-
-  for (const ix of s.matchAll(rx))
-    xs.push(ix.index);
-
-  if (xs.length - 1 < i) return [];
-  else return [xs[i]];
-};
-
-
-Rex.searchNthWith = p => (rx, i) => s => {
-  const xs = [];
-
-  for (const ix of s.matchAll(rx))
-    if (p(ix)) xs.push(ix.index);
-
-  if (xs.length - 1 < i) return [];
-  else return [xs[i]];
-};
-
-
 //█████ Slicing ███████████████████████████████████████████████████████████████
 
 
@@ -5543,7 +5256,7 @@ Rex.sliceFrom = f => s => {
 
 // excluding the delimiter
 
-Rex.sliceFrom_ = f => s => {
+Rex.sliceFromEx = f => s => {
   const is = f(s);
   if (is.length === 0) return s;
   else return s.slice(is[0] + 1);
@@ -5559,7 +5272,7 @@ Rex.sliceUpTo = f => s => {
 
 // excluding the delimiter
 
-Rex.sliceUpTo_ = f => s => {
+Rex.sliceUpToEx = f => s => {
   const is = f(s);
   if (is.length === 0) return s;
   else return s.slice(0, is[0]);
@@ -5567,6 +5280,63 @@ Rex.sliceUpTo_ = f => s => {
 
 
 //█████ Splitting █████████████████████████████████████████████████████████████
+
+
+/* Split a string based on certain transitions of character classes defined by
+regular expressions in the following form:
+
+  (?<=charClass)(?!charClass)|(?<!charClass)(?=charClass)
+
+The combinator is meant to be used with the predefined character classes in this
+section. If you need more granular control, use one of the split combinators from
+the string section. */
+
+Rex.splitAt = flags => (...rs) => s => s.split(
+  new RegExp(rs.map(rx => rx.source).join("|"), flags));
+
+
+Rex.splitAtLetter = Rex.splitAt("v") (Rex.classes.letter.split);
+
+
+Rex.splitAtCasing = Rex.splitAt("v")
+  (Rex.classes.ucl.split, Rex.classes.lcl.split);
+
+
+// unicode number class
+
+Rex.splitAtNum = Rex.splitAt("v") (Rex.classes.num.split);
+
+
+// only ascii digits
+
+Rex.splitAtDig = Rex.splitAt("v") (Rex.classes.digit.split);
+
+
+Rex.splitAtAlnum = Rex.splitAt("v") (Rex.classes.alnum.split);
+
+
+Rex.splitAtAldig = Rex.splitAt("v") (Rex.classes.aldig.split);
+
+
+Rex.splitAtNonAlnum = Rex.splitAt("v") (
+  Rex.classes.punct.split,
+  Rex.classes.sym.split,
+  Rex.classes.space.split,
+  Rex.classes.crnl.split);
+
+
+// split into the smallest possible tokens
+
+Rex.splitAtToken = Rex.splitAt("v") (
+  Rex.classes.num.split,
+  Rex.classes.punct.split,
+  Rex.classes.sym.split,
+  Rex.classes.space.split,
+  Rex.classes.crnl.split,
+  /(?<=\p{Ll})(?=\p{Lu})/v); // "fooBar" -> "foo Bar"
+
+
+//█████ Consolidating █████████████████████████████████████████████████████████
 
 
 /* Re-merge tokens that form a meaningful composition and were separated with
@@ -5884,112 +5654,343 @@ Rex.consolidate = xs => {
 };
 
 
-/* Split a string based on certain transitions of character classes defined by
-regular expressions in the following form:
-
-  (?<=charClass)(?!charClass)|(?<!charClass)(?=charClass)
-
-The combinator is meant to be used with the predefined character classes in this
-section. If you need more granular control, use one of the split combinators from
-the string section. */
-
-Rex.splitAt = flags => (...rs) => s => s.split(
-  new RegExp(rs.map(rx => rx.source).join("|"), flags));
+//█████ Matching ██████████████████████████████████████████████████████████████
 
 
-Rex.splitAtLetter = Rex.splitAt("v") (Rex.classes.letter.split);
+Rex.matchAll = rx => s => s.matchAll(rx);
 
 
-Rex.splitAtCasing = Rex.splitAt("v")
-  (Rex.classes.ucl.split, Rex.classes.lcl.split);
+// strict variant
+
+Rex.matchAll_ = rx => s => Array.from(s.matchAll(rx));
 
 
-// unicode number class
-
-Rex.splitAtNum = Rex.splitAt("v") (Rex.classes.num.split);
+Rex.matchAllWith = p => rx => s => Rex.matchAll(rx) (s).filter(p);
 
 
-// only ascii digits
-
-Rex.splitAtDig = Rex.splitAt("v") (Rex.classes.digit.split);
-
-
-Rex.splitAtAlnum = Rex.splitAt("v") (Rex.classes.alnum.split);
-
-
-Rex.splitAtAldig = Rex.splitAt("v") (Rex.classes.aldig.split);
-
-
-Rex.splitAtNonAlnum = Rex.splitAt("v") (
-  Rex.classes.punct.split,
-  Rex.classes.sym.split,
-  Rex.classes.space.split,
-  Rex.classes.crnl.split);
-
-
-// split into the smallest possible tokens
-
-Rex.splitAtToken = Rex.splitAt("v") (
-  Rex.classes.num.split,
-  Rex.classes.punct.split,
-  Rex.classes.sym.split,
-  Rex.classes.space.split,
-  Rex.classes.crnl.split,
-  /(?<=\p{Ll})(?=\p{Lu})/v); // "fooBar" -> "foo Bar"
-
-
-//█████ Misc. █████████████████████████████████████████████████████████████████
-
-
-Rex.count = rx => s => Array.from(s.matchAll(rx)).length;
-
-
-Rex.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-
-// generalize from character classes
-
-Rex.generalize = casing => s => {
-  if (casing) return s
-    .replaceAll(/\p{Lu}/gv, "A")
-    .replaceAll(/\p{Ll}/gv, "a")
-    .replaceAll(/\p{P}/gv, "·")
-    .replaceAll(/\p{S}/gv, "$")
-    .replaceAll(/\d/g, "#")
-    .replaceAll(/\p{N}/gv, "N")
-    .replaceAll(/\p{Z}/gv, "_")
-    .replaceAll(/\p{C}/gv, "^")
-
-  else return s
-    .replaceAll(/\p{Lu}/gv, "@")
-    .replaceAll(/\p{P}/gv, "·")
-    .replaceAll(/\p{S}/gv, "$")
-    .replaceAll(/\d/g, "#")
-    .replaceAll(/\p{N}/gv, "N")
-    .replaceAll(/\p{Z}/gv, "_")
-    .replaceAll(/\p{C}/gv, "^");
+Rex.matchFirst = rx => s => {
+  const r = s.match(rx);
+  if (r === null) return [];
+  else return [r];
 };
 
 
-// generalize from repetition
-
-Rex.generalize2 = s => s.replaceAll(/(.)\1{1,}/g, "$1");
+Rex.matchFirstWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(0, 1);
 
 
-/* Replace the following characters:
+Rex.matchLast = rx => s => Rex.matchAll(rx) (s).slice(-1);
 
-  * redundant newlines or spaces
-  * all control chars but newline
-  * all special spaces like NBSP */
 
-Rex.normalize = s => s
-  .replaceAll(/\r?\n/g, "<nl/>")
-  .replaceAll(/[\p{C}\p{Z}]/gv, " ")
-  .replaceAll(/ {2,}/g, " ")
-  .replaceAll(/^ +/g, " ")
-  .replaceAll(/ +$/g, " ")
-  .replaceAll(/<nl\/>{2,}/g, "<nl/>")
-  .replaceAll(/<nl\/>/g, "\n");
+Rex.matchLastWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(-1);
+
+
+// considers negative indices like slice
+
+Rex.matchNth = (rx, i) => s => {
+  const xs = Rex.matchAll(rx) (s);
+  if (xs.length - 1 < i) return [];
+  else if (i >= 0) return xs.slice(i, i + 1);
+  else return [xs.slice(i) [0]];
+};
+
+
+// considers negative indices like slice
+
+Rex.matchNthWith = p => (rx, i) => s => {
+  const xs = Rex.matchAllWith(rx) (s), o = xs[i];
+  if (xs.length - 1 < i) return [];
+  else if (i >= 0) return xs.slice(i, i + 1);
+  else return [xs.slice(i) [0]];
+};
+
+
+//█████ Replacing █████████████████████████████████████████████████████████████
+
+
+Rex.replaceAll = t => rx => s => s.replaceAll(rx, t);
+
+
+Rex.replaceAllWith = f => rx => s => {
+  return s.replaceAll(rx, (...args) => {
+    const groups = typeof args[args.length - 1] === "object"
+      ? args.pop() : {};
+
+    const s = args.shift(), matches = [];
+    let i;
+
+    while (true) {
+      const arg = args.shift();
+      
+      if (typeof arg === "number") {
+        i = arg;
+        break;
+      }
+      
+      else matches.push(arg);
+    }
+      
+    return f({s, i, matches, groups});
+  });
+};
+
+
+Rex.replaceFirst = t => rx => s => {
+  if (rx.flags.search("g") !== NOT_FOUND)
+    throw new Err("unexpected global flag");
+
+  return s.replace(rx, t);
+};
+
+
+Rex.replaceFirstWith = f => rx => s => {
+  if (rx.flags.search("g") !== NOT_FOUND)
+    throw new Err("unexpected global flag");
+
+  return s.replace(rx, (...args) => {
+    const groups = typeof args[args.length - 1] === "object"
+      ? args.pop() : {};
+
+    const s = args.shift(), matches = [];
+    let i;
+
+    while (true) {
+      const arg = args.shift();
+      
+      if (typeof arg === "number") {
+        i = arg;
+        break;
+      }
+      
+      else matches.push(arg);
+    }
+      
+    return f({s, i, matches, groups});
+  });
+};
+
+
+Rex.replaceLast = t => rx => s => {
+  if (rx.flags.search("g") === NOT_FOUND)
+    throw new Err("missing global flag");
+
+  const xs = s.match(rx);
+
+  if (xs.length === 0) return s;
+
+  else {
+    const match = xs[xs.length - 1],
+      i = match.index
+      len = match.length;
+    
+    return str.slice(0, i) + t + str.slice(i + len);
+  }
+};
+
+
+Rex.replaceLastWith = f => rx => s => {
+  if (rx.flags.search("g") === NOT_FOUND)
+    throw new Err("missing global flag");
+
+  const xs = s.match(rx);
+
+  if (xs.length === 0) return s;
+
+  else {
+    const match = xs[xs.length - 1],
+      matches = Array.from(match),
+      i = match.index
+      len = match.length;
+
+    return str.slice(0, i)
+      + f({s, i, matches, groups: match.groups})
+      + str.slice(i + len);
+  }
+};
+
+
+// considers negative indices like slice
+
+Rex.replaceNth = t => (rx, i) => s => {
+  if (rx.flags.search("g") === NOT_FOUND)
+    throw new Err("missing global flag");
+
+  const xs = s.match(rx);
+
+  if (xs.length - 1 < i) return s;
+
+  else if (i >= 0) {
+    const match = xs[i - 1],
+      j = match.index
+      len = match.length;
+    
+    return str.slice(0, j) + t + str.slice(j + len);
+  }
+
+  else {
+    const match = xs[xs.length + i],
+      j = match.index
+      len = match.length;
+    
+    return str.slice(0, j) + t + str.slice(j + len);
+  }
+};
+
+
+// considers negative indices like slice
+
+Rex.replaceNthWith = f => (rx, i) => s => {
+  if (rx.flags.search("g") === NOT_FOUND)
+    throw new Err("missing global flag");
+
+  const xs = s.match(rx);
+
+  if (xs.length - 1 < i) return s;
+
+  else if (i >= 0) {
+    const match = xs[i],
+      matches = Array.from(match),
+      j = match.index
+      len = match.length;
+    
+    return str.slice(0, j)
+      + f({s, i: j, matches, groups: match.groups})
+      + str.slice(j + len);
+  }
+
+  else {
+    const match = xs[xs.length + i],
+      matches = Array.from(match),
+      j = match.index
+      len = match.length;
+    
+    return str.slice(0, j)
+      + f({s, i: j, matches, groups: match.groups})
+      + str.slice(j + len);
+  }
+};
+
+
+//█████ Searching █████████████████████████████████████████████████████████████
+
+
+Rex.searchAll = rx => s =>
+  Array.from(s.matchAll(rx)).map(ix => ix.index);
+
+
+Rex.searchAllWith = p => rx => s =>
+  Rex.matchAll(rx) (s).filter(p).map(ix => ix.index);
+
+
+Rex.searchFirst = rx => s => {
+  if (rx.flags.search("g") !== NOT_FOUND)
+    throw new Err("unexpected global flag");
+
+  const i = s.search(rx);
+
+  if (i === NOT_FOUND) return []
+  else return [i];
+};
+
+
+Rex.searchFirstWith = p => rx => s => {
+  for (const ix of s.matchAll(rx))
+    if (p(ix)) return [ix.index];
+
+  return [];
+};
+
+
+Rex.searchLast = rx => s => {
+  let last = [];
+
+  for (const ix of s.matchAll(rx))
+    last = [ix.index];
+
+  return last;
+};
+
+
+Rex.searchLastWith = p => rx => s => {
+  let last = [];
+
+  for (const ix of s.matchAll(rx))
+    if (p(ix)) last = [ix.index];
+
+  return last;
+};
+
+
+Rex.searchNth = (rx, i) => s => {
+  const xs = [];
+
+  for (const ix of s.matchAll(rx))
+    xs.push(ix.index);
+
+  if (xs.length - 1 < i) return [];
+  else return [xs[i]];
+};
+
+
+Rex.searchNthWith = p => (rx, i) => s => {
+  const xs = [];
+
+  for (const ix of s.matchAll(rx))
+    if (p(ix)) xs.push(ix.index);
+
+  if (xs.length - 1 < i) return [];
+  else return [xs[i]];
+};
+
+
+//█████ Patterns ██████████████████████████████████████████████████████████████
+
+
+Rex.iso = {
+  dates: [
+    /^(?<y>\d\d)-(?<m>\d\d)-(?<d>\d\d)$/, // 24-12-01
+    /^(?<y>\d{4})-(?<m>\d\d)-(?<d>\d\d)$/, // 2024-12-01
+  ],
+
+  times: [
+    /^(?<h>\d\d):(?<m>\d\d)$/, // 12:00
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)$/, // 12:00:00
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})$/, // 12:00:00.123
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)Z$/, // 12:00:00Z (UTC)
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})Z$/, // 12:00:00.123Z (UTC)
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)(?:\+|\-)(?<tzh>\d\d):(?<tzm>\d\d)$/, // 12:00:00+/-01:00 (time zone)
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})(?:\+|\-)(?<tzh>\d\d):(?<tzm>\d\d)$/, // 12:00:00.123+/-01:00 (time zone)
+  ],
+
+  nums: [
+    /^(?<int>0|(?:[1-9]\d*))$/, // natural numbers
+    /^(?<sign>\+|\-)?(?<int>[1-9]\d*)$/, // integers
+    /^(?<sign>\+|\-)?(?<int>\d+)\.(?<frac>\d+)$/, // 1234.567
+  ],
+};
+
+
+Rex.i18n = {
+  deDE: {
+    dates: [
+      /^(?<d>\d\d)(?<m>\d\d)(?<y>\d\d)$/, // 011224
+      /^(?<d>\d\d)(?<m>\d\d)(?<y>\d{4})$/, // 01122024
+      /^(?<d>\d{1,2})\.(?<m>\d{1,2})\.(?<y>\d\d)$/, // 01.12.24, 1.12.24
+      /^(?<d>\d\d)\.(?<m>\d\d)\.(?<y>\d\d)$/, // 01.12.24
+      /^(?<d>\d{1,2})\.(?<m>\d{1,2})\.(?<y>\d{4})$/, // 01.12.2024, 1.12.2024
+      /^(?<d>\d\d)\.(?<m>\d\d)\.(?<y>\d{4})$/, // 01.12.2024
+    ],
+
+    // time is equal to iso formats and thus skipped
+
+    nums : [
+      /^(?<sign>\+|\-)?(?<int>\d+),(?<frac>\d+)(?<postsign>\+|\-)?$/, // 1234,567
+      /^(?<sign>\+|\-)?(?<int>\d+(?:\.\d{3})*),(?<frac>\d+)(?<postsign>\+|\-)?$/, // 1.234,567
+    ],
+
+    months: /(\b(Januar|Februar|März|Maerz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember)\b)/,
+    months_: /(\b(Jan|Feb|Febr|Mär|Mar|Apr|Mai|Jun|Jul|Aug|Sep|Sept|Okt|Nov|Dez)\b)\.?/,
+  }
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -6002,7 +6003,9 @@ Rex.normalize = s => s
 export const _Set = {}; // namespace
 
 
-//█████ Clone █████████████████████████████████████████████████████████████████
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
 
 _Set.clone = s => new Set(s);
@@ -6169,84 +6172,57 @@ _Set.diffr = s => t => {
 export const Str = {}; // namespace
 
 
-//█████ Casing ████████████████████████████████████████████████████████████████
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
 
-// capitalize a word and its potential word components
+// split at transitions from ASCII to not ASCII characters
 
-Str.capitalize = word => {
-  const xs = word.split("-");
+Str.splitAscii = s => {
+  return s.split("").reduce((acc, c) => {
+    const i = acc.length - 1;
+    
+    if (acc[i] === "") acc[i] += c;
+    else if (acc[i].charCodeAt(0) < 128 && c.charCodeAt(0) < 128) acc[i] += c;
+    else acc.push(c);
 
-  for (let i = 0; i < xs.length; i++) {
-    if (xs[i] === "") continue;
-    else if (xs[i - 1] === "") xs[i] = xs[i].toLowerCase();
-    else xs[i] = xs[i] [0].toUpperCase() + xs[i].slice(1).toLowerCase();
-
-    const ys = xs[i].split(".");
-
-    for (let i2 = 0; i2 < ys.length; i2++) {
-      if (ys[i2] === "") continue;
-      ys[i2] = ys[i2] [0].toUpperCase() + ys[i2].slice(1);
-    }
-
-    xs[i] = ys.join(".");
-
-    if (/\p{L}+'\p{L}{2,}/v.test(xs[i])) {
-      const zs = xs[i].split("'");
-
-      for (let i2 = 0; i2 < zs.length; i2++)
-        zs[i2] = zs[i2] [0].toUpperCase() + zs[i2].slice(1);
-
-      xs[i] = zs.join("'");
-    }
-  }
-
-  return xs.join("-");
+    return acc;
+  }, [""]);
 };
 
 
-Str.determineCasing = word => {
-  const s = word.toLowerCase();
+// split at character transitions
 
-  if (s === word) return "all-lower-case";
-  else if (s.toUpperCase() === word) return "all-upper-case";
-  
-  else {
-    let guess = "";
+Str.splitChars = s => {
+  return s.split("").reduce((acc, c) => {
+    const i = acc.length - 1;
+    
+    if (acc[i] === "") acc[i] += c;
+    else if (acc[i] [0] === c) acc[i] += c;
+    else acc.push(c);
 
-    for (let i = 0; i < s.length; i++) {
-      if (s[i] !== word[i]) {
-        if (i === 0) guess = "sentence-case";
-        else if (s[i - 1] === "-") guess = "sentence-case";
-        else if (s[i - 1] === ".") guess = "sentence-case";
-        else if (s[i - 1] === "'") guess = "sentence-case";
-        else if (s[i - 1] === word[i - 1]) guess = "camel-case";
-        
-        else {
-          guess = "arbitrary-case";
-          break;
-        }
-      }
-    }
-
-    return guess;
-  }
+    return acc;
+  }, [""]);
 };
 
 
-//█████ Concatenization ███████████████████████████████████████████████████████
+Str.splitChunk = ({size, pad = " ", overlap = false}) => s => {
+  const xs = [];
 
+  for (let i = 0; i === i; overlap ? i++ : i += size) {
+    if (i >= s.length) break;
+    
+    else if (i + size >= s.length) {
+      xs.push(s.slice(i, i + size).padEnd(size, pad));
+      break;
+    }
+    
+    else xs.push(s.slice(i, i + size));
+  }
 
-Str.catWith = s => (...xs) => xs.join(s);
-
-
-Str.cat = Str.catWith("");
-
-
-Str.cat_ = Str.catWith(" ");
-
-
-//█████ Counting ██████████████████████████████████████████████████████████████
+  return xs;
+};
 
 
 Str.count = t => s => {
@@ -6277,6 +6253,72 @@ Str.count_ = (s, t) => {
 
 Str.countChars = s => s.split("").reduce((acc, c) =>
   _Map.inc(c) (acc), new Map());
+
+
+/* Try to estimate how likely the given string is a password. Use length,
+string entropy, number of used character classes, and number of character
+class transitions as indicators. */
+
+Str.isPwd = s => {
+  const m = new Map(), m2 = new Map();    
+
+  // upper-case letter in the middle/at the end
+  // uses digits and punctuation
+
+  for (let i = 0; i < s.length; i++) {
+    let n = 0;
+
+    if (!m.has(s[i])) m.set(s[i], n);
+
+    if (/\p{Lu}/v.test(s[i])) {
+      if (!m2.has("Lu")) m2.set("Lu", 26);
+    }
+
+    else if (/\p{Ll}/v.test(s[i])) {
+      if (!m2.has("Ll")) m2.set("Ll", 26);
+    }
+
+    else if (/\p{N}/v.test(s[i])) {
+      if (!m2.has("N")) m2.set("N", 10);
+    }
+
+    else if (/\p{P}|\p{S}/v.test(s[i])) {
+      if (!m2.has("S")) m2.set("S", 32);
+    }
+
+    else throw Err(`unexpected character "${s[i]}"`);
+  }
+
+  const sum = Array.from(m2)
+    .reduce((acc, pair) => acc + pair[1], 0);
+
+  const entropy = sum + Math.log2(m.size),
+    numClasses = m2.size,
+    numTrans = Rex.splitAtToken(s).length,
+    features = numClasses + numTrans,
+    score = entropy * Math.log2(numClasses + numTrans);
+
+  return {entropy, numClasses, numTrans, features, score};
+};
+
+
+Str.catWith = s => (...xs) => xs.join(s);
+
+
+Str.cat = Str.catWith("");
+
+
+Str.cat_ = Str.catWith(" ");
+
+
+/* Plain applicator but with a telling name. Intended use:
+
+  Str.template(o => `Happy ${o.foo}, ${o.bar}!`)
+    ({foo: "Thanksgiving", bar: "Muad'dib"})
+
+Yields "Happy Thanksgiving, Muad'dib!" */
+
+Str.template = f => o => f(o);
 
 
 //█████ Diffing ███████████████████████████████████████████████████████████████
@@ -7347,135 +7389,68 @@ Str.comparatorDe = Str.comparator("de-DE");
 Str.comparatorDe_ = Str.comparator_("de-DE");
 
 
-//█████ Semigroup █████████████████████████████████████████████████████████████
+//█████ Casing ████████████████████████████████████████████████████████████████
 
 
-Str.append = s => t => "" + s + t;
+// capitalize a word and its potential word components
 
+Str.capitalize = word => {
+  const xs = word.split("-");
 
-Str.Semigroup = {append: Str.append};
+  for (let i = 0; i < xs.length; i++) {
+    if (xs[i] === "") continue;
+    else if (xs[i - 1] === "") xs[i] = xs[i].toLowerCase();
+    else xs[i] = xs[i] [0].toUpperCase() + xs[i].slice(1).toLowerCase();
 
+    const ys = xs[i].split(".");
 
-//█████ Semigroup :: Monoid ███████████████████████████████████████████████████
-
-
-Str.empty = "";
-
-
-Str.Monoid = {
-  ...Str.Semigroup,
-  empty: Str.empty
-};
-
-
-//█████ Splitting █████████████████████████████████████████████████████████████
-
-
-// split at transitions from ASCII to not ASCII characters
-
-Str.splitAscii = s => {
-  return s.split("").reduce((acc, c) => {
-    const i = acc.length - 1;
-    
-    if (acc[i] === "") acc[i] += c;
-    else if (acc[i].charCodeAt(0) < 128 && c.charCodeAt(0) < 128) acc[i] += c;
-    else acc.push(c);
-
-    return acc;
-  }, [""]);
-};
-
-
-// split at character transitions
-
-Str.splitChars = s => {
-  return s.split("").reduce((acc, c) => {
-    const i = acc.length - 1;
-    
-    if (acc[i] === "") acc[i] += c;
-    else if (acc[i] [0] === c) acc[i] += c;
-    else acc.push(c);
-
-    return acc;
-  }, [""]);
-};
-
-
-Str.splitChunk = ({size, pad = " ", overlap = false}) => s => {
-  const xs = [];
-
-  for (let i = 0; i === i; overlap ? i++ : i += size) {
-    if (i >= s.length) break;
-    
-    else if (i + size >= s.length) {
-      xs.push(s.slice(i, i + size).padEnd(size, pad));
-      break;
+    for (let i2 = 0; i2 < ys.length; i2++) {
+      if (ys[i2] === "") continue;
+      ys[i2] = ys[i2] [0].toUpperCase() + ys[i2].slice(1);
     }
-    
-    else xs.push(s.slice(i, i + size));
+
+    xs[i] = ys.join(".");
+
+    if (/\p{L}+'\p{L}{2,}/v.test(xs[i])) {
+      const zs = xs[i].split("'");
+
+      for (let i2 = 0; i2 < zs.length; i2++)
+        zs[i2] = zs[i2] [0].toUpperCase() + zs[i2].slice(1);
+
+      xs[i] = zs.join("'");
+    }
   }
 
-  return xs;
+  return xs.join("-");
 };
 
 
-//█████ Misc. █████████████████████████████████████████████████████████████████
+Str.determineCasing = word => {
+  const s = word.toLowerCase();
 
+  if (s === word) return "all-lower-case";
+  else if (s.toUpperCase() === word) return "all-upper-case";
+  
+  else {
+    let guess = "";
 
-/* Plain applicator but with a telling name. Intended use:
-
-  Str.template(o => `Happy ${o.foo}, ${o.bar}!`)
-    ({foo: "Thanksgiving", bar: "Muad'dib"})
-
-Yields "Happy Thanksgiving, Muad'dib!" */
-
-Str.template = f => o => f(o);
-
-
-/* Try to estimate how likely the given string is a password. Use length,
-string entropy, number of used character classes, and number of character
-class transitions as indicators. */
-
-Str.isPwd = s => {
-  const m = new Map(), m2 = new Map();    
-
-  // upper-case letter in the middle/at the end
-  // uses digits and punctuation
-
-  for (let i = 0; i < s.length; i++) {
-    let n = 0;
-
-    if (!m.has(s[i])) m.set(s[i], n);
-
-    if (/\p{Lu}/v.test(s[i])) {
-      if (!m2.has("Lu")) m2.set("Lu", 26);
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] !== word[i]) {
+        if (i === 0) guess = "sentence-case";
+        else if (s[i - 1] === "-") guess = "sentence-case";
+        else if (s[i - 1] === ".") guess = "sentence-case";
+        else if (s[i - 1] === "'") guess = "sentence-case";
+        else if (s[i - 1] === word[i - 1]) guess = "camel-case";
+        
+        else {
+          guess = "arbitrary-case";
+          break;
+        }
+      }
     }
 
-    else if (/\p{Ll}/v.test(s[i])) {
-      if (!m2.has("Ll")) m2.set("Ll", 26);
-    }
-
-    else if (/\p{N}/v.test(s[i])) {
-      if (!m2.has("N")) m2.set("N", 10);
-    }
-
-    else if (/\p{P}|\p{S}/v.test(s[i])) {
-      if (!m2.has("S")) m2.set("S", 32);
-    }
-
-    else throw Err(`unexpected character "${s[i]}"`);
+    return guess;
   }
-
-  const sum = Array.from(m2)
-    .reduce((acc, pair) => acc + pair[1], 0);
-
-  const entropy = sum + Math.log2(m.size),
-    numClasses = m2.size,
-    numTrans = Rex.splitAtToken(s).length,
-    features = numClasses + numTrans,
-    score = entropy * Math.log2(numClasses + numTrans);
-
-  return {entropy, numClasses, numTrans, features, score};
 };
 
 
@@ -8382,6 +8357,11 @@ Val.not = f => x => {
 
 
 export const Alg = {};
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
 
 Alg.dotProduct = (xs, ys) => {
