@@ -89,6 +89,9 @@ export const debugIf = p => expr => {
 };
 
 
+//█████ Type Signatures ███████████████████████████████████████████████████████
+
+
 // intercept type signatures
 
 export const trace = x => {
@@ -97,10 +100,237 @@ export const trace = x => {
 };
 
 
+export const Sign = {};
+
+Sign.retrieve = x => {
+  if (typeof x === "function") {
+    if (x[$] === "Visor") return x.toString();
+    return x.name || "λ";
+  }
+
+  else if (x === null) return "Nul";
+  else if (x === undefined) return "Und";
+
+  else if (typeof x === "object") {
+    const tag = Object.prototype.toString.call(x).slice(8, -1);
+
+    switch (tag) {
+      case "Array": return `[${Sign.arr(x)}]`;
+      case "Boolean": return "Bol{}";
+      case "Date": return "Dat{}";
+      case "Map": return `Map<${Sign.map(x)}>`;
+      case "Number": return "Num{}";
+      case "Promise": return "Pro{}";
+      case "RegExp": return "Rex{}";
+      case "Set": return `Set<${Sign.set(x)}>`;
+      case "String": return "Str{}";
+      case "Symbol": return "Sym{}";
+      case "WeakMap": return `Wap<${Sign.map(x)}>`;
+      case "WeakRef": return "Ref{}";
+      case "WeakSet": return `Wet<${Sign.set(x)}>`;
+
+      case "Object": {
+        if (x?.[$]) return `${x[$]}{${Sign.obj(x)}}`;
+
+        else {
+          const name = x?.constructor?.name === "Object"
+            ? "" : x.constructor.name;
+
+          return `${name}{${Sign.obj(x)}}`;
+        }
+      }
+
+      default: throw new Err(`unknown tag "${tag}`);
+    }
+  }
+
+  else switch (Object.prototype.toString.call(x).slice(8, -1)) {
+    // Primitives (excluding function/null/undefined handled above)
+    case "Boolean": return "Boo";
+    case "BigInt": return "Big";
+    case "NaN": return "NaN";
+    case "Number": return "Num";
+    case "String": return "Str";
+    case "Symbol": return "Sym";
+    default: throw new Err(`unknown primitive tag "${tag}`);
+  }
+};
+
+
+Sign.arr = xs => {
+  const s = xs.reduce((acc, x) => {
+    return acc.add(Sign.retrieve(x))
+  }, new Set());
+
+  return Array.from(s).join(",");
+};
+
+
+Sign.set = s => {
+  const s2 = Array.from(s).reduce((acc, x) => {
+    return acc.add(Sign.retrieve(x))
+  }, new Set());
+
+  return Array.from(s2).join(",");
+};
+
+
+Sign.map = m => {
+  const s2 = Array.from(m).reduce((acc, pair) => {
+    return acc.add(`${Sign.retrieve(pair[0])}:${Sign.retrieve(pair[1])}`);
+  }, new Set());
+
+  return Array.from(s2).join(",");
+};
+
+
+Sign.obj = o => {
+  const s2 = Object.entries(o).reduce((acc, pair) => {
+    return acc.add(`${Sign.retrieve(pair[0])}:${Sign.retrieve(pair[1])}`);
+  }, new Set());
+
+  return Array.from(s2).join(",");
+};
+
+
 //█████ Visualization █████████████████████████████████████████████████████████
 
 
+/* Instead of static typing, scriptum tries to visualize the nested intermediate
+function call tree that is build by the computation. It does so by logging all
+intermediate results. This profoundly assists the programmer during development.
+Evaluating `comp(comp) (comp) (sqr) (add) (3) (4)`, for instance, yields the
+following log:
 
+➡️  comp(comp(f) (g) (x))
+✅ comp(comp(f) (g) (x)) 🠲  comp(comp(f) (g) (x)) (g) (x)
+➡️  comp(comp(f) (g) (x)) (comp(f) (g) (x))
+✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) 🠲  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (x)
+➡️  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x))
+➡️  comp(sqr(x))
+✅ comp(sqr(x)) 🠲  comp(sqr(x)) (g) (x)
+➡️  comp(comp(sqr(x)) (g) (x))
+✅ comp(comp(sqr(x)) (g) (x)) 🠲  comp(comp(sqr(x)) (g) (x)) (g) (x)
+➡️  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (add(x) (y))
+➡️  comp(comp(sqr(x)) (g) (x)) (add(x) (y))
+✅ comp(comp(sqr(x)) (g) (x)) (add(x) (y)) 🠲  comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (x)
+✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (add(x) (y)) 🠲  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x))
+➡️  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num)
+➡️  comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (Num)
+➡️  add(Num)
+✅ add(Num) 🠲  add(Num) (y)
+➡️  comp(sqr(x)) (add(Num) (y))
+✅ comp(sqr(x)) (add(Num) (y)) 🠲  comp(sqr(x)) (add(Num) (y)) (x)
+✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num) 🠲  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x))
+➡️  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num)
+➡️  comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (Num) (Num)
+➡️  comp(sqr(x)) (add(Num) (y)) (Num)
+➡️  add(Num) (Num)
+✅ add(Num) (Num) 🠲  Num
+➡️  sqr(Num)
+✅ sqr(Num) 🠲  Num
+✅ comp(sqr(x)) (add(Num) (y)) (Num) 🠲  Num
+✅ comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (Num) (Num) 🠲  Num
+✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num) 🠲  Num */
+
+
+export const Visor = {};
+
+
+Visor.serialize = x => {
+  if (x?.[$] === "Visor") return x.toString();
+  return Sign.retrieve(x);
+};
+
+
+Visor.visualize = o => {
+  if (!o) return "?";
+
+  let s = o.baseName, xs = [...o.baseParams];
+
+  for (let i = 0; i < o.appliedArgs.length && i < xs.length; i++) {
+    const argValue = o.appliedArgs[i];
+    s += `(${Visor.serialize(argValue)})`;
+  }
+
+  const ys = xs.slice(o.appliedArgs.length);
+  for (const param of ys) s += `(${param})`;
+  return s;
+};
+
+
+Visor.createWrapper = (f, o) => {
+  const wrapper = function(...newArgs) {
+    const xs = o.appliedArgs,
+      ys = [...xs, ...newArgs];
+
+    let s = o.baseName;
+
+    for(let i = 0; i < o.baseParams.length; i++) {
+      if (i < xs.length) s += `(${Visor.serialize(xs[i])})`;
+      else break;
+    }
+
+    s += newArgs.map(arg => `(${Visor.serialize(arg)})`).join("");
+
+    const callStr = s.replaceAll(/\)(?=\()/g, ") ");
+    console.log(`➡️  ${callStr}`);
+
+    let r;
+    let resultToLog;
+    let finalReturnValue;
+
+    try {
+      r = f.apply(this, newArgs);
+
+      if (typeof r === "function") {
+        const p = {...o, appliedArgs: ys};
+        finalReturnValue = Visor.createWrapper(r, p);
+        resultToLog = finalReturnValue;
+      } else {
+        finalReturnValue = r;
+        resultToLog = r;
+      }
+
+      let resultStr = Visor.serialize(resultToLog);
+
+      if (callStr.replaceAll(/ /g, "") !== resultStr.replaceAll(/ /g, "")) {
+        let s3 = `✅ ${callStr} 🠲  ${resultStr}`;
+        console.log(s3.replaceAll(/\)(?=\()/g, ") "));
+      }
+    }
+
+    catch (e) {
+      const s2 = s.replaceAll(/\)(?=\()/g, ") ");
+
+      console.error(`💥 error during: ${s2}`);
+      console.error(`   function: ${f.name || "λ"}`);
+      console.error(`   wrapper: ${Visor.visualize(o)}`);
+      console.error(`   applying ${newArgs.map(Visor.serialize).join(", ")}`)
+      console.error(`   message: ${e.message}`);
+      if (e.stack) console.error(`   Stack: ${e.stack.split('\n').slice(1).join('\n')}`);
+      throw e;
+    }
+
+    return finalReturnValue;
+  };
+
+  wrapper[$] = "Visor";
+  wrapper[$$] = "Visor";
+  wrapper.toString = () => Visor.visualize(o);
+  return wrapper;
+};
+
+
+Visor.augment = (f, name, params = []) => {
+  const o = {
+    baseName: name,
+    baseParams: params,
+    appliedArgs: [],
+  };
+
+  return Visor.createWrapper(f, o);
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -714,112 +944,6 @@ Stack.Rec = function Rec(x) {
 
 Stack.Base = function Base(x) {
   return {[$]: "Stack", [$$]: "Stack.Base", x};
-};
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-███████████████████████████████ TYPE SIGNATURES ███████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-export const Sign = {};
-
-
-Sign.get = x => {
-  if (x === null) return "Nul";
-  else if (x === undefined) return "Und";
-
-  else if (typeof x === "object") {
-    const tag = Object.prototype.toString.call(x).slice(8, -1);
-
-    switch (tag) {
-      case "Array": return `[${Sign.arr(x)}]`;
-      case "Boolean": return "Bol{}";
-      case "Date": return "Dat{}";
-      case "Map": return `Map<${Sign.map(x)}>`;
-      case "Number": return "Num{}";
-      case "Promise": return "Pro{}";
-      case "RegExp": return "Rex{}";
-      case "Set": return `Set<${Sign.set(x)}>`;
-      case "String": return "Str{}";
-      case "Symbol": return "Sym{}";
-      case "WeakMap": return `Wap<${Sign.map(x)}>`;
-      case "WeakRef": return "Ref{}";
-      case "WeakSet": return `Wet<${Sign.set(x)}>`;
-      
-      case "Object": {
-        if (x?.[$]) return `${x[$]}{${Sign.obj(x)}}`;
-
-        else {
-          const name = x?.constructor?.name === "Object"
-            ? "" : x.constructor.name;
-
-          return `${name}{${Sign.obj(x)}}`;
-        }
-      }
-
-      default: throw new Err(`unknown tag "${tag}`);
-    }
-  }
-
-  else switch (Object.prototype.toString.call(x).slice(8, -1)) {
-    case "Boolean": return "Boo";
-    case "BigInt": return "Big";
-    case "Function": return "=>";
-    case "NaN": return "NaN";
-    case "Null": return "Nul";
-    case "Number": return "Num";
-    case "String": return "Str";
-    case "Undefined": return "Und";
-
-    default: {
-
-    }
-  }
-};
-
-
-Sign.arr = xs => {
-  const s = xs.reduce((acc, x) => {
-    return acc.add(Sign.get(x))
-  }, new Set());
-
-  return Array.from(s).join(",");
-};
-
-
-Sign.set = s => {
-  const s2 = Array.from(s).reduce((acc, x) => {
-    return acc.add(Sign.get(x))
-  }, new Set());
-
-  return Array.from(s2).join(",");
-};
-
-
-Sign.map = m => {
-  const s2 = Array.from(m).reduce((acc, pair) => {
-    return acc.add(`${Sign.get(pair[0])}:${Sign.get(pair[1])}`);
-  }, new Set());
-
-  return Array.from(s2).join(",");
-};
-
-
-Sign.obj = o => {
-  const s2 = Object.entries(o).reduce((acc, pair) => {
-    return acc.add(`${Sign.key(pair[0])}:${Sign.get(pair[1])}`);
-  }, new Set());
-
-  return Array.from(s2).join(",");
-};
-
-
-Sign.key = x => {
-  if (Object.prototype.toString.call(x).slice(8, -1) === "Symbol")
-    return "Sym";
-
-  else return x;
 };
 
 
