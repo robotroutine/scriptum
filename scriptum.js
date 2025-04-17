@@ -202,36 +202,71 @@ intermediate results. This profoundly assists the programmer during development.
 Evaluating `comp(comp) (comp) (sqr) (add) (3) (4)`, for instance, yields the
 following log:
 
-➡️  comp(comp(f) (g) (x))
-✅ comp(comp(f) (g) (x)) 🠲  comp(comp(f) (g) (x)) (g) (x)
-➡️  comp(comp(f) (g) (x)) (comp(f) (g) (x))
-✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) 🠲  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (x)
-➡️  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x))
-➡️  comp(sqr(x))
-✅ comp(sqr(x)) 🠲  comp(sqr(x)) (g) (x)
-➡️  comp(comp(sqr(x)) (g) (x))
-✅ comp(comp(sqr(x)) (g) (x)) 🠲  comp(comp(sqr(x)) (g) (x)) (g) (x)
-➡️  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (add(x) (y))
-➡️  comp(comp(sqr(x)) (g) (x)) (add(x) (y))
-✅ comp(comp(sqr(x)) (g) (x)) (add(x) (y)) 🠲  comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (x)
-✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (add(x) (y)) 🠲  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x))
-➡️  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num)
-➡️  comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (Num)
-➡️  add(Num)
-✅ add(Num) 🠲  add(Num) (y)
-➡️  comp(sqr(x)) (add(Num) (y))
-✅ comp(sqr(x)) (add(Num) (y)) 🠲  comp(sqr(x)) (add(Num) (y)) (x)
-✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num) 🠲  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x))
-➡️  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num)
-➡️  comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (Num) (Num)
-➡️  comp(sqr(x)) (add(Num) (y)) (Num)
-➡️  add(Num) (Num)
-✅ add(Num) (Num) 🠲  Num
-➡️  sqr(Num)
-✅ sqr(Num) 🠲  Num
-✅ comp(sqr(x)) (add(Num) (y)) (Num) 🠲  Num
-✅ comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (Num) (Num) 🠲  Num
-✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num) 🠲  Num */
+  ➡️ comp(comp(f) (g) (x))
+  ✅ comp(comp(f) (g) (x)) 🠲  comp(comp(f) (g) (x)) (g) (x)
+  ➡️ comp(comp(f) (g) (x)) (comp(f) (g) (x))
+  ✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) 🠲  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (x)
+  ➡️ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x))
+  ➡️ comp(sqr(x))
+  ✅ comp(sqr(x)) 🠲  comp(sqr(x)) (g) (x)
+  ➡️ comp(comp(sqr(x)) (g) (x))
+  ✅ comp(comp(sqr(x)) (g) (x)) 🠲  comp(comp(sqr(x)) (g) (x)) (g) (x)
+  ➡️ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (add(x) (y))
+  ➡️ comp(comp(sqr(x)) (g) (x)) (add(x) (y))
+  ✅ comp(comp(sqr(x)) (g) (x)) (add(x) (y)) 🠲  comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (x)
+  ✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (add(x) (y)) 🠲  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x))
+  ➡️ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num)
+  ➡️ comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (Num)
+  ➡️ add(Num)
+  ✅ add(Num) 🠲  add(Num) (y)
+  ➡️ comp(sqr(x)) (add(Num) (y))
+  ✅ comp(sqr(x)) (add(Num) (y)) 🠲  comp(sqr(x)) (add(Num) (y)) (x)
+  ✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num) 🠲  comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x))
+  ➡️ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num)
+  ➡️ comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (Num) (Num)
+  ➡️ comp(sqr(x)) (add(Num) (y)) (Num)
+  ➡️ add(Num) (Num)
+  ✅ add(Num) (Num) 🠲  Num
+  ➡️ sqr(Num)
+  ✅ sqr(Num) 🠲  Num
+  ✅ comp(sqr(x)) (add(Num) (y)) (Num) 🠲  Num
+  ✅ comp(comp(sqr(x)) (g) (x)) (add(x) (y)) (Num) (Num) 🠲  Num
+  ✅ comp(comp(f) (g) (x)) (comp(f) (g) (x)) (sqr(x)) (Num) 🠲  Num
+
+For first and higher order function curried or uncurried the visualizer doesn't
+need to alter the augmented function but just serves as a wrapper. Recursive
+functions must invoke the wrapper in each recursive call, though:
+
+  const fib_ = Visor.augmentRec("fib");
+
+  const fib = (n) => {
+    if (n <= 1) {
+      return n;
+    }
+
+    else {
+      return fib_(fib, n - 1) + fib_(fib, n - 2);
+    }
+  };
+
+  fib(10); // 3 and logs:
+
+  ➡️  fib(Num)
+    ➡️  fib(Num)
+      ➡️  fib(Num)
+      ✅ fib(Num) => Num
+      ➡️  fib(Num)
+      ✅ fib(Num) => Num
+    ✅ fib(Num) => Num
+    ➡️  fib(Num)
+    ✅ fib(Num) => Num
+  ✅ fib(Num) => Num
+  ➡️  fib(Num)
+    ➡️  fib(Num)
+    ✅ fib(Num) => Num
+    ➡️  fib(Num)
+    ✅ fib(Num) => Num
+  ✅ fib(Num) => Num */
 
 
 export const Visor = {};
@@ -322,6 +357,8 @@ Visor.createWrapper = (f, o) => {
 };
 
 
+// visualize first- and higher-order functions in curried/uncurried form
+
 Visor.augment = (f, name, params = []) => {
   const o = {
     baseName: name,
@@ -330,6 +367,37 @@ Visor.augment = (f, name, params = []) => {
   };
 
   return Visor.createWrapper(f, o);
+};
+
+
+// not stack-safe (for development only)
+
+Visor.augmentRec = name => {
+  let depth = 0;
+
+  return (f, ...args) => {
+    let indent, r;
+    
+    indent = "  ".repeat(depth);
+    console.log(`${indent}➡️  ${name}(${args.map(Sign.retrieve).join(", ")})`);
+    depth++;
+
+    try {r = f(...args)}
+
+    catch (e) {
+      depth--;
+      
+      console.error(
+        `💥 error during ${name}(${args.map(Sign.retrieve).join(", ")}) at depth ${depth + 1}`);
+      
+      throw e;
+    }
+
+    depth--;
+    indent = "  ".repeat(depth);
+    console.log(`${indent}✅ ${name}(${args.map(Sign.retrieve).join(", ")}) => ${Sign.retrieve(r)}`);
+    return r;
+  };
 };
 
 
