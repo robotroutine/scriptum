@@ -1105,9 +1105,7 @@ A.tails = xs => {
 A.filter = p => xs => xs.filter(x => p(x));
 
 
-A.foldl = f => init => xs => {
-  let acc = init?.[NEW] ? init() : init;
-
+A.foldl = f => acc => xs => {
   for (let i = 0; i < xs.length; i++)
     acc = f(acc, xs[i]);
 
@@ -1128,14 +1126,18 @@ A.foldi = f => init => xs => {
 
 
 // stack-safe right-associative
-// TODO: uncurry
 
 A.foldr = f => acc => xs => Stack(i => {
   if (i === xs.length) return Stack.Base(acc);
 
-  else return Stack.Call(
-    f(xs[i]),
-    Stack.Rec(i + 1));
+  else {
+    const g = nextAcc => {
+      return f(xs[i], nextAcc);
+    };
+
+    const acc2 = Stack.Rec(i + 1);
+    return Stack.Call(g, acc2);
+  }
 }) (0);
 
 
@@ -1619,29 +1621,25 @@ A.groupBy = p => xs => Loop2((acc, i) => {
 
 // zipping
 
-A.zip = xs => ys => Loop2((acc, i) => {
-  if (i === xs.length) return Loop2.Base(acc);
-  else if (i === ys.length) return Loop2.Base(acc);
-
-  else {
-    acc.push([xs[i], ys[i]]);
-    return Loop2.Rec(acc, i + 1);
-  }
-}) ([], 0);
+A.zip = xs => ys => {
+  const len = Math.min(xs.length, ys.length), acc = [];
+  for (let i = 0; i < len; i++) acc.push([xs[i], ys[i]]);
+  return acc;
+};
 
 
-A.zipWith = f => xs => ys => Loop2((acc, i) => {
-  if (i === xs.length) return Loop2.Base(acc);
-  else if (i === ys.length) return Loop2.Base(acc);
-  else return Loop2.Rec((acc.push(f(xs[i]) (ys[i])), acc), i + 1);
-}) ([], 0);
+A.zipWith = f => xs => ys => {
+  const len = Math.min(xs.length, ys.length), acc = [];
+  for (let i = 0; i < len; i++) acc.push(f(xs[i], ys[i]));
+  return acc;
+};
 
 
-A.unzip = () => A.foldl(([x, y], [xs, ys]) =>
+A.unzip = A.foldl(([xs, ys], [x, y]) =>
   [(xs.push(x), xs), (ys.push(y), ys)]) ([[], []]);
 
 
-// TODO: A.unzipWith
+A.unzipWith = f => A.foldl((acc, [x, y]) => (acc.push(f(x, y)), acc)) ([]);
 
 
 // entries is the default iterable
@@ -3004,7 +3002,13 @@ It.unzip = ix => function* (iy) {
 };
 
 
-// TODO: unzipWith
+It.unzipWith = f => ix => function* (iy) {
+  while (true) {
+    const o = ix.next();
+    if (o.done) return undefined;
+    else yield f(o.value[0], o.value[1]);
+  }
+};
 
 
 It.alternate = ix => function* (iy) {
@@ -3809,7 +3813,7 @@ _Map.diffl = m => n => {
 //█████ Conversion ████████████████████████████████████████████████████████████
 
 
-_Map.fromAit = () => comp(Cont.fromPromise) (async function (ix) {
+_Map.fromAit = comp(Cont.fromPromise) (async function (ix) {
   const m = new Map();
   for await (const [k, v] of ix) m.set(k, v);
   return m;
@@ -4690,7 +4694,7 @@ O.values = function* (o) {
 };
 
 
-O.fromAit = () => comp(Cont.fromPromise) (async function (ix) {
+O.fromAit = comp(Cont.fromPromise) (async function (ix) {
   const o = {};
   for await (const [k, v] of ix) o[k] = v;
   return o;
@@ -8738,35 +8742,64 @@ Node.CLA.setEnv = o => {
 Node.Crypto = {};
 
 
-// encrypt with 256-bit private key
+/* Encrypt with 256-bit private key. If this key is derived from a user password,
+you must use a strong key derivation function (KDF) like Argon2id or PBKDF2 with
+a high iteration count and a unique salt per user before passing the resulting
+key buffer to the encryption function. */
 
 Node.Crypto.encryptSym = key => plaintext => {
-  const iv = Crypto.randomBytes(12).toString("base64"),
-    cipher = Crypto.createCipheriv("aes-256-gcm", key, iv);
+  if (!Buffer.isBuffer(key) || key.length !== 32)
+    throw new Err("32-byte buffer expected");
+
+  else if (typeof plaintext !== "string")
+    throw new Err("Plaintext must be a string.");
+
+  const iv = crypto.randomBytes(12),
+    cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
 
   let ciphertext = cipher.update(plaintext, "utf8", "base64");
   ciphertext += cipher.final("base64");
-  
+
   const tag = cipher.getAuthTag();
-  return { ciphertext, iv, tag };
+
+  return {
+    ciphertext,
+    iv: iv.toString("base64"),
+    tag: tag.toString("base64")
+  };
 };
 
 
 // decrypt with 256-bit private key
 
-Node.Crypto.decryptSym = ({key, iv, tag}) => ciphertext => {
-  const decipher = Crypto.createDecipheriv(
-    "aes-256-gcm", 
-    Buffer.from(key, "base64"),
-    Buffer.from(iv, "base64")
-  );
-  
-  decipher.setAuthTag(Buffer.from(tag, "base64"));
+Node.Crypto.decryptSym = ({ key, iv, tag }) => ciphertext => {
+  if (!Buffer.isBuffer(key) || key.length !== 32)
+    throw new Err("32-byte buffer expected");
 
-  let plaintext = decipher.update(ciphertext, "base64", "utf8");
-  plaintext += decipher.final("utf8");
-  return plaintext;
-}
+  else if (typeof iv !== "string"
+    || typeof tag !== "string"
+    || typeof ciphertext !== "string")
+      throw new Err("base64 encoded strings expected");
+
+  try {
+    const ivBuf = Buffer.from(iv, "base64");
+    const tagBuf = Buffer.from(tag, "base64");
+
+    if (ivBuf.length !== 12)
+      throw new Err("invalid iv length provided for gcm decryption");
+
+    const decipher = crypto.createDecipheriv("aes-256-gcm", key, ivBuf);
+    decipher.setAuthTag(tagBuf);
+
+    let plaintext = decipher.update(ciphertext, "base64", "utf8");
+    plaintext += decipher.final("utf8");
+    return plaintext;
+  }
+
+  catch (error) {
+    return null // indicate failure securely
+  };
+};
 
 
 // generate 256-bit private key
@@ -8997,3 +9030,15 @@ Node.SQL = Cons => {
     });
   });
 };
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+████████████████████████████ RESOLVE INTERNAL DEPS ████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+A.Ait.fromEntries = A.Ait.fromEntries();
+A.Ait.fromKeys = A.Ait.fromKeys();
+A.Ait.fromValues = A.Ait.fromValues();
