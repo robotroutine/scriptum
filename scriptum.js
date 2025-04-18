@@ -249,7 +249,7 @@ functions must invoke the wrapper in each recursive call, though:
     }
   };
 
-  fib(10); // 3 and logs:
+  fib(4); // 3 and logs:
 
   ➡️  fib(Num)
     ➡️  fib(Num)
@@ -4600,6 +4600,9 @@ export const desc = y => x => x - y;
 export const desc_ = (y, x) => x - y;
 
 
+export const ctor = (a, b) => a > b ? 1 : a < b ? -1 : 0;
+
+
 export const compareOn = order => lift(order);
 
 
@@ -7334,21 +7337,30 @@ Str.capitalize = word => {
 };
 
 
-Str.determineCasing = word => {
-  const s = word.toLowerCase();
+/* Possible casings:
 
-  if (s === word) return "all-lower-case";
-  else if (s.toUpperCase() === word) return "all-upper-case";
+  • common-word: foo
+  • proper-word: Foo
+  • camel-case: fooBar or FooBar
+  • acronym: FOO
+  • arbitrary-case: FOOBar */
+
+Str.determineCasing = word => {
+  const lc = word.toLowerCase(),
+    uc = s.toUpperCase();
+
+  if (lc === word) return "common-word";
+  else if (uc === word) return "acronym";
   
   else {
-    let guess = "";
+    const guess = "";
 
-    for (let i = 0; i < s.length; i++) {
-      if (s[i] !== word[i]) {
-        if (i === 0) guess = "sentence-case";
-        else if (s[i - 1] === "-") guess = "sentence-case";
-        else if (s[i - 1] === ".") guess = "sentence-case";
-        else if (s[i - 1] === "'") guess = "sentence-case";
+    for (let i = 0; i < word.length; i++) {
+      if (lc[i] !== word[i]) {
+        if (i === 0) guess = "proper-word";
+        else if (s[i - 1] === "-") continue;
+        else if (s[i - 1] === ".") continue;
+        else if (s[i - 1] === "'") continue;
         else if (s[i - 1] === word[i - 1]) guess = "camel-case";
         
         else {
@@ -7516,213 +7528,361 @@ Trans.Append.obj = p => acc => pair => k =>
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Unbalanced binary search tree as a persistent data structure with structural
-sharing. */
+/* Balanced binary search tree as a persistent data structure with structural
+sharing. Stores values in the order imposed by the provided comparator. Can
+be used as an inherently ordered list or as a priority queue. */
 
 
-export const Tree = value => ({value, left: null, right: null});
+export class Tree {
+  #root;
+  #cmp;
+  #size;
 
 
-/* TODO: replace with splay tree with the following features:
-
-  * explicit comparator
-  * allow duplicate or unique value insert
-  * find successor/predecessor
-  * range queries (keys within a range)
-  * rank queries (nth smallest/biggest element)
-    * requires augmenting nodes with info about the size of their left subtree */
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-█████████████████████████████████ COMBINATORS █████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-// uncurried for performance
-
-Tree.insert = (node, value) => {
-  if (node === null) return Tree(value);
-
-  else if (value < node.value)
-    return {...node, left: Tree.insert(node.left, value)};
-
-  else return {...node, right: Tree.insert(node.right, value)};
-};
-
-
-Tree.remove = value => node => {
-  if (node === null) return null;
-
-  else if (value < node.value) {
-    const newLeft = Tree.remove(value) (node.left);
-    return {...node, left: newLeft};
+  constructor(cmp) {
+    this.#root = Tree.root;
+    this.#cmp = cmp || ctor;
+    this.#size = 0;
   }
 
-  else if (value > node.value) {
-    const newRight = Tree.remove(value) (node.right);
-    return {...node, right: newRight};
+
+  #findNode(key) {
+    let node = this.#root;
+    while (node !== Tree.root) {
+      const c = this.#cmp(key, node.key);
+      if (c === 0) return node;
+      node = c < 0 ? node.left : node.right;
+    }
+
+    return undefined;
   }
 
-  else {
-    if (node.left === null) return node.right;
-    else if (node.right === null) return node.left;
+
+  static root = reify(o => {
+    o.level = 0;
+    o.key = undefined;
+    o.value = undefined;
+    o.left = o;
+    o.right = o;
+    return o;
+  })
+
+
+  static createNode(key, value) {
+    return {
+      key: key,
+      value: value,
+      level: 1,
+      left: Tree.root,
+      right: Tree.root
+    };
+  }
+
+
+  static skew(node) {
+    if (node.level === node.left.level && node.level !== 0) {
+      const leftChild = node.left;
+
+      node.left = leftChild.right;
+      leftChild.right = node;
+      return leftChild;
+    }
+
+    return node;
+  }
+
+
+  static split(node) {
+    if (node.level === node.right.right.level && node.level !== 0) {
+      const rightChild = node.right;
+
+      node.right = rightChild.left;
+      rightChild.left = node;
+      rightChild.level++;
+      return rightChild;
+    }
+
+    return node;
+  }
+
+
+  insert(key, value) {
+    if (this.#root === Tree.root) {
+      this.#root = Tree.createNode(key, value);
+      this.#size++;
+      return this;
+    }
+
+    const path = [];
+
+    let node = this.#root,
+      parentNode = null,
+      direction = 0;
+
+    while (node !== Tree.root) {
+      path.push(node);
+      parentNode = node;
+
+      const c = this.#cmp(key, node.key);
+
+      if (c === 0) return this;
+      direction = c < 0 ? -1 : 1;
+      node = direction < 0 ? node.left : node.right;
+    }
+
+    const node2 = Tree.createNode(key, value);
+    this.#size++;
+
+    if (direction < 0) parentNode.left = node2;
+    else parentNode.right = node2;
+
+    for (let i = path.length - 1; i >= 0; i--) {
+      let node3 = path[i],
+        parent = (i > 0) ? path[i - 1] : null;
+
+      node3 = Tree.skew(node3);
+      node3 = Tree.split(node3);
+
+      if (parent) {
+        if (this.#cmp(node3.key, parent.key) < 0)
+          parent.left = node3;
+
+        else parent.right = node3;
+      }
+
+      else this.#root = node3;
+    }
+    
+    return this;
+  }
+
+
+  delete(key) {
+    if (this.#root === Tree.root) return false;
+
+    const path = [];
+    let node = this.#root, found = false;
+
+    while (node !== Tree.root) {
+      path.push(node);
+      const c = this.#cmp(key, node.key);
+
+      if (c === 0) {
+        found = true;
+        break;
+      }
+
+      node = c < 0 ? node.left : node.right;
+    }
+
+    if (!found) return false;
+
+    if (node.left !== Tree.root && node.right !== Tree.root) {
+      path.push(node.right);
+      let successor = node.right;
+
+      while (successor.left !== Tree.root) {
+        path.push(successor.left);
+        successor = successor.left;
+      }
+
+      node.key = successor.key;
+      node.value = successor.value;
+
+      node = successor;
+    }
+
+    const node2 = (node.left === Tree.root)
+      ? node.right
+      : node.left;
+
+    const parentIndex = path.length - 2;
+
+    if (parentIndex < 0) this.#root = node2;
 
     else {
-      const value2 = Tree.findMin(node.right),
-        right2 = Tree.remove(value2) (node.right);
+      const parent = path[parentIndex];
 
-      return {
-        ...node,
-        value: value2,
-        right: right2
-      };
+      if (this.#cmp(node.key, parent.key) < 0)
+         parent.left = node2;
+
+      else parent.right = node2;
+    }
+
+    for (let i = path.length - 2; i >= 0; i--) {
+      let node3 = path[i],
+        parent = (i > 0) ? path[i - 1] : null;
+
+      const level = Math.max(
+        node3.left.level, node3.right.level) + 1;
+
+      if (level < node3.level) {
+        node3.level = level;
+
+        if (level < node3.right.level)
+          node3.right.level = level;
+      }
+
+      node3 = Tree.skew(node3);
+
+      if (node3.right !== Tree.root) {
+        node3.right = Tree.skew(node3.right);
+
+        if (node3.right.right !== Tree.root)
+          node3.right.right = Tree.skew(node3.right.right);
+      }
+
+      node3 = Tree.split(node3);
+
+      if (node3.right !== Tree.root)
+        node3.right = Tree.split(node3.right);
+
+      if (parent) {
+        if (this.#cmp(node3.key, parent.key) < 0)
+          parent.left = node3;
+
+        else parent.right = node3;
+      }
+
+      else this.#root = node3;
+    }
+
+    this.#size--;
+    return true;
+  }
+
+
+  has(key) {
+    return this.#findNode(key) !== undefined;
+  }
+
+
+  find(key) {
+    const node = this.#findNode(key);
+    return node ? node.value : undefined;
+  }
+
+
+  peekMin() {
+    if (this.#root === Tree.root) return undefined;
+    let node = this.#root;
+    while (node.left !== Tree.root) node = node.left;
+    return {key: node.key, value: node.value};
+  }
+
+
+  peekMax() {
+    if (this.#root === Tree.root) return undefined;
+    let node = this.#root;
+    while (node.right !== Tree.root) node = node.right;
+    return {key: node.key, value: node.value};
+  }
+
+
+  extractMin() {
+    if (this.#root === Tree.root) return undefined;
+    let node = this.#root;
+    while (node.left !== Tree.root) node = node.left;
+
+    const minKey = node.key, minValue = node.value;
+    this.delete(minKey);
+    return {key: minKey, value: minValue};
+  }
+
+
+  extractMax() {
+    if (this.#root === Tree.root) return undefined;
+    let node = this.#root;
+    while (node.right !== Tree.root) node = node.right;
+
+    const maxKey = node.key;
+    const maxValue = node.value;
+    this.delete(maxKey);
+    return {key: maxKey, value: maxValue};
+  }
+
+
+  inorder(callback) {
+    const stack = [];
+    let current = this.#root;
+
+    while (current !== Tree.root || stack.length > 0) {
+      while (current !== Tree.root) {
+        stack.push(current);
+        current = current.left;
+      }
+
+      current = stack.pop();
+      callback(current);
+      current = current.right;
+    }
+  }
+
+
+  getRoot() {
+    return this.#root;
+  }
+
+
+  get size() {
+    return this.#size;
+  }
+
+
+  * [Symbol.iterator]() {
+    const stack = [];
+    let curr = this.#root;
+
+    while (curr !== Tree.root || stack.length > 0) {
+      while (curr !== Tree.root) {
+        stack.push(curr);
+        curr = curr.left;
+      }
+
+      curr = stack.pop();
+      yield [curr.key, curr.value];
+
+      curr = curr.right;
+    }
+  }
+
+
+  * entries() {
+    yield* this[Symbol.iterator]();
+  }
+
+
+  * keys() {
+    const stack = [];
+    let curr = this.#root;
+
+    while (curr !== Tree.root || stack.length > 0) {
+      while (curr !== Tree.root) {
+        stack.push(curr);
+        curr = curr.left;
+      }
+      curr = stack.pop();
+      yield curr.key;
+      curr = curr.right;
+    }
+  }
+
+
+  * values() {
+    const stack = [];
+    let curr = this.#root;
+
+    while (curr !== Tree.root || stack.length > 0) {
+      while (curr !== Tree.root) {
+        stack.push(curr);
+        curr = curr.left;
+      }
+      curr = stack.pop();
+      yield curr.value;
+      curr = curr.right;
     }
   }
 };
-
-
-Tree.has = value => node => {
-  if (node === null) return false;
-  else if (value === node.value) return true;
-
-  return value < node.value
-    ? Tree.has(node.left, value)
-    : Tree.has(node.right, value);
-};
-
-
-Tree.find = value => node => {
-  if (node === null) return null;
-  else if (value === node.value) return node;
-
-  return value < node.value
-    ? Tree.find(value) (node.left)
-    : Tree.find(value) (node.right);
-};
-
-
-Tree.findMin = node => {
-  if (node === null) return null;
-  let current = node;
-  while (current.left !== null) current = current.left;
-  return current.value;
-};
-
-
-Tree.findMax = node => {
-  if (node === null) return null;
-  let current = node;
-  while (current.right !== null) current = current.right;
-  return current.value;
-};
-
-
-// inorder fold
-
-Tree.foldl = f => init => node => function go(acc, currNode) {
-  if (currNode === null) return acc;
-
-  const accLeft = go(acc, currNode.left),
-    accRight = go(f(accLeft) (currNode.value), currNode.right);
-
-  return accRight;
-} (init, node);
-
-
-Tree.Traversal = {};
-
-
-Tree.Traversal.preorder = node => {
-  if (node === null) return [];
-
-  return [node.value]
-    .concat(Tree.Traversal.preorder(node.left))
-    .concat(Tree.Traversal.preorder(node.right));
-};
-
-
-Tree.Traversal.inorder = node => {
-  if (node === null) return [];
-
-  return Tree.Traversal.inorder(node.left)
-    .concat([node.value])
-    .concat(Tree.Traversal.inorder(node.right));
-};
-
-
-Tree.Traversal.postorder = node => {
-  if (node === null) return [];
-
-  return Tree.Traversal.postorder(node.left)
-    .concat(Tree.Traversal.postorder(node.right))
-    .concat([node.value]);
-};
-
-
-Tree.Traversal.levelOrder = node => {
-  if (node === null) return [];
-  const queue = [node], result = [];
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    result.push(current.value);
-    if (current.left) queue.push(current.left);
-    if (current.right) queue.push(current.right);
-  }
-
-  return result;
-};
-
-
-Tree.getHeight = node => {
-  if (node === null) return -1;
-
-  const leftHeight = Tree.getHeight(node.left),
-    rightHeight = Tree.getHeight(node.right);
-
-  return 1 + Math.max(leftHeight, rightHeight);
-};
-
-
-Tree.countNodes = node => {
-  if (node === null) return 0;
-  return 1 + Tree.countNodes(node.left) + Tree.countNodes(node.right);
-};
-
-
-// balance an existing tree
-
-Tree.balance = node => {
-  if (node === null) return null;
-  const xs = Tree.Traversal.inorder(node);
-  return Tree.reconstruct(xs, 0, xs.length - 1);
-};
-
-
-// create a balanced tree from a sorted array
-
-Tree.reconstruct = (xs, start, end) => {
-  if (start > end) return null;
-
-  const mid = Math.floor((start + end) / 2),
-    value = xs[mid],
-    node = Tree(value);
-
-  node.left = Tree.reconstruct(xs, start, mid - 1);
-  node.right = Tree.reconstruct(xs, mid + 1, end);
-
-  return node;
-};
-
-
-Tree.fromArr = xs => {
-  let node = null;
-  for (const x of xs) node = Tree.insert(node, x);
-  return node;
-};
-
-
-Tree.fromSortedArr = xs => Tree.reconstruct(xs, 0, xs.length - 1);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
