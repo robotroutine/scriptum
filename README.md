@@ -5,12 +5,16 @@
 ```                                   
 
 
-# No-frills Functional Programming Lib Augmenting Javascript/Node.js
+# No-frills Natural Language Processing Library
 
-Focus on arrays, (async) iterators, streams, string processing and regular expressions.
+Focus: string handling, regular expressions, linear algebra
 
-Status: no more major revisions expected but still unstable in some hideous details..
+Data Types: balanced BST, multimap, idempotent iterator, continuation type, transducer, etc.
 
-scriptum is the foundation of more elaborate language processing libs and services to further push the boundaries of back-office automation.
+Style: functional programming
+
+Status: heavy work in progress...
 
 Author: Iven Marquardt
+
+scriptum is the foundation for other libraries around NLP and ML.
