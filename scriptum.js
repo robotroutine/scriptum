@@ -4,7 +4,7 @@
 .__/ \__, |  \ | |     |  \__/  |  | 
 
 
-lib: functional base library
+lib: natural language processing using functional programming
 
 Focus on functional idioms, asynchronicity, iterators, arrays, strings, linear
 algebra, and regular expressions for effective natural language processing in
@@ -1280,7 +1280,7 @@ A.scanr = f => init => A.foldr(x => acc =>
     ([init]);
 
 
-// left associative, eager unfold due to non-recursive array data type
+// left associative, strict unfold due to non-recursive array data type
 
 A.unfold = f => seed => {
   let acc = [], x = seed;
@@ -1299,6 +1299,38 @@ A.unfold = f => seed => {
   }
 
   return acc;
+};
+
+
+// use native slice for take
+
+A.takeWhile = p => xs => Loop2((acc, i) => {
+  if (i === xs.length) return Loop2.Base(acc);
+  else return p(xs[i]) ? Loop2.Rec((acc.push(xs[i]), acc), i + 1) : Loop2.Base(acc);
+}) ([], 0);
+
+
+// use native slice for drop
+
+A.dropWhile = p => xs => Loop2((acc, i) => {
+  if (i === xs.length) return Loop2.Base(acc);
+  else return p(xs[i]) ? Loop2.Rec(acc, i + 1) : Loop2.Base(xs.slice(i));
+}) ([], 0);
+
+
+// entries is the default iterable
+
+A.keys = function* (m) {
+  for (let [k] of m) {
+    yield k;
+  }
+};
+
+
+A.values = function* (m) {
+  for (let [, v] in m) {
+    yield v;
+  }
 };
 
 
@@ -1341,6 +1373,389 @@ A.focus = ({from, to}) => xs => new Proxy(xs, {
     else return Reflect.has(ys, i);
   }
 });
+
+
+//█████ Conversion ████████████████████████████████████████████████████████████
+
+
+A.It = {};
+
+
+A.It.fromEntries = ix => {
+  const xs = [];
+  for (const pair of ix) xs.push(pair);
+  return xs;
+};
+
+
+A.It.fromKeys = ix => {
+  const xs = [];
+  for (const [k] of ix) xs.push(k);
+  return xs;
+};
+
+
+A.It.fromValues = ix => {
+  const xs = [];
+  for (const [, v] of ix) xs.push(v);
+  return xs;
+};
+
+
+A.Ait = {};
+
+
+A.Ait.fromEntries = () => comp(Cont.fromPromise) (async function (ix) {
+  const xs = [];
+  for await (const pair of ix) xs.push(pair);
+  return xs;
+});
+
+
+A.Ait.fromKeys = () => comp(Cont.fromPromise) (async function (ix) {
+  const xs = [];
+  for await (const [k] of ix) xs.push(k);
+  return xs;
+});
+
+
+A.Ait.fromValues = () => comp(Cont.fromPromise) (async function (ix) {
+  const xs = [];
+  for await (const [, v] of ix) xs.push(v);
+  return xs;
+});
+
+
+/* Parse csv data with and without headings. Consider an optional header for
+additional, file-wide meta data. Consecutive double or triple delimiters are
+considered as escaped and thus part of the content, not the syntax. Separators
+within delimiters are alos considered as part of the content, not the syntax. */
+
+A.fromCsv = ({
+  sep = ";",
+  delim = '"',
+  header = false,
+  headings = false,
+  replace = [/* [RegExp, String] */],
+  strict = false
+}) => csv => {
+  const o = {};
+
+  /* Sanitize csv as follows:
+
+    * '""' => ''
+    * '"""' => '<delim/>'
+    * '"foo;bar"' => '"foo<sep/>bar' */
+
+  const csv2 = csv
+    .trim()
+    .replaceAll(new RegExp(`(?<=${sep}|^)${delim}{2}(?=${sep}|$)`, "gmv"), "") 
+    .replaceAll(new RegExp(`${delim}{3}`, "gv"), "<delim/>") 
+    .replaceAll(new RegExp(
+      `((?:${sep}|^)${delim})([^${delim}\n]+)(${delim}(?:${sep}|$))`, "gmv"), (...args) => {
+        let s = args[2].replaceAll(new RegExp(sep, "g"), "<sep/>");
+        if (args[1].startsWith(sep)) s = sep + s;
+        if (args[3].endsWith(sep)) s += sep;
+        return s;
+      });
+
+  if (new RegExp(delim, "g").test(csv2)) throw new Err("malformed delimiter")
+
+  o.table = csv2
+    .replaceAll(/<delim\/>/g, delim)
+    .split(/\r?\n/)
+    .map(row => row.split(sep)
+      .map(col => col.replaceAll(/<sep\/>/g, sep))
+      .map(col => replace.reduce((acc, pair) =>
+        acc.replaceAll(pair[0], pair[1]), col)));
+
+  if (header) o.header = o.table.shift();
+
+  if (headings) {
+    o.headings = o.table.shift();
+
+    o.table.forEach((cols, i) => {
+      if (strict) {
+        if (cols.length < o.headings.length)
+          throw new Err(`missing separator @${i}`);
+
+        else if (strict && cols.length > o.headings.length)
+          throw new Err(`redundant separator @${i}`);
+      }
+
+      cols = cols.reduce((acc, col, i) => (acc[o.headings[i]] = col, acc), {});
+    });
+  }
+
+  else if (strict) {
+    o.table.forEach((cols, i) => {
+      if (cols.length !== o.table[0].length)
+        throw new Err(`missing separator @${i}`);
+
+      else if (cols.length !== o.table[0].length)
+        throw new Err(`missing separator @${i}`);
+    });
+  }
+
+  return o;
+};
+
+
+A.fromStr = s => s.split("");
+
+
+A.fromTable = xss => xss.flat();
+
+
+A.fromTableBy = f => xs => xs.reduce((acc, x) => f(acc) (x), []);
+
+
+//█████ Set Operations ████████████████████████████████████████████████████████
+
+
+A.dedupe = xs => Array.from(new Set(xs));
+
+
+// ignore duplicates 
+
+A.diff = xs => ys => {
+  const s = new Set(xs),
+    s2 = new Set(ys),
+    acc = new Set();
+
+  for (const x of s)
+    if (!s2.has(x)) acc.add(x);
+
+  for (const y of s2)
+    if (!s.has(y)) acc.add(y);
+
+  return Array.from(acc);
+};
+
+
+// left biased difference (ignores duplicates)
+
+A.diffl = xs => ys => {
+  const s = new Set(xs),
+    s2 = new Set(ys),
+    acc = [];
+
+  for (const x of s)
+    if (!s2.has(x)) acc.push(x);
+
+  return acc;
+};
+
+
+// ignores duplicates 
+
+A.intersect = xs => ys => {
+  const s = new Set(ys);
+
+  return Array.from(xs.reduce(
+    (acc, x) => s.has(x) ? acc.add(x) : acc, new Set()));
+};
+
+
+// ignores duplicates 
+
+A.union = xs => ys => Array.from(new Set(xs.concat(ys)));
+
+
+//█████ Subarrays █████████████████████████████████████████████████████████████
+
+
+// binary parition function
+
+A.partition = p => xs => xs.reduce((pair, x)=> {
+  if (p(x)) return (pair[0].push(x), pair);
+  else return (pair[1].push(x), pair);
+}, [[], []]);
+
+
+/* A more general partition function that allows dynamic key generation and
+value combination. */
+
+A.partitionBy = f => g => xs => xs.reduce((acc, x) => {
+  const k = f(x);
+  return acc.set(k, g(acc.has(k) ? acc.get(k) : null) (x));
+}, new Map());
+
+
+A.span = p => xs => {
+  const ys = [];
+
+  for (let i = 0; i < xs.length; i++) {
+    if (p(xs[i])) ys.push(xs[i]);
+    else break;
+  }
+
+  return [ys, xs.slice(ys.length)];
+};
+
+
+A.splitAt = p => xs => {
+  const yss = [];
+  let ys = [xs[0]];
+
+  for (let i = 1; i < xs.length; i++) {
+    const curr = xs[i], prev = xs[i - 1];
+
+    if (p(prev, curr)) ys.push(curr);
+    
+    else {
+      yss.push(ys);
+      ys = [curr];
+    }
+  }
+
+  if (ys.length > 0) yss.push(ys);
+  return yss;
+};
+
+
+//█████ Combinations, Subsets, Subsequences ███████████████████████████████████
+
+
+/* Group all overlapping, consecutive elements of a predefined length
+(subsequencing)*/
+
+A.consec = len => xs => {
+  const ys = [];
+
+  if (len > xs.length) return ys;
+
+  else for (let i = 0; i + len <= xs.length; i++)
+    ys.push(xs.slice(i, i + len));
+
+  return ys;
+};
+
+
+/* Group all overlapping, consecutive elements within a predefined range
+(subsequencing). */
+
+A.consecs = ({min, max}) => xs => {
+  let ys = [];
+  for (let i = min; i <= max; i++) ys = ys.concat(A.consec(i) (xs));
+  return ys;
+};
+
+
+A.powerset = ({min, max}) => xs => {
+  let xss = [[]];
+
+  for (const x of xs) {
+    const yss = [];
+
+    for (const ys of xss) yss.push(ys.concat(x));
+    xss.push.apply(xss, yss);
+    xss = xss.filter(s => s.length <= max);
+  }
+
+  return xss.filter(ys => ys.length >= min && ys.length <= max);
+};
+
+
+// powerset with pruning for numbers
+
+A.powersetNum = ({ min, max, sumThreshold }) => xs => {
+  let os = [{subset: [], sum: 0}],
+    ys = [];
+
+  if (min <= 0 && max >= 0 && 0 <= sumThreshold) ys.push([]);
+
+  for (const x of xs) {
+    const bound = os.length;
+
+    for (let i = 0; i < bound; i++) {
+      const o = os[i],
+        {subset, sum} = o,
+        len = subset.length + 1,
+        sum2 = sum + x;
+
+      if (len > max) continue; // prune
+      else if (sum2 > sumThreshold) continue; // prune
+
+      const subset2 = subset.concat(x);
+
+      os.push({subset: subset2, sum: sum2});
+      if (len >= min) ys.push(subset2);
+    }
+  }
+
+  return ys;
+};
+
+
+// cartesian product
+
+A.cartesian = xss => {
+  const acc = [[]];
+
+  return xss.reduce((acc2, xs) => {
+    if (xs.length === 0) return [];
+
+    const yss = [];
+
+    for (const ys of acc2) {
+      for (const element of xs) {
+        yss.push([...ys, element]);
+      }
+    }
+
+    return yss;
+  }, acc);
+};
+
+
+// permutations
+
+A.perms = xs => {
+  if (xs.length === 0) return [[]];
+  
+  else return xs.flatMap((x, i) =>
+    A.perms(xs.filter((y, j) => i !== j))
+      .map(ys => [x, ...ys]));
+};
+
+
+// transposition
+
+A.transpose = xss => {
+  return xss.reduce((acc, xs) => {
+    return xs.map((x, i) => {
+      const ys = acc[i] || [];
+      return (ys.push(x), ys);
+    });
+  }, []);
+};
+
+
+//█████ Zipping ███████████████████████████████████████████████████████████████
+
+A.zip = xs => ys => {
+  const len = Math.min(xs.length, ys.length), acc = [];
+  for (let i = 0; i < len; i++) acc.push([xs[i], ys[i]]);
+  return acc;
+};
+
+
+A.zipWith = f => xs => ys => {
+  const len = Math.min(xs.length, ys.length), acc = [];
+  for (let i = 0; i < len; i++) acc.push(f(xs[i], ys[i]));
+  return acc;
+};
+
+
+A.unzip = A.foldl(([xs, ys], [x, y]) =>
+  [(xs.push(x), xs), (ys.push(y), ys)]) ([[], []]);
+
+
+A.unzipWith = f => A.foldl((acc, [x, y]) => (acc.push(f(x, y)), acc)) ([]);
+
+
+//█████ Recursion Schemes █████████████████████████████████████████████████████
 
 
 /* Paramorphism: fold by holding a reference to the respective rest of the
@@ -1552,395 +1967,6 @@ A.histo = f => init => xs => {
 
   return ys[0];
 };
-
-
-// binary parition function
-
-A.partition = p => xs => xs.reduce((pair, x)=> {
-  if (p(x)) return (pair[0].push(x), pair);
-  else return (pair[1].push(x), pair);
-}, [[], []]);
-
-
-/* A more general partition function that allows dynamic key generation and
-value combination. */
-
-A.partitionBy = f => g => xs => xs.reduce((acc, x) => {
-  const k = f(x);
-  return acc.set(k, g(acc.has(k) ? acc.get(k) : null) (x));
-}, new Map());
-
-
-A.span = p => xs => {
-  const ys = [];
-
-  for (let i = 0; i < xs.length; i++) {
-    if (p(xs[i])) ys.push(xs[i]);
-    else break;
-  }
-
-  return [ys, xs.slice(ys.length)];
-};
-
-
-// use native slice for take
-
-A.takeWhile = p => xs => Loop2((acc, i) => {
-  if (i === xs.length) return Loop2.Base(acc);
-  else return p(xs[i]) ? Loop2.Rec((acc.push(xs[i]), acc), i + 1) : Loop2.Base(acc);
-}) ([], 0);
-
-
-// use native slice for drop
-
-A.dropWhile = p => xs => Loop2((acc, i) => {
-  if (i === xs.length) return Loop2.Base(acc);
-  else return p(xs[i]) ? Loop2.Rec(acc, i + 1) : Loop2.Base(xs.slice(i));
-}) ([], 0);
-
-
-/* Group all consecutive elements by applying a predicate to each element.
-If the predicate succeeds the element is pushed onto the current subgroup,
-otherwise a new subgroup is created. */
-
-A.groupBy = p => xs => Loop2((acc, i) => {
-  if (i >= xs.length) return Loop2.Base(acc);
-  if (acc.length === 0) acc.push([xs[0]]);
-
-  if (p(xs[i])) {
-    acc[acc.length - 1].push(xs[i]);
-    return Loop2.Rec(acc, i + 1);
-  }
-  
-  else {
-    acc.push([xs[i]]);
-    return Loop2.Rec(acc, i + 1);
-  }
-}) ([], 1);
-
-
-// zipping
-
-A.zip = xs => ys => {
-  const len = Math.min(xs.length, ys.length), acc = [];
-  for (let i = 0; i < len; i++) acc.push([xs[i], ys[i]]);
-  return acc;
-};
-
-
-A.zipWith = f => xs => ys => {
-  const len = Math.min(xs.length, ys.length), acc = [];
-  for (let i = 0; i < len; i++) acc.push(f(xs[i], ys[i]));
-  return acc;
-};
-
-
-A.unzip = A.foldl(([xs, ys], [x, y]) =>
-  [(xs.push(x), xs), (ys.push(y), ys)]) ([[], []]);
-
-
-A.unzipWith = f => A.foldl((acc, [x, y]) => (acc.push(f(x, y)), acc)) ([]);
-
-
-// entries is the default iterable
-
-A.keys = function* (m) {
-  for (let [k] of m) {
-    yield k;
-  }
-};
-
-
-A.values = function* (m) {
-  for (let [, v] in m) {
-    yield v;
-  }
-};
-
-
-//█████ Set Operations ████████████████████████████████████████████████████████
-
-
-A.dedupe = xs => Array.from(new Set(xs));
-
-
-// ignore duplicates 
-
-A.diff = xs => ys => {
-  const s = new Set(xs),
-    s2 = new Set(ys),
-    acc = new Set();
-
-  for (const x of s)
-    if (!s2.has(x)) acc.add(x);
-
-  for (const y of s2)
-    if (!s.has(y)) acc.add(y);
-
-  return Array.from(acc);
-};
-
-
-// left biased difference (ignores duplicates)
-
-A.diffl = xs => ys => {
-  const s = new Set(xs),
-    s2 = new Set(ys),
-    acc = [];
-
-  for (const x of s)
-    if (!s2.has(x)) acc.push(x);
-
-  return acc;
-};
-
-
-// ignores duplicates 
-
-A.intersect = xs => ys => {
-  const s = new Set(ys);
-
-  return Array.from(xs.reduce(
-    (acc, x) => s.has(x) ? acc.add(x) : acc, new Set()));
-};
-
-
-// ignores duplicates 
-
-A.union = xs => ys => Array.from(new Set(xs.concat(ys)));
-
-
-//█████ Subarrays █████████████████████████████████████████████████████████████
-
-
-// group all overlapping, consecutive elements of a predefined length
-
-A.consec = len => xs => {
-  const ys = [];
-
-  if (len > xs.length) return ys;
-
-  else for (let i = 0; i + len <= xs.length; i++)
-    ys.push(xs.slice(i, i + len));
-
-  return ys;
-};
-
-
-// group all overlapping, consecutive elements within a predefined range
-
-A.consecs = ({min, max}) => xs => {
-  let ys = [];
-  for (let i = min; i <= max; i++) ys = ys.concat(A.consec(i) (xs));
-  return ys;
-};
-
-
-/* Collect all subsequences including those with index gaps. Since for the
-general type [a] there is no effective pruning, the algorithm becomes slow very
-quickly. In this case, you can implement a version for a specialized type that
-relies on pruning like the version for [Number] below. */
-
-A.powerset = ({min, max}) => xs => {
-  let xss = [[]];
-
-  for (const x of xs) {
-    const yss = [];
-
-    for (const ys of xss) yss.push(ys.concat(x));
-    xss.push.apply(xss, yss);
-    xss = xss.filter(s => s.length <= max);
-  }
-
-  return xss.filter(ys => ys.length >= min && ys.length <= max);
-};
-
-
-// specialized pruned powerset
-
-A.powersetNum = ({ min, max, sumThreshold }) => xs => {
-  let os = [{subset: [], sum: 0}],
-    ys = [];
-
-  if (min <= 0 && max >= 0 && 0 <= sumThreshold) ys.push([]);
-
-  for (const x of xs) {
-    const bound = os.length;
-
-    for (let i = 0; i < bound; i++) {
-      const o = os[i],
-        {subset, sum} = o,
-        len = subset.length + 1,
-        sum2 = sum + x;
-
-      if (len > max) continue; // prune
-      else if (sum2 > sumThreshold) continue; // prune
-
-      const subset2 = subset.concat(x);
-
-      os.push({subset: subset2, sum: sum2});
-      if (len >= min) ys.push(subset2);
-    }
-  }
-
-  return ys;
-};
-
-
-// determine all permutations (only use with very constrained arrays)
-
-A.perms = xs => {
-  if (xs.length === 0) return [[]];
-  
-  else return xs.flatMap((x, i) =>
-    A.perms(xs.filter((y, j) => i !== j))
-      .map(ys => [x, ...ys]));
-};
-
-
-A.transpose = xss => {
-  return xss.reduce((acc, xs) => {
-    return xs.map((x, i) => {
-      const ys = acc[i] || [];
-      return (ys.push(x), ys);
-    });
-  }, []);
-};
-
-
-//█████ Conversion ████████████████████████████████████████████████████████████
-
-
-A.It = {};
-
-
-A.It.fromEntries = ix => {
-  const xs = [];
-  for (const pair of ix) xs.push(pair);
-  return xs;
-};
-
-
-A.It.fromKeys = ix => {
-  const xs = [];
-  for (const [k] of ix) xs.push(k);
-  return xs;
-};
-
-
-A.It.fromValues = ix => {
-  const xs = [];
-  for (const [, v] of ix) xs.push(v);
-  return xs;
-};
-
-
-A.Ait = {};
-
-
-A.Ait.fromEntries = () => comp(Cont.fromPromise) (async function (ix) {
-  const xs = [];
-  for await (const pair of ix) xs.push(pair);
-  return xs;
-});
-
-
-A.Ait.fromKeys = () => comp(Cont.fromPromise) (async function (ix) {
-  const xs = [];
-  for await (const [k] of ix) xs.push(k);
-  return xs;
-});
-
-
-A.Ait.fromValues = () => comp(Cont.fromPromise) (async function (ix) {
-  const xs = [];
-  for await (const [, v] of ix) xs.push(v);
-  return xs;
-});
-
-
-/* Parse csv data with and without headings. Consider an optional header for
-additional, file-wide meta data. Consecutive double or triple delimiters are
-considered as escaped and thus part of the content, not the syntax. Separators
-within delimiters are alos considered as part of the content, not the syntax. */
-
-A.fromCsv = ({
-  sep = ";",
-  delim = '"',
-  header = false,
-  headings = false,
-  replace = [/* [RegExp, String] */],
-  strict = false
-}) => csv => {
-  const o = {};
-
-  /* Sanitize csv as follows:
-
-    * '""' => ''
-    * '"""' => '<delim/>'
-    * '"foo;bar"' => '"foo<sep/>bar' */
-
-  const csv2 = csv
-    .trim()
-    .replaceAll(new RegExp(`(?<=${sep}|^)${delim}{2}(?=${sep}|$)`, "gmv"), "") 
-    .replaceAll(new RegExp(`${delim}{3}`, "gv"), "<delim/>") 
-    .replaceAll(new RegExp(
-      `((?:${sep}|^)${delim})([^${delim}\n]+)(${delim}(?:${sep}|$))`, "gmv"), (...args) => {
-        let s = args[2].replaceAll(new RegExp(sep, "g"), "<sep/>");
-        if (args[1].startsWith(sep)) s = sep + s;
-        if (args[3].endsWith(sep)) s += sep;
-        return s;
-      });
-
-  if (new RegExp(delim, "g").test(csv2)) throw new Err("malformed delimiter")
-
-  o.table = csv2
-    .replaceAll(/<delim\/>/g, delim)
-    .split(/\r?\n/)
-    .map(row => row.split(sep)
-      .map(col => col.replaceAll(/<sep\/>/g, sep))
-      .map(col => replace.reduce((acc, pair) =>
-        acc.replaceAll(pair[0], pair[1]), col)));
-
-  if (header) o.header = o.table.shift();
-
-  if (headings) {
-    o.headings = o.table.shift();
-
-    o.table.forEach((cols, i) => {
-      if (strict) {
-        if (cols.length < o.headings.length)
-          throw new Err(`missing separator @${i}`);
-
-        else if (strict && cols.length > o.headings.length)
-          throw new Err(`redundant separator @${i}`);
-      }
-
-      cols = cols.reduce((acc, col, i) => (acc[o.headings[i]] = col, acc), {});
-    });
-  }
-
-  else if (strict) {
-    o.table.forEach((cols, i) => {
-      if (cols.length !== o.table[0].length)
-        throw new Err(`missing separator @${i}`);
-
-      else if (cols.length !== o.table[0].length)
-        throw new Err(`missing separator @${i}`);
-    });
-  }
-
-  return o;
-};
-
-
-A.fromStr = s => s.split("");
-
-
-A.fromTable = xss => xss.flat();
-
-
-A.fromTableBy = f => xs => xs.reduce((acc, x) => f(acc) (x), []);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -6368,556 +6394,177 @@ Str.Diff.keyb = new Map([
 ]);
 
 
-/* Evaluate the difference between two numbers. The algorithm doesn't cover the
-following cases:
+// retrieves the differences between two strings (meant for word-like strings)
 
-  * number/letter confusion (e.g. oo123 instead of 00123)
-  * unexpected structure (e.g. 123-456 instead of 123456) */
+Str.Diff.retrieve = l => r => {
+  const findBest = (il, ir) => {
+    if (il === l.length) return {length: 0, gaps: 0, sequence: []};
 
-Str.Diff.nums = l => r => {
-  let score = 0;
+    const memo = new Map(), o = {}, xs = [...new Set(l)];
+    
+    for (const c of xs) {
+      const c2 = c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+        rx = new RegExp(c2, "gdiu");
 
-  // too long
-
-  if (l.length > r.length) {
-    let offset = 0, s = "";
-
-    for (let i = 0; i < r.length; i++) {
-      if (l[i + offset] === r[i]) s += l[i + offset];
-      else if (l[i + offset - 1] !== l[i + offset]) continue;
-      else (score++, offset++, i--);
+      o[c.toLowerCase()] = Rex.matchAll_(rx) (r);
     }
 
-    return {score, valid: s === r};
-  }
+    const memoKey = `${il},${ir}`;
+    if (memo.has(memoKey)) return memo.get(memoKey);
 
-  // too short
+    const c = l[il].toLowerCase(),
+      matches = o[c] || [];
+    
+    let bestMatch = {length: -1, gaps: Infinity, sequence: []};
 
-  else if (l.length < r.length) {
-    let offset = 0, s = "";
+    for (const match of matches) {
+      const i = match.indices
+        ? match.indices[0][0]
+        : match.index;
 
-    for (let i = 0; i < r.length; i++) {
-      if (l[i + offset] === r[i]) s += r[i];
-      else if (r[i - 1] !== r[i]) continue;
-      else (s += r[i], score++, offset--);
+      if (i > ir) {
+        const o = findBest(il + 1, i);
+
+        if (o.length !== -1) {
+          const gap = Math.max(0, i - ir - 1),
+            gaps = gap + o.gaps,
+            length = 1 + o.length,
+            sequence = [match, ...o.sequence];
+
+          const candidate = {length, gaps, sequence};
+
+          if (Str.Diff.compareCandidates(candidate, bestMatch) < 0)
+            bestMatch = candidate;
+        }
+      }
     }
 
-    return {score, valid: s === r};
-  }
+    const skipResult = findBest(il + 1, ir);
+    let finalResult;
 
-  // flipped digits
+    if (bestMatch.length === -1 && skipResult.length === -1)
+      finalResult = {length: -1, gaps: Infinity, sequence: []};
 
-  else {
-    let s = "";
+    else if (bestMatch.length === -1) finalResult = skipResult;
+    else if (skipResult.length === -1) finalResult = bestMatch;
+    
+    else finalResult = Str.Diff.compareCandidates(bestMatch, skipResult) <= 0
+      ? bestMatch
+      : skipResult;
 
-    for (let i = 0; i < r.length; i++) {
-      if (l[i] === r[i]) s += r[i];
-      
-      else if (l[i + 1] === r[i] && l[i] === r[i + 1])
-        (s += r[i], s += r[i + 1], i++, score += 2);
+    memo.set(memoKey, finalResult);
+    return finalResult;
+  };
 
-      else score++;
-    }
+  const seq = findBest(0, -1);
 
-    return {score, valid: s === r};
-  }
-};
-
-
-/* Determine all shared letters while preserving their order for two word-like
-strings, i.e. strings without spaces or newlines:
+  if (seq.length <= 0) return [];
   
-  "rethoric" = "rhetoric"
-  left difference:  [{s: "h", i: 3}]
-  right difference: [{s: "h", i: 1}]
-
-  "Getisburger" = "Gettysburg"
-  left difference:  [{s: "ty", i: 3}]
-  right difference: [{s: "i", i: 3}, {s: "er", i: 10}]
-
-The first argument is supposed to be the "left", possibly incorrect string,
-whereas the second one should be the "right" string used as a benchmark. */
-
-Str.Diff.words = l => r => {
-  const s = l.length <= r.length ? l : r,
-    t = l.length <= r.length ? r : l,
-    s_ = s.toLowerCase(),
-    t_ = t.toLowerCase(),
-    offset = t.length - s.length;
-
-  const o = diffWords(s_, t_);
-
-  if (t.length - o.indices.length <= t.length / 3) return o;
-
-  const o2 = offset < 2
-    ? diffWords(t_, " " + s_ + " ")
-    : diffWords(" " + s_ + " ", t_);
-
-  const o3 = diffWords(s_, " " + t_ + " ");
-  let o4;
-
-  if (o.indices.length >= o2.indices.length) {
-    if (o.indices.length >= o3.indices.length) o4 = o;
-    else o4 = o3;
-  }
-
-  else if (o2.indices.length >= o3.indices.length) o4 = o2;
-  else o4 = o3;
-
-  // reconstruct original casing
-
-  o4.left.diff = {
-    ci: o4.left.diff,
-    
-    cs: o4.left.diff.map(p =>
-      Object.assign({}, p, {s: s.slice(p.i, p.i + p.s.length)}))
-  };
-
-  o4.right.diff = {
-    ci: o4.right.diff,
-    
-    cs: o4.right.diff.map(p =>
-      Object.assign({}, p, {s: t.slice(p.i, p.i + p.s.length)}))
-  };
-
-  o4.left.s = s;
-  o4.right.s = t;
-
-  // detect potential casing deviations
-
-  for (const [i, j] of o4.indices) {
-    if (o4.left.s[i] !== o4.right.s[j]) {
-      if (o4.left.diff.cs.length) {
-        const last = o4.left.diff.cs[o4.left.diff.cs.length - 1];
-        if (i - last.i === last.s.length) last.s += o4.left.s[i];
-        else o4.left.diff.cs.push({s: o4.left.s[i], i});
-      }
-
-      else o4.left.diff.cs.push({s: o4.left.s[i], i});
-       
-      if (o4.right.diff.cs.length) {
-        const last = o4.right.diff.cs[o4.right.diff.cs.length - 1];
-        if (j - last.i === last.s.length) last.s += o4.right.s[j];
-        else o4.right.diff.cs.push({s: o4.right.s[j], i: j});
-      }
-
-      else o4.right.diff.cs.push({s: o4.right.s[j], i: j});
-
-      o4.indices.delete(i);
-    }
-  }
-
-  // necessary to preserve original argument order
-
-  if (o4.right.s !== r) {
-    const p = o4.left;
-    o4.left = o4.right;
-    o4.right = p;
-    
-    const m = new Map();
-    for (const pair of o4.indices) m.set(pair[1], pair[0]);
-    o4.indices = m;
-  }
-
-  return o4;
-};
-
-
-/* Determine the difference between two tokens, i.e. strings without spaces or
-newlines. */
-
-const diffWords = (s, t) => {
-  const offset = t.length - s.length,
-    offs = s[0] === " " ? 1 : 0,
-    offt = t[0] === " " ? 1 : 0,
-    pairs = [];
-
-  for (let j = 0; j <= offset; j++) {
-    for (let i = 0; i < s.length; i++) {
-      if (s[i] === t[i + j]) pairs.push([i - offs, i + j - offt]);
-    }
-  }
-
-  if (offs) s = s.slice(1, -1);
-  else if (offt) t = t.slice(1, -1);
-
-  pairs.sort((pair, pair2) => pair[0] - pair2[0]);
-
-  const m = new Map();
-  let max = -1;
-
-  for (const pair of pairs) {
-    if (m.has(pair[0])) continue;
-    else if (max >= pair[1]) continue;
-
-    else {
-      m.set(pair[0], pair[1]);
-      max = pair[1];
-    }
-  }
-
-  const indices = Array.from(m);
-
-  const left = [], right = [];
-  let maxl = 0, maxr = 0;
-
-  for (const pair of indices) {
-    if (pair[0] !== maxl) {
-      let buf = "";
-      for (let i = maxl; i < pair[0]; i++) buf += s[i];
-      left.push({s: buf, i: maxl});
-      maxl = pair[0];
-    }
-
-    if (pair[1] !== maxr) {
-      let buf = "";
-      for (let i = maxr; i < pair[1]; i++) buf += t[i];
-      right.push({s: buf, i: maxr});
-      maxr = pair[1];
-    }
-
-    maxl++;
-    maxr++;
-  }
-
-  if (indices.length === 0) {
-    left.push({s, i: 0});
-    right.push({s, i: 0});
-  }
-
   else {
-    const last = indices[indices.length - 1];
+    const right = Str.Diff.storeRight(r, seq),
+      left = Str.Diff.storeLeft(l, right);
 
-    if (last[0] + 1 < s.length) {
-      left.push({
-        s: s.slice(last[0] + 1),
-        i: last[0] + 1
-      });
-    }
-
-    if (last[1] + 1 < t.length) {
-      right.push({
-        s: t.slice(last[1] + 1),
-        i: last[1] + 1
-      });
-    }
+    return {left, right};
   }
-
-  return {
-    indices: m,
-    left: {s, diff: left},
-    right: {s: t, diff: right}
-  };
 };
 
 
-/* Quantify the difference between two tokens. As a rule of thumb, a score <1
-represents a soft typo whereas bigger scores are considered hard errors. */
+Str.Diff.compareCandidates = (o, p) => {
+  if (o.length !== p.length) return p.length - o.length;
+  else if (o.gaps !== p.gaps) return o.gaps - p.gaps;
+  return 0;
+};
 
-// TODO: consider OCR and keyboard errors
 
-Str.Diff.eval = o => {
-  const ls = o.left.diff.ci.slice(),
-    rs = o.right.diff.ci.slice(),
-    left = o.left,
-    right = o.right;
+Str.Diff.storeLeft = (l, right) => {debugger;
+  const matches = [], mismatches = [];
 
-  const desc = [];
-  let score = 0;
+  for (let i = 0, j = 0; i < l.length; i++) {
+    if (j < right.matches.length) {
+      const match = right.matches[j++];
 
-  while (ls.length || rs.length) {
+      if (l[i] === match.char) matches.push({
+        char: l[i],
+        index: i
+      });
 
-    // left partial ("zur Zeit" instead of "zurzeit")
-
-    if (right.s.slice(-left.s.length).toLowerCase() === left.s.toLowerCase()) {
-        if (right.s.slice(-left.s.length) === left.s) {
-          desc.push("partiality");
-          score += 1;
-        }
-
-        else {
-          desc.push("partiality");
-          score += 1.25;
-        }
-
-        ls.length = 0;
-        rs.length = 0;
-        continue;
-    }
-
-    // left partial ("Ort" instead of "Ortstermin")
-
-    if (right.s.slice(0, left.s.length).toLowerCase() === left.s.toLowerCase()) {
-        if (right.s.slice(0, left.s.length) === left.s) {
-          desc.push("partiality");
-          score += 1;
-        }
-
-        else {
-          desc.push("partiality");
-          score += 1.25;
-        }
-
-        ls.length = 0;
-        rs.length = 0;
-        continue;
-    }
-
-    // right partial ("vorort" instead of "vor Ort")
-
-    if (left.s.slice(-right.s.length).toLowerCase() === right.s.toLowerCase()) {
-        if (left.s.slice(-right.s.length) === right.s) {
-          desc.push("partiality");
-          score += 1;
-        }
-
-        else {
-          desc.push("partiality");
-          score += 1.25;
-        }
-
-        ls.length = 0;
-        rs.length = 0;
-        continue;
-    }
-
-    // right partial ("Zeitreise" instead of "Zeit")
-
-    if (left.s.slice(0, right.s.length).toLowerCase() === right.s.toLowerCase()) {
-        if (left.s.slice(0, right.s.length) === right.s) {
-          desc.push("partiality");
-          score += 1;
-        }
-
-        else {
-          desc.push("partiality");
-          score += 1.25;
-        }
-
-        ls.length = 0;
-        rs.length = 0;
-        continue;
-    }
-
-    // LEFT AND RIGHT
-
-    if (ls.length && rs.length) {
-      const l = ls[0], r = rs[0];
-
-      // equivalent ("Mueller" instead of "Müller")
-
-      if (Str.Diff.equivalence.has(l.s[0])
-        && r.s.startsWith(Str.Diff.equivalence.get(l.s[0]))) {
-          desc.push("equivalence");
-          score += 0.25;
-          r.s = r.s.slice(Str.Diff.equivalence.get(l.s[0]).length);
-          l.s = ls.slice(1);
-          if (l.s.length === 0) ls.shift();
-          if (r.s.length === 0) rs.shift();
-          continue;
-      }
-
-      if (Str.Diff.equivalence.has(r.s[0])
-        && l.s.startsWith(Str.Diff.equivalence.get(r.s[0]))) {
-          desc.push("equivalence");
-          score += 0.25;
-          l.s = l.s.slice(Str.Diff.equivalence.get(r.s[0]).length);
-          r.s = r.s.slice(1);
-          if (l.s.length === 0) ls.shift();
-          if (r.s.length === 0) rs.shift();
-          continue;
-      }
-
-      // case-related ("des weiteren" instead of "des Weiteren")
-
-      if (l.s[0].toLowerCase() === r.s[0].toLowerCase()
-        && l.s[0] !== r.s[0]) {
-          desc.push("casing");
-          score += 0.25;
-          l.s = l.s.slice(1);
-          r.s = r.s.slice(1);
-          if (l.s.length === 0) ls.shift();
-          if (r.s.length === 0) rs.shift();
-          continue;
-      }
-
-      // modified ("Cafe" instead of "Café")
-
-      if (Str.modifier.has(l.s[0])
-        && Str.modifier.get(l.s[0]) === r.s[0]) {
-          desc.push("modifier");
-          score += 0.25;
-          l.s = l.s.slice(1);
-          r.s = r.s.slice(1);
-          if (l.s.length === 0) ls.shift();
-          if (r.s.length === 0) rs.shift();
-          continue;
-      }
-
-      if (Str.modifier.has(r.s[0])
-        && Str.modifier.get(r.s[0]) === l.s[0]) {
-          desc.push("modifier");
-          score += 0.25;
-          l.s = l.s.slice(1);
-          r.s = r.s.slice(1);
-          if (l.s.length === 0) ls.shift();
-          if (r.s.length === 0) rs.shift();
-          continue;
-      }
-
-      // swapped-case (Bürste instead of Brüste)
-
-      if (l.s[0] === r.s[0] && abs(l.i - r.i) === 1) {
-        desc.push("swap");
-        score += 0.25;
-        l.s = l.s.slice(1);
-        r.s = r.s.slice(1);
-        if (l.s.length === 0) ls.shift();
-        if (r.s.length === 0) rs.shift();
-        continue;
-      }
-
-      // phonetic ("Elefant" instead of "Elephant")
-
-      if (Str.Diff.phonetics.has(l.s[0])
-        && Str.Diff.phonetics.get(l.s[0]).some(s => r.s.startsWith(s))) {
-          desc.push("phonetics");
-          score += 0.5;
-
-          Str.Diff.phonetics.get(l.s[0]).some(s => {
-            if (r.s.startsWith(s)) r.s = r.s.slice(s.length);
+      else {
+        while (true) {
+          mismatches.push({
+            char: l[i],
+            index: i
           });
 
-          l.s = l.s.slice(1);
-          if (l.s.length === 0) ls.shift();
-          if (r.s.length === 0) rs.shift();
-          continue;
-      }
+          if (new RegExp(l[++i], "i").test(match.char)) break;
+        }
 
-      // phonetic ("Elepfant" instead of "Elefant")
-
-      if (Str.Diff.phonetics2.has(l.s.slice(0, 2))
-        && Str.Diff.phonetics2.get(l.s.slice(0, 2)).includes(r.s)) {
-          desc.push("phonetics");
-          score += 0.5;
-          l.s = l.s.slice(2);
-          r.s = r.s.slice(1);
-          if (l.s.length === 0) ls.shift();
-          if (r.s.length === 0) rs.shift();
-          continue;
+        matches.push({
+          char: l[i],
+          index: i
+        });
       }
     }
 
-    // LEFT
-
-    if (ls.length) {
-      const l = ls[0];
-
-      // repetitive ("Büffett" instead of "Büfett")
-
-      if (Str.Diff.repetition.has(l.s[0])
-        && (l.s[0] === left.s[l.i - 1] || l.s[0] === left.s[l.i + 1])
-        && (l.s[0] === right.s[l.i - 1] || l.s[0] === right.s[l.i + 1])) {
-          desc.push("repetition");
-          score += 0.5;
-          l.s = l.s.slice(1);
-          if (l.s.length === 0) ls.shift();
-          continue;
-      }
-
-      // phonetic ("nähmlich" instead of "nämlich")
-
-      if (Str.Diff.phonetics2.has(left.s[l.i - 1] + l.s[0])) {
-        desc.push("phonetics");
-        score += 0.5;
-        l.s = l.s.slice(1);
-        if (l.s.length === 0) ls.shift();
-        continue;
-      }
-
-      if (Str.Diff.phonetics2.has(l.s[0] + left.s[l.i + 1])) {
-        desc.push("phonetics");
-        score += 0.5;
-        l.s = l.s.slice(1);
-        if (l.s.length === 0) ls.shift();
-        continue;
-      }
-
-      // abbreviation ("v.l.g." instead of "vlg.")
-
-      if (l.s === ".") {
-        desc.push("period");
-        score += 0.25;
-        ls.shift();
-        continue;
-      }
-
-      desc.push("error");
-      score += 1;
-      l.s = l.s.slice(1);
-      if (l.s.length === 0) ls.shift();
-    }
-
-    // RIGHT
-
-    if (rs.length) {
-      const r = rs[0];
-
-      // repetitive ("Aparat" instead of "Apparat")
-
-      if (Str.Diff.repetition.has(r.s[0])
-        && (r.s[0] === right.s[r.i - 1] || r.s[0] === right.s[r.i + 1])
-        && (r.s[0] === left.s[r.i - 1] || r.s[0] === left.s[r.i + 1])) {
-          desc.push("repetition");
-          score += 0.5;
-          r.s = r.s.slice(1);
-          if (r.s.length === 0) rs.shift();
-          continue;
-      }
-
-      // phonetic ("war" instead of "wahr")
-
-      if (Str.Diff.phonetics2.has(right.s[r.i - 1] + r.s[0])) {
-        desc.push("phonetics");
-        score += 0.5;
-        r.s = r.s.slice(1);
-        if (r.s.length === 0) rs.shift();
-        continue;
-      }
-
-      if (Str.Diff.phonetics2.has(r.s[0] + right.s[r.i + 1])) {
-        desc.push("phonetics");
-        score += 0.5;
-        r.s = r.s.slice(1);
-        if (r.s.length === 0) rs.shift();
-        continue;
-      }
-
-      // abbreviation ("v.l.g." instead of "vlg.")
-
-      if (r.s === ".") {
-        desc.push("period");
-        score += 0.25;
-        rs.shift();
-        continue;
-      }
-
-      desc.push("error");
-      score += 1;
-      r.s = r.s.slice(1);
-      if (r.s.length === 0) rs.shift();
-    }
+    else mismatches.push({
+      char: l[i],
+      index: i
+    });
   }
 
-  // consolidate casing deviations
-
-  const n = desc.reduce((acc, s) =>
-    s === "casing" ? acc + 1 : acc, 0);
-
-  if (n > 1) score -= 0.25 * (n - 1);
-
-  return {desc: Array.from(new Set(desc)), score};
+  return {matches, mismatches};
 };
+
+
+Str.Diff.storeRight = (r, seq) => {debugger;
+  const matches = [], mismatches = [];
+
+  for (let i = 0, j = 0, k = 0; i < r.length; i++) {
+    if (k < seq.sequence.length) {
+      const match = seq.sequence[k++];
+
+      if (j === match.index) {
+        matches.push({
+          char: r[j],
+          index: j
+        });
+
+        j++;
+      }
+
+      else if (j < match.index) {
+         while (true) {
+          mismatches.push({
+            char: r[j],
+            index: j
+          });
+
+          if (++j === match.index) {
+            i = j;
+            break;
+          }
+        }
+
+        matches.push({
+          char: r[j],
+          index: j
+        });
+
+        j++;
+      }
+
+      else throw new Err("invalid index");
+    }
+
+    else mismatches.push({
+      char: r[i],
+      index: i
+    });
+  }
+
+  return {matches, mismatches};
+};
+
+
 
 
 //█████ Distance ██████████████████████████████████████████████████████████████
@@ -8430,6 +8077,61 @@ Val.not = f => x => {
 
 
 export const Alg = {};
+
+/* TODO
+
+1.  **Vectors:**
+2.  **Matrices:**
+3.  **Vector Spaces:**
+4.  **Linear Independence & Span:**
+5.  **Basis:**
+6.  **Matrix Multiplication (and Vector-Matrix, Matrix-Vector):**
+7.  **Element-wise Operations (Hadamard Product):**
+8.  **Transpose:**
+9.  **Dot Product (Inner Product):**
+10. **Normed Vector Spaces (Norms):**
+      **L1 Norm (Manhattan):** Used in LASSO regularization for sparsity, feature selection.
+      **L2 Norm (Euclidean):** Used in Ridge regularization, standard distance metric, loss functions (MSE).
+      **Frobenius Norm:** Matrix norm used in regularization, matrix factorization objectives.
+11. **Inner Product Spaces:**
+      **Projections:** Projecting data onto lower-dimensional subspaces (PCA, Linear Regression).
+      **Orthogonality:** Finding uncorrelated bases (PCA), simplifying calculations. Used in QR decomposition, Gram-Schmidt.
+      **Kernel Methods (SVMs):** Kernels often implicitly compute inner products in high-dimensional spaces.
+12. **Orthogonality / Orthonormal Bases:**
+13. **Systems of Linear Equations (Ax = b):**
+14. **Linear Least Squares:**
+15. **Matrix Inverse:**
+16. **Pseudo-inverse (Moore-Penrose):**
+17. **Eigenvalue Decomposition (EVD) (for square matrices):**
+      **Principal Component Analysis (PCA):** Eigenvalues/eigenvectors of the covariance matrix reveal directions of maximum variance (principal components).
+      **Eigenvalues:** Scalars representing scaling factors.
+      **Eigenvectors:** Vectors remaining in the same direction after transformation (scaled by eigenvalue).
+      **Eigenspace:** The space spanned by eigenvectors corresponding to the same eigenvalue.
+18. **Singular Value Decomposition (SVD) (for any matrix):**
+      **PCA Implementation:** Can be computed via SVD of the data matrix.
+      **Dimensionality Reduction / Matrix Approximation:** Low-rank approximation by keeping top singular values/vectors.
+      **Calculating Pseudo-inverse.**
+      **Latent Semantic Analysis (LSA)** in NLP.
+      **Recommender systems (matrix factorization).
+19. **QR Decomposition / Factorization:**
+      **Gram–Schmidt Process:** A method to compute QR, conceptually important for understanding orthogonalization (though modified versions are often used for stability).
+      **Householder Transformation:** A numerically stable method (reflections) used to compute QR decomposition.
+20. **Cholesky Decomposition (for positive definite symmetric matrices):**
+21. **Positive Definite / Semidefinite Matrices:**
+22. **Tensors:**
+23. **Tensor Algebra:**
+24. **Outer Product:**
+25. **Woodbury Matrix Identity:**
+
+**Concepts Less Directly Emphasized in Typical ML Applications:**
+
+ignore:
+
+* Matrix Equivalence/Congruence/Similarity/Consimilarity
+* Row Echelon Form / Elementary Row Operations
+* Determinant
+* Topological Vector Space, Pseudo-Euclidean Space, Orientation, Symplectic Structure
+*/
 
 
 /*█████████████████████████████████████████████████████████████████████████████
