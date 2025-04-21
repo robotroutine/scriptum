@@ -2043,16 +2043,7 @@ export const Cont = resume => ({
 //█████ Algebraic █████████████████████████████████████████████████████████████
 
 
-Cont.map = f => o => Cont((res, rej) => {
-  o.resume(
-    x => {
-      try {res(f(x))}
-      catch (e) {rej(e)}
-    },
-
-    rej
-  )
-});
+Cont.map = f => o => Cont.chain(o) (x => Cont.of(f(x)));
 
 
 Cont.mapEff = x => Cont.map(_ => x);
@@ -2125,7 +2116,10 @@ Cont.Ser.and = o => p => Cont.chain(o) (x =>
     Cont.of([x, y])));
 
 
-Cont.Ser.allArr = xs => {
+Cont.Ser.All = {};
+
+
+Cont.Ser.All.arr = xs => {
   return xs.reduce((acc, o) => {
     return Cont.chain(acc) (ys => {
       return Cont.chain(o) (x => {
@@ -2134,6 +2128,18 @@ Cont.Ser.allArr = xs => {
       });
     });
   }, Cont.of([]));
+};
+
+
+Cont.Ser.All.obj = o => {
+  return Object.keys(o).reduce((acc, key) => {
+    return Cont.chain(acc) (p => {
+      return Cont.chain(o[key]) (x => {
+        p[key] = x;
+        return Cont.of(p);
+      });
+    });
+  }, Cont.of({}));
 };
 
 
@@ -2176,8 +2182,36 @@ Cont.Par.and = o => p => Cont((res, rej) => {
 });
 
 
+Cont.Par.andRace = o => p => Cont((res, rej) => {
+  let done = false;
+
+  scheduler(() => {
+    [o, p].map((q, j) => {
+      q.resume(
+        x => {
+          if (!done) {
+            done = true;
+            try {res(x)}
+            catch (e) {rej(e)}
+          }
+        },
+
+        rej
+      )
+    });
+  });
+});
+
+
 Cont.Par.all = xs => xs.reduce((acc, o) =>
   Cont.map(pair => pair.flat()) (Cont.Par.and(acc) (o)), Cont.of([]));
+
+
+Cont.Par.never = Cont((res, rej) => null);
+
+
+Cont.Par.race = xs => xs.reduce((acc, o) =>
+  Cont.Par.andRace(acc) (o), Cont.Par.never);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
