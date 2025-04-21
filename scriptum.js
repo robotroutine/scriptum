@@ -26,6 +26,11 @@ import Stream from "node:stream";
 // TODO: add immutable.js?
 
 
+const scheduler = queueMicrotask ? queueMicrotask
+  : process?.nextTick ? process.nextTick
+  : null;
+
+
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████ ASPECTS ███████████████████████████████████
@@ -2021,15 +2026,7 @@ Bool.notp = p => x => !p(x);
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Stack-safe implementation of continuations in continuation passing style.
-Intended use cases:
-
-  * async computations in serial/parallel
-  * sync computations in CPS
-
-The type is based on a trampoline, i.e. you must interpret expressions of this
-type using `Cont.interpret`. */
-
+// stack-safe continuations for asynchronous computations
 
 export const Cont = resume => ({
   [$]: "Cont",
@@ -2039,82 +2036,29 @@ export const Cont = resume => ({
 
 
 /*█████████████████████████████████████████████████████████████████████████████
-████████████████████████████████████ TYPES ████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-Cont.Pause = thunk => ({
-  [$]: "Cont.Tramp",
-  [$$]: "Cont.Pause",
-  thunk
-});
-
-
-Cont.Done = value => ({
-  [$]: "Cont.Tramp",
-  [$$]: "Cont.Done",
-  value
-});
-
-
-Cont.Err = reason => ({
-  [$]: "Cont.Tramp",
-  [$$]: "Cont.Err",
-  reason
-});
-
-
-/*█████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████ COMBINATORS █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-//█████ Generic ███████████████████████████████████████████████████████████████
+//█████ Algebraic █████████████████████████████████████████████████████████████
 
 
-Cont.comp = f => g => x => Cont((res, rej) =>
-  Cont.Pause(() => Cont.chain(g(x)) (f).resume(res, rej)));
+Cont.map = f => o => Cont((res, rej) => {
+  o.resume(
+    x => {
+      try {res(f(x))}
+      catch (e) {rej(e)}
+    },
 
-
-Cont.foldl = f => acc => o => Cont((res, rej) => Cont.Pause(() => {
-  return o.resume(it => {
-    for (const x of it) acc = f(acc) (x);
-    return res(acc);
-  }, rej);
-}));
-
-
-Cont.filter = p => acc => o => Cont((res, rej) => Cont.Pause(() => {
-  const xs = [];
-
-  return o.resume(it => {
-    for (const x of it) p(x) ? xs.push(x) : noop;
-    return res(acc);
-  }, rej);
-}));
-
-
-Cont.map = f => o => Cont((res, rej) =>
-  Cont.Pause(() => o.resume(x => res(f(x)), rej)));
+    rej
+  )
+});
 
 
 Cont.mapEff = x => Cont.map(_ => x);
 
 
-Cont.foldMap = dict => f => it => {
-  let m = Cont.of(dict.empty());
-
-  for (const x of it)
-    m = Cont.chain(m) (acc => Cont.of(dict.append(acc) (f(x))));
-
-  return m;
-};
-
-
-Cont.ap = o => p => Cont((res, rej) => Cont.Pause(() =>
-  o.resume(f =>
-    p.resume(x =>
-      res(f(x)), rej), rej)));
+Cont.ap = o => p => Cont.chain(o) (f => Cont.map(f) (p));
 
 
 Cont.apEffl = o => p => Cont.ap(Cont.map(constl) (o)) (p);
@@ -2126,167 +2070,70 @@ Cont.apEffr = o => p => Cont.ap(Cont.map(constr) (o)) (p);
 Cont.liftA = f => o => p => Cont.ap(Cont.map(f) (o)) (p);
 
 
-Cont.chain = m => f => {
-  return Cont((res, rej) => Cont.Pause(() => m.resume(x => {
-    if (x === undefined || x === null || x !== x)
-      return rej(new Err(x));
-    
-    else {
-      const o = f(x);
-      if (o?.[$] !== "Cont") throw new Err("trampoline expected");
-      else return o.resume(res, rej);
-    }
-  },
+Cont.chain = o => f => Cont((res, rej) => {
+  scheduler(() => {
+    o.resume(
+      x => {
+        try {
+          const p = f(x);
 
-  e => rej(e))));
-};
+          scheduler(() => {
+            try {p.resume(res, rej)}
+            catch (e) {rej(e)}
+          });
+        }
 
+        catch (e) {rej(e)}
+      },
 
-Cont.of = x => Cont((res, rej) => Cont.Pause(() => res(x)));
-
-
-// Cont.seqA @Cont.All.arr
-
-
-Cont.mapA = f => it => {
-  let acc = Cont.of([]);
-  for (const x of it) acc = Cont.liftA(A.append) (f(x)) (acc);
-  return acc;
-};
-
-
-Cont.zero = _ => Cont((res, rej) =>
-  Cont.Pause(() => rej(new Err("zero continuation"))));
-
-
-Cont.alt = o => p => Cont((res, rej) =>
-  Cont.Pause(() => o.resume(res, _ => p.resume(res, rej))));
-
-
-// typically used within a sequence of monadic computations
-
-Cont.guard = b => b ? Cont.of(null) : Cont.zero;
-
-
-Cont.assume = it => {
-  let o = Cont.zero;
-  for (const p of it) o = Cont.alt(o) (p);
-  return o;
-};
-
-
-Cont.append = dict => o => p => Cont((res, rej) => Cont.Pause(() =>
-  o.resume(x =>
-    p.resume(y =>
-      res(dict.append(x) (y)), rej), rej)));
-
-
-Cont.empty = dict => Cont((res, rej) =>
-  Cont.Pause(() => res(dict.empty())));
-
-
-//█████ Specific ██████████████████████████████████████████████████████████████
-
-
-Cont.pipe = g => f => x => Cont((res, rej) =>
-  Cont.Pause(() => Cont.chain(g(x)) (f).resume(res, rej)));
-
-
-Cont.and = o => p => Cont((res, rej) =>
-  Cont.Pause(() => o.resume(x => p.resume(y => res([x, y])))));
-
-
-Cont.forever = o => Cont.chain(o) (_ => Cont.forever(c)); // TODO: make stack safe
-
-
-Cont.reject = e => Cont((res, rej) => Cont.Pause(() => rej(e)));
-
-
-Cont.validate = p => o => Cont.chain(c) (x =>
-  p(x) ? Cont.of(x) : Cont.reject(new Err("unsatisfied")));
-
-
-Cont.fromPromise = px => Cont((res, rej) =>
-  Cont.Pause(() => px.then(x => res(x)).catch(e => rej(e))));
-
-
-Cont.tryCatch = f => o => Cont((res, rej) =>
-  Cont.Pause(() => o.resume(id, e => res(f(e)))));
-
-
-Cont.tryThrow = o => Cont((res, rej) =>
-  Cont.Pause(() => o.resume(id, e => {throw e})));
-
-
-// run a finalizer after computation finishes, regardless of success or failure
-
-Cont.finalize = finalizer => computation => Cont((res, rej) =>
-  Cont.Pause(() =>
-    computation.resume(
-      x => finalizer.resume(_ => res(x), e => rej(e)),
-      e => finalizer.resume(_ => rej(e), e2 => rej(e2))
+      rej
     )
-  )
-);
+  });
+});
 
 
-// only for syncronous computations
-
-Cont.mapCont = f => o => Cont((res, rej) =>
-  Cont.Pause(() => f(Cont.interpret(o))));
-
-
-Cont.capture = f => o => Cont((res, rej) =>
-  Cont.Pause(() => o.resume(f(res), rej)));
+Cont.of = x => Cont((res, rej) => {
+  try {res(x)}
+  catch (e) {rej(e)}
+});
 
 
-Cont.interrupt = res => x => Cont((_, rej) => Cont.Pause(() => res(x)));
+// kleisli composition
+
+Cont.komp = f => g => x => Cont.chain(g(x)) (f);
 
 
-Cont.async = f => x => Cont((res, rej) =>
-  Cont.Pause(() => Promise.resolve(x)
-    .then(y => f(y).resume(res, rej))
-    .catch(rej)));
+Cont.append = dict => o => p => Cont.chain(o) (x =>
+  Cont.chain(p) (y =>
+    dict.append(x, y)));
+
+
+Cont.empty = dict => () => Cont((res, rej) => {
+  try {res(dict.empty)}
+  catch (e) {rej(e)}
+});
 
 
 //█████ Serial ████████████████████████████████████████████████████████████████
 
 
-Cont.All = {};
+Cont.Ser = {};
 
 
-Cont.All.arr = xs => {
+Cont.Ser.and = o => p => Cont.chain(o) (x =>
+  Cont.chain(p) (y =>
+    Cont.of([x, y])));
+
+
+Cont.Ser.allArr = xs => {
   return xs.reduce((acc, o) => {
-    return Cont((res, rej) => {
-      return Cont.Pause(() => {
-        return acc.resume(ys => {
-          return o.resume(x => {
-            ys.push(x);
-            return res(ys);
-          }, rej);
-        }, rej);
+    return Cont.chain(acc) (ys => {
+      return Cont.chain(o) (x => {
+        ys.push(x);
+        return Cont.of(ys);
       });
     });
   }, Cont.of([]));
-};
-
-
-Cont.seqA = Cont.All.arr;
-
-
-Cont.All.obj = o => {
-  return Object.keys(o).reduce((acc, key) => {
-    return Cont((res, rej) => {
-      return Cont.Pause(() => {
-        return acc.resume(p => {
-          return o[key].resume(x => {
-            p[key] = x;
-            return res(p);
-          }, rej);
-        }, rej);
-      });
-    });
-  }, Cont.of({}));
 };
 
 
@@ -2297,97 +2144,40 @@ Cont.Par = {};
 
 
 Cont.Par.and = o => p => Cont((res, rej) => {
-  return Cont.Pause(() => {
-    const pair = Array(2);
-    let i = 0;
+  const pair = Array(2);
+  let i = 0;
 
-    return [o, p].map((q, j) => {
-      return q.resume(x => {
-        if (i < 2) {
-          if (pair[j] === undefined) {
-            pair[j] = x;
-            i++;
+  scheduler(() => {
+    [o, p].map((q, j) => {
+      q.resume(
+        x => {
+          if (i < 2) {
+            if (pair[j] === undefined) {
+              pair[j] = x;
+              i++;
+            }
+
+            if (i === 2) {
+              try {res(pair)}
+              catch (e) {rej(e)}
+            }
           }
 
-          if (i === 2) return res(pair);
-          else return null;
-        }
+          else {
+            try {res(pair)}
+            catch (e) {rej(e)}
+          }
+        },
 
-        else return res(pair);
-      }, rej);
+        rej
+      )
     });
   });
 });
 
 
-Cont.Par.all = xs => {
-  if (xs.length === 0) throw new Err("empty array");
-  else return xs.reduce((acc, x) => Cont.Par.and(acc) (x));
-};
-
-
-Cont.Par.race = o => p => Cont((res, rej) => {
-  return Cont.Pause(() => {
-    let done = false;
-
-    return [o, p].map(q => {
-      return q.resume(x => {
-        if (!done) {
-          done = true;
-          return res(x);
-        }
-
-        else return null;
-      }, rej);
-    });
-  });
-});
-
-
-Cont.Par.never = Cont((res, rej) => Cont.Pause(() => null));
-
-
-Cont.Par.raceAll = xs => {
-  return xs.reduce((acc, o) => {
-    return Cont.Par.race(acc) (o);
-  }, Cont.Par.never);
-};
-
-
-//█████ Interpreter ███████████████████████████████████████████████████████████
-
-
-Cont.interpret = o => {
-  let initialStep = o.resume(
-    x => Cont.Done(x),
-    e => Cont.Err(e));
-
-  function go(step) {
-    if (step?.[$$] === "Cont.Pause") {
-      outer: while (true) {
-        step = step.thunk();
-
-        if (step?.constructor?.name === "Promise") {
-          step.then(go);
-          break;
-        }
-
-        else switch (step?.[$$]) {
-          case "Cont.Done": break outer;
-          case "Cont.Err": throw step;
-          case "Cont.Pause": break;
-          default: throw new Err("trampoline constructor expected");
-        }
-      }
-    }
-    
-    else throw new Err("invalid trampoline state");
-
-    return step; // return for sync case
-  }
-
-  return go(initialStep); // return for sync case
-};
+Cont.Par.all = xs => xs.reduce((acc, o) =>
+  Cont.map(pair => pair.flat()) (Cont.Par.and(acc) (o)), Cont.of([]));
 
 
 /*█████████████████████████████████████████████████████████████████████████████
