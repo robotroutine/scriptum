@@ -1107,24 +1107,126 @@ A.tails = xs => {
 };
 
 
+// use native slice for take
+
+A.takeWhile = p => xs => Loop2((acc, i) => {
+  if (i === xs.length) return Loop2.Base(acc);
+  else return p(xs[i]) ? Loop2.Rec((acc.push(xs[i]), acc), i + 1) : Loop2.Base(acc);
+}) ([], 0);
+
+
+// use native slice for drop
+
+A.dropWhile = p => xs => Loop2((acc, i) => {
+  if (i === xs.length) return Loop2.Base(acc);
+  else return p(xs[i]) ? Loop2.Rec(acc, i + 1) : Loop2.Base(xs.slice(i));
+}) ([], 0);
+
+
+// entries is the default iterable
+
+
+A.keys = function* (m) {
+  for (let [k] of m) {
+    yield k;
+  }
+};
+
+
+A.values = function* (m) {
+  for (let [, v] in m) {
+    yield v;
+  }
+};
+
+
+// set a focus on an array without altering the underlying array
+
+A.focus = ({from, to}) => xs => {
+  const focusLen = Math.max(0, to - from + 1);
+
+  return new Proxy(xs, {
+    get: (ys, prop, _this) => {
+      if (prop === "length") return focusLen;
+
+      let i = -1;
+
+      if (typeof prop === "number" && prop >= 0 && Number.isInteger(prop)) i = prop;
+      else if (A.isIndex(prop)) i = Number(prop);
+
+      if (i !== -1 && i < focusLen) return ys[i + from];
+      return Reflect.get(ys, prop, _this);
+    },
+
+    has: (ys, prop) => {
+      if (prop === "length") return true;
+
+      let i = -1;
+
+      if (typeof prop === "number" && prop >= 0 && Number.isInteger(prop)) i = prop;
+      else if (A.isIndex(prop)) i = Number(prop);
+
+      if (i !== -1 && i < focusLen) return Reflect.has(ys, i + from);
+      return Reflect.has(ys, prop);
+    },
+
+    ownKeys: (ys) => {
+      const keys = ["length"];
+      for (let i = 0; i < focusLen; i++) keys.push(String(i));
+      return keys;
+    },
+
+    getOwnPropertyDescriptor: (ys, prop) => {
+      if (prop === "length") return length_desc(focusLen);
+
+      let i = -1;
+
+      if (typeof prop === "number" && prop >= 0 && Number.isInteger(prop)) i = prop;
+      else if (A.isIndex(prop)) i = Number(prop);
+
+      if (i !== -1) {
+        if (i < focusLen) {
+          const desc = Reflect.getOwnPropertyDescriptor(ys, i + from);
+
+          if (desc) {
+             desc.writable = false;
+             return desc;
+          }
+
+          else return undefined;
+        }
+
+        else return undefined;
+      }
+
+      return Reflect.getOwnPropertyDescriptor(ys, prop);
+    },
+
+    set: (ys, prop, value) => false,
+    defineProperty: (ys, prop, descriptor) => false,
+    deleteProperty: (ys, prop) => false,
+  });
+};
+
+
+A.isIndex = x => {
+  const tag = typeof x;
+
+  if (tag === "string" && /^\d+$/.test(x)) return true;
+  else if (tag === "number" && Number.isInteger(x)) return true;
+  else return false;
+};
+
+
+//█████ Type Classes ██████████████████████████████████████████████████████████
+
+
 A.filter = p => xs => xs.filter(x => p(x));
 
 
 A.foldl = f => acc => xs => {
   for (let i = 0; i < xs.length; i++)
     acc = f(acc, xs[i]);
-
-  return acc;
-};
-
-
-// fold while using the index
-
-A.foldi = f => init => xs => {
-  let acc = init;
-
-  for (let i = 0; i < xs.length; i++)
-    acc = f(acc, xs[i], i);
 
   return acc;
 };
@@ -1144,6 +1246,95 @@ A.foldr = f => acc => xs => Stack(i => {
     return Stack.Call(g, acc2);
   }
 }) (0);
+
+
+// left associative, strict unfold due to non-recursive array data type
+
+A.unfold = f => seed => {
+  let acc = [], x = seed;
+
+  while (true) {
+    const r = f(x);
+
+    if (r === null) break;
+
+    else {
+      const [y, z] = r;
+
+      x = z;
+      acc.push(y);
+    }
+  }
+
+  return acc;
+};
+
+
+A.map = f => xs => xs.map(f);
+
+
+// should be used with immutable.js
+
+A.ap = fs => xs => {
+  return fs.reduce((acc, f) =>
+    acc.concat(xs.map(x => f(x))), []);
+};
+
+
+// should be used with immutable.js
+
+A.liftA = f => xs => ys => A.ap(A.map(f) (xs)) (ys);
+
+
+A.of = A.singleton;
+
+
+A.chain = xs => f => xs.flatMap(f);
+
+
+// Applicative f => (a -> f b) -> [a] -> f ([b])
+// should be used with immutable.js
+
+A.mapA = dict => f => xs => {
+  return xs.reduce((acc, x) =>
+    dict.ap(dict.map(A.snoc) (f(x))) (acc), dict.of([]));
+};
+
+
+// Applicative f => t (f a) -> f (t a)
+// should be used with immutable.js
+
+A.seqA = dict => xs => {
+  return xs.reduce((acc, x) =>
+    dict.ap(dict.map(A.snoc) (x)) (acc), dict.of([]));
+};
+
+
+A.append = (xs, ys) => xs.concat(ys);
+
+
+A.empty = () => [];
+
+
+A.alt = A.append;
+
+
+A.zero = A.empty;
+
+
+//█████ Special Folds █████████████████████████████████████████████████████████
+
+
+// fold while using the index
+
+A.foldi = f => init => xs => {
+  let acc = init;
+
+  for (let i = 0; i < xs.length; i++)
+    acc = f(acc, xs[i], i);
+
+  return acc;
+};
 
 
 /* Fold with context each overlapping pair, i.e. elements will be passed to the
@@ -1180,7 +1371,7 @@ A.foldMap = dict => f => xs => {
   let acc = dict.empty;
 
   for (let i = 0; i < xs.length; i++)
-    acc = dict.append(acc) (f(xs[i]));
+    acc = dict.append(acc, f(xs[i]));
 
   return acc;
 };
@@ -1219,58 +1410,6 @@ A.max = xs => {
 };
 
 
-A.map = f => xs => xs.map(f);
-
-
-// should be used with immutable.js
-
-A.ap = fs => xs => {
-  return fs.reduce((acc, f) =>
-    acc.concat(xs.map(x => f(x))), []);
-};
-
-
-// should be used with immutable.js
-
-A.liftA = f => xs => ys => A.ap(A.map(f) (xs)) (ys);
-
-
-A.of = A.singleton;
-
-
-A.chain = xs => f => xs.flatMap(f);
-
-
-// Applicative f => (a -> f b) -> t a -> f (t b)
-// should be used with immutable.js
-
-A.mapA = dict => f => xs => {
-  return xs.reduce((acc, x) =>
-    dict.ap(dict.map(A.snoc) (f(x))) (acc), dict.of([]));
-};
-
-
-// Applicative f => t (f a) -> f (t a)
-// should be used with immutable.js
-
-A.seqA = dict => xs => {
-  return xs.reduce((acc, x) =>
-    dict.ap(dict.map(A.snoc) (x)) (acc), dict.of([]));
-};
-
-
-A.append = xs => ys => xs.concat(ys);
-
-
-A.empty = () => [];
-
-
-A.alt = A.append;
-
-
-A.zero = A.empty;
-
-
 // should be used with immutable.js
 
 A.scanl = f => init => A.foldl(acc => x =>
@@ -1283,101 +1422,6 @@ A.scanl = f => init => A.foldl(acc => x =>
 A.scanr = f => init => A.foldr(x => acc =>
   acc.concat([f(x, acc[0])]))
     ([init]);
-
-
-// left associative, strict unfold due to non-recursive array data type
-
-A.unfold = f => seed => {
-  let acc = [], x = seed;
-
-  while (true) {
-    const r = f(x);
-
-    if (r === null) break;
-
-    else {
-      const [y, z] = r;
-
-      x = z;
-      acc.push(y);
-    }
-  }
-
-  return acc;
-};
-
-
-// use native slice for take
-
-A.takeWhile = p => xs => Loop2((acc, i) => {
-  if (i === xs.length) return Loop2.Base(acc);
-  else return p(xs[i]) ? Loop2.Rec((acc.push(xs[i]), acc), i + 1) : Loop2.Base(acc);
-}) ([], 0);
-
-
-// use native slice for drop
-
-A.dropWhile = p => xs => Loop2((acc, i) => {
-  if (i === xs.length) return Loop2.Base(acc);
-  else return p(xs[i]) ? Loop2.Rec(acc, i + 1) : Loop2.Base(xs.slice(i));
-}) ([], 0);
-
-
-// entries is the default iterable
-
-A.keys = function* (m) {
-  for (let [k] of m) {
-    yield k;
-  }
-};
-
-
-A.values = function* (m) {
-  for (let [, v] in m) {
-    yield v;
-  }
-};
-
-
-// set a focus on an array without altering it (immutable slice)
-
-A.focus = ({from, to}) => xs => new Proxy(xs, {
-  get: (ys, i, _this) => {
-    const tag = typeof i;
-
-    if (i === "length") return to - from + 1;
-
-    else if (tag === "number"
-      || tag === "string" && /^\d+$/.test(i)) {
-        const i2 = Number(i) + from;
-
-        if (i2 >= from && i2 <= to) return ys[i2];
-        else return undefined;
-    }
-
-    const o = Reflect.get(ys, i, _this);
-    
-    if (typeof o === "function" && Array.prototype.hasOwnProperty(i)) {
-      return o.bind(_this);
-    }
- 
-    return o;
-  },
-
-  has: (ys, i) => {
-    const tag = typeof i;
-  
-    if (i === "length") return true;
-
-    else if (tag === "number"
-      || tag === "string" && /^\d+$/.test(i)) {
-        const i2 = Number(i) + from;
-        return i2 >= from && i2 <= to && i2 in ys;
-    }
-
-    else return Reflect.has(ys, i);
-  }
-});
 
 
 //█████ Conversion ████████████████████████████████████████████████████████████
@@ -2040,7 +2084,13 @@ export const Cont = resume => ({
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-//█████ Algebraic █████████████████████████████████████████████████████████████
+Cont.reject = e => Cont((_res, rej) => {
+  try {rej(e)}
+  catch(e2) {log("rejection handler failed")}
+});
+
+
+//█████ Type Classes ██████████████████████████████████████████████████████████
 
 
 Cont.map = f => o => Cont.chain(o) (x => Cont.of(f(x)));
@@ -2089,6 +2139,25 @@ Cont.of = x => Cont((res, rej) => {
 });
 
 
+// Applicative f => (a -> f b) -> (Cont a) -> f (Cont b)
+
+Cont.mapA = dict => f => o => Cont((res, rej) => {
+  scheduler(() => {
+    ca.resume(
+      x => {
+        try {res(dict.map(Cont.of) (f(x)))}
+        catch (e) {rej(e)}
+      },
+
+      e => {
+        try {res(dict.of(Cont.reject(e)))}
+        catch (e2) {rej(e2)}
+      }
+    );
+  });
+});
+
+
 // kleisli composition
 
 Cont.komp = f => g => x => Cont.chain(g(x)) (f);
@@ -2105,7 +2174,7 @@ Cont.empty = dict => () => Cont((res, rej) => {
 });
 
 
-//█████ Serial ████████████████████████████████████████████████████████████████
+//█████ Serial Evaluation █████████████████████████████████████████████████████
 
 
 Cont.Ser = {};
@@ -2143,7 +2212,7 @@ Cont.Ser.All.obj = o => {
 };
 
 
-//█████ Parallel ██████████████████████████████████████████████████████████████
+//█████ Parallel Evaluation ███████████████████████████████████████████████████
 
 
 Cont.Par = {};
@@ -2598,7 +2667,7 @@ Er.seqA = dict => x => intro(x) === "Error" ? dict.of(x) : x;
 
 
 Er.append = dict => x => y =>
-  intro(x) === "Error" ? x : intro(x) === "Error" ? y : dict.append(x) (y);
+  intro(x) === "Error" ? x : intro(x) === "Error" ? y : dict.append(x, y);
 
 
 Er.empty = () => new Error("empty");
@@ -2627,7 +2696,7 @@ export const F = {};
 
 // semigroup
 
-F.append = dict => f => g => x => dict.append(f(x)) (g(x));
+F.append = dict => f => g => x => dict.append(f(x), g(x));
 
 // monoid
 
@@ -2636,7 +2705,7 @@ F.empty = dict => _ => monoid.empty();
 
 // comonad extend
 
-F.extend = dict => f => g => x => f(y => g(dict.append(x) (y)));
+F.extend = dict => f => g => x => f(y => g(dict.append(x, y)));
 
 
 // comonad extract
@@ -2746,7 +2815,7 @@ It.flatten = function* (iix) {
 };
 
 
-It.append = ix => function* (iy) {
+It.append = function* (ix, iy) {
   yield* ix;
   yield* iy;
 };
@@ -3030,7 +3099,7 @@ It.foldMap = dict => f => ix => {
   while (true) {
     const o = ix.next();
     if (o.done) return acc;
-    else acc = dict.append(acc) (f(o.value));
+    else acc = dict.append(acc, f(o.value));
   }
 };
 
@@ -3599,7 +3668,7 @@ _Map.upd = f => k => m => {
 // monoidal
 
 _Map.updOr = dict => (v, k) => m => {
-  if (m.has(k)) return m.set(k, dict.append(m.get(k)) (v));
+  if (m.has(k)) return m.set(k, dict.append(m.get(k), v));
   else return m.set(k, f(dict.empty) (v));
 };
 
@@ -4278,7 +4347,7 @@ Null.seqA = dict => x => x === null ? dict.of(x) : x;
 
 
 Null.append = dict => x => y =>
-  x === null ? x : y === null ? y : dict.append(x) (y);
+  x === null ? x : y === null ? y : dict.append(x, y);
 
 
 Null.empty = () => null;
@@ -6867,7 +6936,9 @@ const transformer = comp(
 const appendix = Trans.Append.obj(o => Object.keys(o).length < 3),
   props = Object.entries({foo: 1, bar: 2, bas: 3, bat: 4, baz: 5});  
 
-Trans.duce(transformer) (appendix) ({}) (props); // {FOO: 1, BAR: 4, BAS: 9} */
+Trans.duce(transformer) (appendix) ({}) (props); // {FOO: 1, BAR: 4, BAS: 9}
+
+Please note that the append function is necessarily curried. */
 
 
 export const Trans = {};
