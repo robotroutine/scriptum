@@ -23,7 +23,7 @@ import Crypto from "node:crypto";
 import FS from "node:fs";
 import Path from "node:path";
 import Stream from "node:stream";
-// TODO: add immutable.js?
+//import * as I from "immutable";
 
 
 const scheduler = queueMicrotask ? queueMicrotask
@@ -2745,11 +2745,240 @@ export const It = {};
 It.from = x => x[Symbol.iterator] ();
 
 
+It.take = n => function* (ix) {
+  while (n-- > 0) {
+    const o = ix.next();
+    if (o.done) return undefined;
+    else yield o.value;
+  }
+};
+
+
+It.takeWhile = p => function* (ix) {
+  while (true) {
+    const o = ix.next();
+    if (o.done || !p(o.value)) return undefined;
+    else yield o.value;
+  }
+};
+
+
+It.drop = n => function* (ix) {
+  while (n-- > 0) {
+    const o = ix.next();
+    if (o.done) return undefined;
+  };
+
+  while (true) {
+    const o = ix.next();
+
+    if (o.done) return undefined;
+    else yield o.value;
+  }
+};
+
+
+It.dropWhile = p => function* (ix) {
+  while (true) {
+    const o = ix.next();
+
+    if (o.done) return undefined;
+
+    else if (!p(o.value)) {
+      yield o.value;
+      break;
+    }
+  };
+
+  while (true) {
+    const o = ix.next();
+
+    if (o.done) return undefined;
+    else yield o.value;
+  }
+};
+
+
+It.alternate = ix => function* (iy) {
+  while (true) {
+    const o = ix.next(), p = iy.next();
+    if (o.done || p.done) return undefined;
+    else (yield o.value, yield p.value);
+  }
+};
+
+
+// interpolate a string into a stream
+
+It.interpose = s => function* (ix) {
+  for (const t of ix) {
+    yield t;
+    yield s;
+  }
+};
+
+
+// interpolate a string into an array
+
+It.interposeArr = s => function* (xs) {
+  for (let i = 0; i < xs.length; i++) {
+    yield xs[i];
+    yield s;
+  }
+};
+
+
+It.cons = x => function* (ix) {
+  yield x;
+
+  while (true) {
+    const o = ix.next();
+    if (done) return undefined;
+    else yield o.value;
+  }
+};
+
+
+It.consr = ix => function* (x) {
+  yield x;
+
+  while (true) {
+    const o = ix.next();
+    if (o.done) return undefined;
+    else yield o.value;
+  }
+};
+
+
+It.snoc = x => function* (ix) {
+  while (true) {
+    const o = ix.next();
+    if (o.done) yield x;
+    else yield o.value;
+  }
+};
+
+
+It.snocr = ix => function* (x) {
+  while (true) {
+    const o = ix.next();
+    if (o.done) yield x;
+    else yield o.value;
+  }
+};
+
+
+It.last = function* (ix) {
+  let p;
+
+  while (true) {
+    const o = ix.next();
+    if (o.done) return p || o;
+    else p = o;
+  }
+};
+
+
+It.init = function* (ix) {
+  let p;
+
+  while (true) {
+    const o = ix.next();
+    if (o.done) return undefined;
+    else if (p) yield p.value;
+    p = o;
+  }
+};
+
+
+// inits require idempotent iterators
+
+
+It.tail = function* (ix) {
+  ix.next();
+
+  while (true) {
+    const o = ix.next();
+    if (o.done) return undefined;
+    else yield o.value;
+  }
+};
+
+
+// tails require idempotent iterators
+
+
+//█████ Type Classes ██████████████████████████████████████████████████████████
+
+
 It.filter = p => function* (ix) {
   while (true) {
     const o = ix.next();
     if (o.done) return undefined;
     else if (p(o.value)) yield o.value;
+  }
+};
+
+
+// strictly evaluated left-associative fold
+
+It.foldl = f => acc => ix => {
+  while (true) {
+    const o = ix.next();
+    if (o.done) return acc;
+    else acc = f(acc, o.value);
+  }
+};
+
+
+// strictly evaluated right-associative fold
+
+It.foldr = f => acc => ix => {
+  const stack = [];
+
+  while (true) {
+    const o = ix.next();
+    if (o.done) break;
+    else stack.push(o.value);
+  }
+
+  for (let i = stack.length - 1; i >= 0; i--)
+    acc = f(acc, stack[i]);
+
+  return acc;
+};
+
+
+// monoidal fold
+
+It.foldMap = dict => f => ix => {
+  let acc = dict.empty;
+
+  while (true) {
+    const o = ix.next();
+    if (o.done) return acc;
+    else acc = dict.append(acc, f(o.value));
+  }
+};
+
+
+/* Lazy, potentially infinite unfold that always needs to be at the beginning
+of the iterator chain. */
+
+It.unfold = f => function* (seed) {
+  let x = seed;
+
+  while (true) {
+    const pair = f(x);
+    
+    if (pair === null) return undefined;
+    
+    else {
+      const [y, z] = pair;
+
+      x = z;
+      yield y;
+    }
   }
 };
 
@@ -2835,273 +3064,7 @@ It.komp = f => g => function* (x) {
 };
 
 
-It.take = n => function* (ix) {
-  while (n-- > 0) {
-    const o = ix.next();
-    if (o.done) return undefined;
-    else yield o.value;
-  }
-};
-
-
-It.takeWhile = p => function* (ix) {
-  while (true) {
-    const o = ix.next();
-    if (o.done || !p(o.value)) return undefined;
-    else yield o.value;
-  }
-};
-
-
-It.drop = n => function* (ix) {
-  while (n-- > 0) {
-    const o = ix.next();
-    if (o.done) return undefined;
-  };
-
-  while (true) {
-    const o = ix.next();
-
-    if (o.done) return undefined;
-    else yield o.value;
-  }
-};
-
-
-It.dropWhile = p => function* (ix) {
-  while (true) {
-    const o = ix.next();
-
-    if (o.done) return undefined;
-
-    else if (!p(o.value)) {
-      yield o.value;
-      break;
-    }
-  };
-
-  while (true) {
-    const o = ix.next();
-
-    if (o.done) return undefined;
-    else yield o.value;
-  }
-};
-
-
-It.zip = ix => function* (iy) {
-  while (true) {
-    const o = ix.next(), p = iy.next();
-    if (o.done || p.done) return undefined;
-    else yield [o.value, p.value];
-  }
-};
-
-
-It.zipWith = f => ix => function* (iy) {
-  while (true) {
-    const o = ix.next(), p = iy.next();
-    if (o.done || p.done) return undefined;
-    else yield f(o.value, p.value);
-  }
-};
-
-
-It.unzip = ix => function* (iy) {
-  while (true) {
-    const o = ix.next();
-
-    if (o.done) return undefined;
-    
-    else {
-      yield o.value[0];
-      yield o.value[1];
-    }
-  }
-};
-
-
-It.unzipWith = f => ix => function* (iy) {
-  while (true) {
-    const o = ix.next();
-    if (o.done) return undefined;
-    else yield f(o.value[0], o.value[1]);
-  }
-};
-
-
-It.alternate = ix => function* (iy) {
-  while (true) {
-    const o = ix.next(), p = iy.next();
-    if (o.done || p.done) return undefined;
-    else (yield o.value, yield p.value);
-  }
-};
-
-
-// interpolate a string into a stream
-
-It.interpose = s => function* (ix) {
-  for (const t of ix) {
-    yield t;
-    yield s;
-  }
-};
-
-
-// interpolate a string into an array
-
-It.interposeArr = s => function* (xs) {
-  for (let i = 0; i < xs.length; i++) {
-    yield xs[i];
-    yield s;
-  }
-};
-
-
-It.cycle = function* (xs) {
-  while (true) {
-    yield* xs[Symbol.iterator]();
-  }
-};
-
-
-It.iterate = f => function* (x) {
-  while (true) {
-    yield x;
-    x = f(x);
-  }
-};
-
-
-It.repeat = function* (x) {
-  while (true) yield x;
-};
-
-
-It.cons = x => function* (ix) {
-  yield x;
-
-  while (true) {
-    const o = ix.next();
-    if (done) return undefined;
-    else yield o.value;
-  }
-};
-
-
-It.consr = ix => function* (x) {
-  yield x;
-
-  while (true) {
-    const o = ix.next();
-    if (o.done) return undefined;
-    else yield o.value;
-  }
-};
-
-
-It.snoc = x => function* (ix) {
-  while (true) {
-    const o = ix.next();
-    if (o.done) yield x;
-    else yield o.value;
-  }
-};
-
-
-It.snocr = ix => function* (x) {
-  while (true) {
-    const o = ix.next();
-    if (o.done) yield x;
-    else yield o.value;
-  }
-};
-
-
-It.last = function* (ix) {
-  let p;
-
-  while (true) {
-    const o = ix.next();
-    if (o.done) return p || o;
-    else p = o;
-  }
-};
-
-
-It.init = function* (ix) {
-  let p;
-
-  while (true) {
-    const o = ix.next();
-    if (o.done) return undefined;
-    else if (p) yield p.value;
-    p = o;
-  }
-};
-
-
-// inits require idempotent iterators
-
-
-It.tail = function* (ix) {
-  ix.next();
-
-  while (true) {
-    const o = ix.next();
-    if (o.done) return undefined;
-    else yield o.value;
-  }
-};
-
-
-// tails require idempotent iterators
-
-
-//█████ Foldable ██████████████████████████████████████████████████████████████
-
-
-// strictly evaluated left-associative fold
-
-It.foldl = f => acc => ix => {
-  while (true) {
-    const o = ix.next();
-    if (o.done) return acc;
-    else acc = f(acc, o.value);
-  }
-};
-
-
-// strictly evaluated right-associative fold
-
-It.foldr = f => acc => ix => {
-  const stack = [];
-
-  while (true) {
-    const o = ix.next();
-    if (o.done) break;
-    else stack.push(o.value);
-  }
-
-  for (let i = stack.length - 1; i >= 0; i--)
-    acc = f(acc, stack[i]);
-
-  return acc;
-};
-
-
-// monoidal fold
-
-It.foldMap = dict => f => ix => {
-  let acc = dict.empty;
-
-  while (true) {
-    const o = ix.next();
-    if (o.done) return acc;
-    else acc = dict.append(acc, f(o.value));
-  }
-};
+//█████ Special Folds █████████████████████████████████████████████████████████
 
 
 // strictly evaluated
@@ -3144,27 +3107,6 @@ It.all = p => ix => {
   }
 
   return true;
-};
-
-
-/* Lazy, potentially infinite unfold that always needs to be at the beginning
-of the iterator chain. */
-
-It.unfold = f => function* (seed) {
-  let x = seed;
-
-  while (true) {
-    const pair = f(x);
-    
-    if (pair === null) return undefined;
-    
-    else {
-      const [y, z] = pair;
-
-      x = z;
-      yield y;
-    }
-  }
 };
 
 
@@ -3281,6 +3223,73 @@ It.mapi = f => function* (ix) {
     if (o.done) return undefined;
     else yield f(o.value, i++);
   }
+};
+
+
+//█████ Zipping ███████████████████████████████████████████████████████████████
+
+
+It.zip = ix => function* (iy) {
+  while (true) {
+    const o = ix.next(), p = iy.next();
+    if (o.done || p.done) return undefined;
+    else yield [o.value, p.value];
+  }
+};
+
+
+It.zipWith = f => ix => function* (iy) {
+  while (true) {
+    const o = ix.next(), p = iy.next();
+    if (o.done || p.done) return undefined;
+    else yield f(o.value, p.value);
+  }
+};
+
+
+It.unzip = ix => function* (iy) {
+  while (true) {
+    const o = ix.next();
+
+    if (o.done) return undefined;
+    
+    else {
+      yield o.value[0];
+      yield o.value[1];
+    }
+  }
+};
+
+
+It.unzipWith = f => ix => function* (iy) {
+  while (true) {
+    const o = ix.next();
+    if (o.done) return undefined;
+    else yield f(o.value[0], o.value[1]);
+  }
+};
+
+
+//█████ Infinite Lists ████████████████████████████████████████████████████████
+
+
+It.cycle = function* (xs) {
+  while (true) {
+    yield* xs[Symbol.iterator]();
+  }
+};
+
+
+It.iterate = f => function* (x) {
+  while (true) {
+    yield x;
+    x = f(x);
+  }
+};
+
+
+It.repeat = function* (x) {
+  while (true) yield x;
 };
 
 
@@ -4553,21 +4562,27 @@ export const O = {};
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-// immutable object path updates with structural sharing
+/* Immutable object path updates with structural sharing that returns the newly
+created object. Please note that `f` also must be pure for the whole computation
+to be pure. */
 
 O.update = ({path, f}) => o => {
   if (path.length === 0) return f(o);
+  else if (Object(o) !== o) throw new Err("object type expected");
 
   const [key, ...path2] = path,
     child = o[key];
 
   const child2 = O.update({path: path2, f}) (child);
 
-  if (child === child2) throw new Err("cycle detected");
+  if (child === child2) return o;
 
-  else if (Array.isArray(o) || Object(o) !== o)
-    throw new Err("object type expected");
-
+  else if (Array.isArray(o)) {
+    xs = o.concat();
+    xs[key] = child2;
+    return xs;
+  }
+  
   else {
     const p = Object.assign({}, o);
     p[key] = child2;
@@ -6162,7 +6177,10 @@ Str.template = f => o => f(o);
 Str.Diff = {};
 
 
-Str.Diff.equivalence = new Map([
+Str.Diff.Eval = {};
+
+
+Str.Diff.Eval.equivalence = new Map([
   ["ä", "ae"], ["ü", "ue"], ["ö", "oe"], ["ß", "ss"], ["Æ", "Ae"],
   ["æ", "ae"], ["ᴭ", "Ae"], ["ᵆ", "ae"], ["Ǽ", "Ae"], ["ǽ", "ae"],
   ["Ǣ", "Ae"], ["ǣ", "ae"], ["ᴁ", "Ae"], ["ᴂ", "ae"], ["ȸ", "db"],
@@ -6174,19 +6192,15 @@ Str.Diff.equivalence = new Map([
 ]);
 
 
-Str.Diff.ocr = new Map([
-  ["0", ["D", "O", "o"]],
+Str.Diff.Eval.visualTypos = new Map([
+  ["0", ["D", "O"]],
   ["1", ["I", "l"]],
-  ["2", ["Z", "z"]],
+  ["2", ["Z"]],
   ["5", ["S"]],
   ["6", ["b", "G"]],
   ["7", ["T"]],
   ["8", ["S", "B"]],
   ["9", ["g", "q"]],
-]);
-
-
-Str.Diff.ocr_ = new Map([
   ["B", ["8"]],
   ["b", ["6"]],
   ["D", ["0"]],
@@ -6195,16 +6209,14 @@ Str.Diff.ocr_ = new Map([
   ["I", ["1"]],
   ["l", ["1"]],
   ["O", ["0"]],
-  ["o", ["0"]],
   ["q", ["9"]],
   ["S", ["5", "8"]],
   ["T", ["7"]],
   ["Z", ["2"]],
-  ["z", ["2"]],
 ]);
 
 
-Str.Diff.phonetics = new Map([
+Str.Diff.Eval.phoneticTypos = new Map([
   ["a", ["ah"]],
   ["ä", ["äh"]],
   ["c", ["k", "z"]],
@@ -6225,10 +6237,6 @@ Str.Diff.phonetics = new Map([
   ["ü", ["üh"]],
   ["y",["i"]],
   ["z", ["c", "s", "ts", "tz"]],
-]);
-
-
-Str.Diff.phonetics2 = new Map([
   ["ah", ["a"]],
   ["äh", ["ä"]],
   ["ck", ["k"]],
@@ -6248,13 +6256,9 @@ Str.Diff.phonetics2 = new Map([
 ]);
 
 
-Str.Diff.repetition = new Set(
-  ["b", "d", "f", "g", "l", "m", "n", "p", "r", "s", "t"]);
+// keyboard typos of adjacent keys on x-axis
 
-
-// keyboard typos on the x-axis are far more likely than on the y-axis
-
-Str.Diff.keyb = new Map([
+Str.Diff.Eval.keybordTypos = new Map([
   ["q", ["w"]],
   ["w", ["q", "e"]],
   ["e", ["w", "r"]],
@@ -6287,7 +6291,8 @@ Str.Diff.keyb = new Map([
 ]);
 
 
-// retrieves the differences between two strings (meant for word-like strings)
+/* Retrieve the differences between two strings. This algo is meant for comparing
+word-like strings, not entire documents. */
 
 Str.Diff.retrieve = l => r => {
   const findBest = (il, ir) => {
@@ -6369,7 +6374,7 @@ Str.Diff.compareCandidates = (o, p) => {
 };
 
 
-Str.Diff.storeLeft = (l, right) => {debugger;
+Str.Diff.storeLeft = (l, right) => {
   const matches = [], mismatches = [];
 
   for (let i = 0, j = 0; i < l.length; i++) {
@@ -6404,11 +6409,11 @@ Str.Diff.storeLeft = (l, right) => {debugger;
     });
   }
 
-  return {matches, mismatches};
+  return {str: l, matches, mismatches};
 };
 
 
-Str.Diff.storeRight = (r, seq) => {debugger;
+Str.Diff.storeRight = (r, seq) => {
   const matches = [], mismatches = [];
 
   for (let i = 0, j = 0, k = 0; i < r.length; i++) {
@@ -6454,10 +6459,8 @@ Str.Diff.storeRight = (r, seq) => {debugger;
     });
   }
 
-  return {matches, mismatches};
+  return {str: r, matches, mismatches};
 };
-
-
 
 
 //█████ Distance ██████████████████████████████████████████████████████████████
@@ -7895,7 +7898,7 @@ Val.unique = s => x => {
 };
 
 
-//█████ Folds █████████████████████████████████████████████████████████████████
+//█████ Composition ███████████████████████████████████████████████████████████
 
 
 Val.and = f => g => x => {
