@@ -1055,7 +1055,7 @@ not all:
 These represent major flaws, hence expressions in WHNF should be only used with
 great caution. */
 
-export const Lazy = (thunk, tag = "Thunk") => {
+export const Lazy = ({tag, cons = tag}) => thunk => {
   let state = {
     thunk: thunk,
     evaluated: false,
@@ -1071,11 +1071,9 @@ export const Lazy = (thunk, tag = "Thunk") => {
   }
 
   const forceEval = target => {
-    if (target.evaluating) {
-      throw new LazyError("cyclic lazy evaluation detected");
-    }
+    if (target.evaluating) throw new LazyError("cyclic lazy evaluation");
 
-    if (!target.evaluated) {
+    else if (!target.evaluated) {
       try {
         target.evaluating = true;
         target.value = target.thunk();
@@ -1099,6 +1097,7 @@ export const Lazy = (thunk, tag = "Thunk") => {
       
       if (prop === $) return tag;
       else if (prop === $$) return tag;
+      else if (prop === Lazy.thunk) return true;
 
       const value = target.state.evaluated
         ? target.state.value
@@ -1127,7 +1126,7 @@ export const Lazy = (thunk, tag = "Thunk") => {
 
       if (prop === $) return true;
       else if (prop === $$) return true;
-      else if (prop === Lazy.thunk) return true; // reveal proxy
+      else if (prop === Lazy.thunk) return true;
 
       const value = target.state.evaluated
         ? target.state.value
@@ -1214,13 +1213,16 @@ export const Lazy = (thunk, tag = "Thunk") => {
 };
 
 
+export const lazy = Lazy("Thunk");
+
+
 Lazy.thunk = Symbol("thunk");
 
 
-Lazy.eager = x => {
-  if (Object(x) !== x) return x;
-  while (Lazy.thunk in x) x = x();
-  return x;
+Lazy.eager = thunk => {
+  if (typeof thunk !== "function") return thunk;
+  while (thunk[Lazy.thunk]) thunk = thunk();
+  return thunk;
 };
 
 
@@ -3853,6 +3855,75 @@ Iit.tails = function* (ix) {
     yield xs;
     if (o.done) break;
     iy = o;
+  }
+};
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+████████████████████████████████████ LIST █████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+/* Lazy list type specifically for cases where lots of consings are required.
+List consing benefits from structural sharing in lists and thus doesn't rely on
+mutations. Please note that the list type is stack-safe. While lists themselves
+are lazily constructed, the eliminiation of lists happens within an imperative
+loop. */
+
+
+export const List = {};
+
+
+List.Nil = scope(() => {
+  const empty = [];
+  empty[$] = "List";
+  empty[$$] = "List.Nil";
+  return Object.freeze(empty);
+});
+
+
+List.Cons = x => xs => {
+  const pair = [x, xs];
+  pair[$] = "List";
+  pair[$$] = "List.Cons";
+  return pair;
+};
+
+
+// unconsing is redundant due to pair structure
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+List.map = f => function go(xs) {
+  if (xs === List.Nil) return xs;
+  else return List.Cons(f(xs[0])) (lazy(() => go(xs[1])));
+};
+
+
+// a real right associative but stack-safe fold!!!
+
+List.foldr = f => acc => xs => {
+  while (true) {
+    const ys = Lazy.eager(xs);
+    if (ys === List.Nil) return acc;
+    else acc = f(ys[0]) (acc);
+    xs = ys[1];
+  }
+};
+
+
+List.forEach = f => xs => {
+  while (true) {
+    const ys = Lazy.eager(xs);
+    if (ys === List.Nil) break;
+    else f(ys[0]);
+    xs = ys[1];
   }
 };
 
