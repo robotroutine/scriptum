@@ -407,6 +407,27 @@ Visor.augmentRec = name => {
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+████████████████████████████████ TAGGED TYPES █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+export const tag = (tag, cons = tag) => o => {
+  o[$] = tag;
+  o[$$] = cons;
+  return o;
+};
+
+
+// immutable version
+
+export const make = (tag, cons = tag) => o => ({
+  [$]: tag,
+  [$$]: cons,
+  ...o
+});
+
+
+/*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████ WELL-KNOWN COMBINATORS ████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
@@ -1020,6 +1041,189 @@ Stack.Base = function Base(x) {
 };
 
 
+//█████ Layz Evaluation ███████████████████████████████████████████████████████
+
+
+/* Experimental lazy evaluation by mimicking expressions in weak head normal
+form using thunks. The latter are basically abstracted away in most cases but
+not all:
+
+  * typeof always yields "function" from the underlying proxy
+  * equality checks reference of the underlying proxy, not the inner value
+  * logical operators don't enforce evaluation but short circuit non-intuitively
+
+These represent major flaws, hence expressions in WHNF should be only used with
+great caution. */
+
+export const Lazy = (thunk, tag = "Thunk") => {
+  let state = {
+    thunk: thunk,
+    evaluated: false,
+    value: undefined,
+    evaluating: false
+  };
+
+  class LazyError extends Error {
+    constructor(message) {
+      super(message);
+      this.name = "LazyError";
+    }
+  }
+
+  const forceEval = target => {
+    if (target.evaluating) {
+      throw new LazyError("cyclic lazy evaluation detected");
+    }
+
+    if (!target.evaluated) {
+      try {
+        target.evaluating = true;
+        target.value = target.thunk();
+        target.evaluated = true;
+        target.thunk = null; // allow GC
+      } finally {
+        target.evaluating = false;
+      }
+    }
+
+    if (target.value === undefined)
+      throw new LazyError("undefined received");
+
+    return target.value;
+  };
+
+  const handler = {
+    get(target, prop, _this) {
+
+      // enable introspection without forcing evaluation
+      
+      if (prop === $) return tag;
+      else if (prop === $$) return tag;
+
+      const value = target.state.evaluated
+        ? target.state.value
+        : forceEval(target.state);
+
+      if (value === null || value === undefined) return value[prop];
+
+      else if (typeof value !== "object" && typeof value !== "function") {
+        const value2 = value[prop];
+
+        if (typeof value2 === "function")
+          return (...args) => value2.apply(value, args);
+
+        else return value2;
+      }
+
+      else if (prop === Symbol.isConcatSpreadable && Array.isArray(value))
+        return true;
+
+      else return Reflect.get(value, prop, _this);
+    },
+
+    has(target, prop) {
+
+      // enable introspection without forcing evaluation
+
+      if (prop === $) return true;
+      else if (prop === $$) return true;
+      else if (prop === Lazy.thunk) return true; // reveal proxy
+
+      const value = target.state.evaluated
+        ? target.state.value
+        : forceEval(target.state);
+
+      if (value === null || value === undefined) return false;
+
+      else if (typeof value !== "object" && typeof value !== "function")
+        return prop in Object(value);
+
+      else return Reflect.has(value, prop);
+    },
+
+    set(target, prop, newValue, _this) {
+      const value = target.state.evaluated
+        ? target.state.value
+        : forceEval(target.state);
+
+      if (value === null || value === undefined) return false;
+      
+      else if (typeof value !== "object" && typeof value !== "function")
+        return false;
+      
+      else return Reflect.set(value, prop, newValue, _this);
+    },
+
+    apply(target, thisArg, args) {
+      const f = target.state.evaluated
+        ? target.state.value
+        : forceEval(target.state);
+
+      // allow explicit thunk calls
+
+      if (args.length === 0) return f;
+
+      else if (typeof f !== "function")
+        throw new LazyError("cannot apply non-function");
+
+      else return Reflect.apply(f, thisArg, args);
+    },
+
+    getPrototypeOf(target) {
+      const value = target.state.evaluated
+        ? target.state.value
+        : forceEval(target.state);
+
+      if (value === null || value === undefined) return null;
+
+      else if (typeof value !== "object" && typeof value !== "function") {
+        return Reflect.getPrototypeOf(Object(value));
+      }
+
+      else return Reflect.getPrototypeOf(value);
+    },
+
+    ownKeys(target) {
+      const value = target.state.evaluated
+        ? target.state.value
+        : forceEval(target.state);
+
+      if (value === null || value === undefined) return [];
+      else if (typeof value !== "object" && typeof value !== "function") return [];
+      else return Reflect.ownKeys(value);
+    },
+
+    getOwnPropertyDescriptor(target, prop) {
+      const value = target.state.evaluated
+        ? target.state.value
+        : forceEval(target.state);
+
+      if (value === null || value === undefined)
+        return Reflect.getOwnPropertyDescriptor(Object(value), prop);
+
+      else if (typeof value !== "object" && typeof value !== "function")
+        return Reflect.getOwnPropertyDescriptor(Object(value), prop);
+
+      else return Reflect.getOwnPropertyDescriptor(value, prop);
+    },
+  };
+
+  const proxyTarget = function thunk() {};
+  proxyTarget.state = state;
+  return new Proxy(proxyTarget, handler);
+};
+
+
+Lazy.thunk = Symbol("thunk");
+
+
+Lazy.eager = x => {
+  if (Object(x) !== x) return x;
+  while (Lazy.thunk in x) x = x();
+  return x;
+};
+
+
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ████████████████████████████████████ ARRAY ████████████████████████████████████
@@ -1301,7 +1505,7 @@ A.mapA = dict => f => xs => {
 };
 
 
-// Applicative f => t (f a) -> f (t a)
+// Applicative f => [f a] -> f ([a])
 // should be used with immutable.js
 
 A.seqA = dict => xs => {
@@ -6177,6 +6381,180 @@ Str.template = f => o => f(o);
 Str.Diff = {};
 
 
+// retrieve the differences between two strings in a case-insensitive manner
+
+Str.Diff.retrieve = l => r => {
+  const findBest = (il, ir) => {
+    if (il === l.length) return {length: 0, gaps: 0, sequence: []};
+
+    const memo = new Map(), o = {}, xs = [...new Set(l)];
+    
+    for (const c of xs) {
+      const c2 = c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+        rx = new RegExp(c2, "gdiu");
+
+      o[c.toLowerCase()] = Rex.matchAll_(rx) (r);
+    }
+
+    const memoKey = `${il},${ir}`;
+    if (memo.has(memoKey)) return memo.get(memoKey);
+
+    const c = l[il].toLowerCase(),
+      matches = o[c] || [];
+    
+    let bestMatch = {length: -1, gaps: Infinity, sequence: []};
+
+    for (const match of matches) {
+      const i = match.indices
+        ? match.indices[0][0]
+        : match.index;
+
+      if (i > ir) {
+        const o = findBest(il + 1, i);
+
+        if (o.length !== -1) {
+          const gap = Math.max(0, i - ir - 1),
+            gaps = gap + o.gaps,
+            length = 1 + o.length,
+            sequence = [match, ...o.sequence];
+
+          const candidate = {length, gaps, sequence};
+
+          if (Str.Diff.compareCandidates(candidate, bestMatch) < 0)
+            bestMatch = candidate;
+        }
+      }
+    }
+
+    const skipResult = findBest(il + 1, ir);
+    let finalResult;
+
+    if (bestMatch.length === -1 && skipResult.length === -1)
+      finalResult = {length: -1, gaps: Infinity, sequence: []};
+
+    else if (bestMatch.length === -1) finalResult = skipResult;
+    else if (skipResult.length === -1) finalResult = bestMatch;
+    
+    else finalResult = Str.Diff.compareCandidates(bestMatch, skipResult) <= 0
+      ? bestMatch
+      : skipResult;
+
+    memo.set(memoKey, finalResult);
+    return finalResult;
+  };
+
+  const seq = findBest(0, -1);
+
+  if (seq.length <= 0) return [];
+  
+  else {
+    const right = Str.Diff.storeRight(r, seq),
+      left = Str.Diff.storeLeft(l, right);
+
+    return tag("Str.Diff") ({left, right, offset: 0});
+  }
+};
+
+
+Str.Diff.compareCandidates = (o, p) => {
+  if (o.length !== p.length) return p.length - o.length;
+  else if (o.gaps !== p.gaps) return o.gaps - p.gaps;
+  return 0;
+};
+
+
+Str.Diff.storeLeft = (l, right) => {
+  const matches = [], mismatches = [];
+
+  for (let i = 0, j = 0; i < l.length; i++) {
+    if (j < right.matches.length) {
+      const match = right.matches[j++];
+
+      if (new RegExp(l[i], "i").test(match.char)) matches.push({
+        char: l[i],
+        index: i
+      });
+
+      else {
+        while (true) {
+          mismatches.push({
+            char: l[i],
+            index: i
+          });
+
+          if (new RegExp(l[++i], "i").test(match.char)) break;
+        }
+
+        matches.push({
+          char: l[i],
+          index: i
+        });
+      }
+    }
+
+    else mismatches.push({
+      char: l[i],
+      index: i
+    });
+  }
+
+  return {str: l, matches, mismatches};
+};
+
+
+Str.Diff.storeRight = (r, seq) => {
+  const matches = [], mismatches = [];
+
+  for (let i = 0, j = 0, k = 0; i < r.length; i++) {
+    if (k < seq.sequence.length) {
+      const match = seq.sequence[k++];
+
+      if (j === match.index) {
+        matches.push({
+          char: r[j],
+          index: j
+        });
+
+        j++;
+      }
+
+      else if (j < match.index) {
+         while (true) {
+          mismatches.push({
+            char: r[j],
+            index: j
+          });
+
+          if (++j === match.index) {
+            i = j;
+            break;
+          }
+        }
+
+        matches.push({
+          char: r[j],
+          index: j
+        });
+
+        j++;
+      }
+
+      else throw new Err("invalid index");
+    }
+
+    else mismatches.push({
+      char: r[i],
+      index: i
+    });
+  }
+
+  return {str: r, matches, mismatches};
+};
+
+
+//█████ Diffing :: Evaluation █████████████████████████████████████████████████
+
+
 Str.Diff.Eval = {};
 
 
@@ -6291,175 +6669,175 @@ Str.Diff.Eval.keybordTypos = new Map([
 ]);
 
 
-/* Retrieve the differences between two strings. This algo is meant for comparing
-word-like strings, not entire documents. */
+// evaluate right prefix, e.g. left's foobar has a prefix of right's foo
 
-Str.Diff.retrieve = l => r => {
-  const findBest = (il, ir) => {
-    if (il === l.length) return {length: 0, gaps: 0, sequence: []};
+Str.Diff.Eval.hasAPrefix = o => {
+  if (o.left.str.length <= o.right.str.length)
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
 
-    const memo = new Map(), o = {}, xs = [...new Set(l)];
-    
-    for (const c of xs) {
-      const c2 = c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-        rx = new RegExp(c2, "gdiu");
+  else if (o.left.matches[0].index >= o.left.str.length - o.right.str.length - 1)
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
 
-      o[c.toLowerCase()] = Rex.matchAll_(rx) (r);
-    }
-
-    const memoKey = `${il},${ir}`;
-    if (memo.has(memoKey)) return memo.get(memoKey);
-
-    const c = l[il].toLowerCase(),
-      matches = o[c] || [];
-    
-    let bestMatch = {length: -1, gaps: Infinity, sequence: []};
-
-    for (const match of matches) {
-      const i = match.indices
-        ? match.indices[0][0]
-        : match.index;
-
-      if (i > ir) {
-        const o = findBest(il + 1, i);
-
-        if (o.length !== -1) {
-          const gap = Math.max(0, i - ir - 1),
-            gaps = gap + o.gaps,
-            length = 1 + o.length,
-            sequence = [match, ...o.sequence];
-
-          const candidate = {length, gaps, sequence};
-
-          if (Str.Diff.compareCandidates(candidate, bestMatch) < 0)
-            bestMatch = candidate;
-        }
-      }
-    }
-
-    const skipResult = findBest(il + 1, ir);
-    let finalResult;
-
-    if (bestMatch.length === -1 && skipResult.length === -1)
-      finalResult = {length: -1, gaps: Infinity, sequence: []};
-
-    else if (bestMatch.length === -1) finalResult = skipResult;
-    else if (skipResult.length === -1) finalResult = bestMatch;
-    
-    else finalResult = Str.Diff.compareCandidates(bestMatch, skipResult) <= 0
-      ? bestMatch
-      : skipResult;
-
-    memo.set(memoKey, finalResult);
-    return finalResult;
-  };
-
-  const seq = findBest(0, -1);
-
-  if (seq.length <= 0) return [];
-  
   else {
-    const right = Str.Diff.storeRight(r, seq),
-      left = Str.Diff.storeLeft(l, right);
+    const p = {
+      mismatches: [],
+      offset: 0,
+      reason: "left-has-a-right-prefix",
+      penalty: 1
+    };
 
-    return {left, right};
-  }
-};
+    for (let i = o.left.mismatches.length - 1; i >= 0; i--) {
+      const xs = o.left.mismatches;
 
-
-Str.Diff.compareCandidates = (o, p) => {
-  if (o.length !== p.length) return p.length - o.length;
-  else if (o.gaps !== p.gaps) return o.gaps - p.gaps;
-  return 0;
-};
-
-
-Str.Diff.storeLeft = (l, right) => {
-  const matches = [], mismatches = [];
-
-  for (let i = 0, j = 0; i < l.length; i++) {
-    if (j < right.matches.length) {
-      const match = right.matches[j++];
-
-      if (l[i] === match.char) matches.push({
-        char: l[i],
-        index: i
-      });
-
-      else {
-        while (true) {
-          mismatches.push({
-            char: l[i],
-            index: i
-          });
-
-          if (new RegExp(l[++i], "i").test(match.char)) break;
-        }
-
-        matches.push({
-          char: l[i],
-          index: i
-        });
+      if (i === 0) {
+        p.mismatches.unshift(xs[0]);
+        break;
       }
+
+      else if (xs[i].index - xs[i - 1].index === 1)
+        p.mismatches.unshift(xs[i]);
+      
+      else break;
     }
 
-    else mismatches.push({
-      char: l[i],
-      index: i
-    });
-  }
+    const q = O.update({
+      path: ["left", "mismatches"],
+      f: ys => ys.filter(r => !p.mismatches.includes(r))
+    }) (o);
 
-  return {str: l, matches, mismatches};
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.Some")
+      ({remainder: q, evaluation: p});
+  }
 };
 
 
-Str.Diff.storeRight = (r, seq) => {
-  const matches = [], mismatches = [];
+// evaluate left prefix, e.g. left's foo is a prefix of right's foobar
 
-  for (let i = 0, j = 0, k = 0; i < r.length; i++) {
-    if (k < seq.sequence.length) {
-      const match = seq.sequence[k++];
+Str.Diff.Eval.isAPrefix = o => {
+  if (o.left.str.length >= o.right.str.length)
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
 
-      if (j === match.index) {
-        matches.push({
-          char: r[j],
-          index: j
-        });
+  else if (o.right.matches[0].index >= o.right.str.length - o.left.str.length - 1)
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
 
-        j++;
+  else {
+    const p = {
+      mismatches: [],
+      offset: 0,
+      reason: "left-is-a-right-prefix",
+      penalty: 1
+    };
+
+    for (let i = o.right.mismatches.length - 1; i >= 0; i--) {
+      const xs = o.right.mismatches;
+
+      if (i === 0) {
+        p.mismatches.unshift(xs[0]);
+        break;
       }
 
-      else if (j < match.index) {
-         while (true) {
-          mismatches.push({
-            char: r[j],
-            index: j
-          });
-
-          if (++j === match.index) {
-            i = j;
-            break;
-          }
-        }
-
-        matches.push({
-          char: r[j],
-          index: j
-        });
-
-        j++;
-      }
-
-      else throw new Err("invalid index");
+      else if (xs[i].index - xs[i - 1].index === 1)
+        p.mismatches.unshift(xs[i]);
+      
+      else break;
     }
 
-    else mismatches.push({
-      char: r[i],
-      index: i
-    });
-  }
+    const q = O.update({
+      path: ["right", "mismatches"],
+      f: ys => ys.filter(r => !p.mismatches.includes(r))
+    }) (o);
 
-  return {str: r, matches, mismatches};
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.Some")
+      ({remainder: q, evaluation: p});
+  }
+};
+
+
+// evaluate right suffix, e.g. left's foobar has a suffix of right's bar
+
+Str.Diff.Eval.hasASuffix = o => {
+  if (o.left.str.length <= o.right.str.length)
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+
+  else if (o.left.matches[0].index < o.left.str.length - o.right.str.length - 1)
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+
+  else {
+    const evaluation = {
+      mismatches: [],
+      reason: "left-has-a-right-suffix",
+      penalty: 2
+    };
+
+    for (let i = 0; i < o.left.mismatches.length; i++) {
+      const xs = o.left.mismatches;
+
+      if (i === xs.length - 1) {
+        evaluation.mismatches.push(xs[xs.length - 1]);
+        o.offset++;
+        break;
+      }
+
+      else if (xs[i + 1].index - xs[i].index === 1) {
+        evaluation.mismatches.push(xs[i]);
+        o.offset++;
+      }
+      
+      else break;
+    }
+
+    const remainder = O.update({
+      path: ["left", "mismatches"],
+      f: ys => ys.filter(r => !evaluation.mismatches.includes(r))
+    }) (o);
+
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.Some")
+      ({remainder, evaluations: [evaluation]});
+  }
+};
+
+
+// evaluate left suffix, e.g. left's bar is a suffix of right's foobar
+
+Str.Diff.Eval.isASuffix = o => {
+  if (o.left.str.length >= o.right.str.length)
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+
+  else if (o.right.matches[0].index < o.right.str.length - o.left.str.length - 1)
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+
+  else {
+    const evaluation = {
+      mismatches: [],
+      reason: "left-is-a-right-suffix",
+      penalty: 2
+    };
+
+    for (let i = 0; i < o.right.mismatches.length; i++) {
+      const xs = o.right.mismatches;
+
+      if (i === xs.length - 1) {
+        evaluation.mismatches.push(xs[xs.length - 1]);
+        o.offset++;
+        break;
+      }
+
+      else if (xs[i + 1].index - xs[i].index === 1) {
+        evaluation.mismatches.push(xs[i]);
+        o.offset++;
+      }
+      
+      else break;
+    }
+
+    const remainder = O.update({
+      path: ["right", "mismatches"],
+      f: ys => ys.filter(r => !evaluation.mismatches.includes(r))
+    }) (o);
+
+    return tag("Str.Diff.Eval", "Str.Diff.Eval.Some")
+      ({remainder, evaluations: [evaluation]});
+  }
 };
 
 
