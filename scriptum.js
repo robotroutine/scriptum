@@ -121,36 +121,54 @@ Sign.retrieve = x => {
 
     switch (tag) {
       case "Array": return `[${Sign.arr(x)}]`;
+      case "ArrayBuffer": return "ArrayBuffer[]";
+      case "BigInt64Array": return "BigInt64Array[]";
+      case "BigUInt64Array": return "BigUInt64Array[]";
       case "Boolean": return "Bol{}";
+      case "Buffer": return "Buffer[]";
+      case "DataView": return "DataView{}";
       case "Date": return "Dat{}";
+      case "Duplex": return "Duplex{}";
+      case "Error": return "Err{}";
+      case "EventEmitter": return "EventEmitter{}";
+      case "Float32Array": return "Float32Array[]";
+      case "Float64Array": return "Float64Array[]";
+      case "Int8Array": return "Int8Array[]";
+      case "Int16Array": return "Int16Array[]";
+      case "Int32Array": return "Int32Array[]";
       case "Map": return `Map<${Sign.map(x)}>`;
       case "Number": return "Num{}";
-      case "Promise": return "Pro{}";
+      case "Promise": return "Promise{}";
       case "RegExp": return "Rex{}";
       case "Set": return `Set<${Sign.set(x)}>`;
+      case "SharedArrayBuffer": return "SharedArrayBuffer[]";
       case "String": return "Str{}";
       case "Symbol": return "Sym{}";
+      case "Transform": return "Transform{}";
+      case "Uint8Array": return "Uint8Array[]";
+      case "Uint8ClampedArray": return "Uint8ClampedArray[]";
+      case "Uint16Array": return "Uint16Array[]";
+      case "Uint32Array": return "Uint32Array[]";
       case "WeakMap": return `Wap<${Sign.map(x)}>`;
       case "WeakRef": return "Ref{}";
       case "WeakSet": return `Wet<${Sign.set(x)}>`;
+      case "Writable": return "Writable{}";
 
       case "Object": {
-        if (x?.[$]) return `${x[$]}{${Sign.obj(x)}}`;
+        const name = x?.constructor?.name === "Object"
+          ? "" : x.constructor.name;
 
-        else {
-          const name = x?.constructor?.name === "Object"
-            ? "" : x.constructor.name;
-
-          return `${name}{${Sign.obj(x)}}`;
-        }
+        return `${name}{${Sign.obj(x)}}`;
       }
 
-      default: throw new Err(`unknown tag "${tag}`);
+      default: {
+        if (x?.[$]) return `${x[$]}{${Sign.obj(x)}}`;
+        else return `${tag}{${Sign.obj(x)}}`;
+      };
     }
   }
 
   else switch (Object.prototype.toString.call(x).slice(8, -1)) {
-    // Primitives (excluding function/null/undefined handled above)
     case "Boolean": return "Boo";
     case "BigInt": return "Big";
     case "NaN": return "NaN";
@@ -167,7 +185,7 @@ Sign.arr = xs => {
     return acc.add(Sign.retrieve(x))
   }, new Set());
 
-  return Array.from(s).join(",");
+  return Array.from(s).join(", ");
 };
 
 
@@ -176,25 +194,25 @@ Sign.set = s => {
     return acc.add(Sign.retrieve(x))
   }, new Set());
 
-  return Array.from(s2).join(",");
+  return Array.from(s2).join(", ");
 };
 
 
 Sign.map = m => {
   const s2 = Array.from(m).reduce((acc, pair) => {
-    return acc.add(`${Sign.retrieve(pair[0])}:${Sign.retrieve(pair[1])}`);
+    return acc.add(`${Sign.retrieve(pair[0])}: ${Sign.retrieve(pair[1])}`);
   }, new Set());
 
-  return Array.from(s2).join(",");
+  return Array.from(s2).join(", ");
 };
 
 
 Sign.obj = o => {
   const s2 = Object.entries(o).reduce((acc, pair) => {
-    return acc.add(`${Sign.retrieve(pair[0])}:${Sign.retrieve(pair[1])}`);
+    return acc.add(`${pair[0]}: ${Sign.retrieve(pair[1])}`);
   }, new Set());
 
-  return Array.from(s2).join(",");
+  return Array.from(s2).join(", ");
 };
 
 
@@ -407,6 +425,42 @@ Visor.augmentRec = name => {
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████ TESTING ███████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+/* Take a unit test title, several predicates and the result, apply each
+predicate to the result and log every case where the result doesn't satisfy a
+predicate. Splitting predicates in several simple ones allow for greater
+reusability. */
+
+export const assert = ({title, tests: [...os]}) => result => {
+  const log = [];
+
+  os.forEach((o, i) => {
+    const k = Object.keys(o) [0], p = o[k],
+      name = p.name === "" ? "" : p.name + " ";
+    
+    try {
+      if (!p(result)) log.push(`with ${name}predicate at iteration ${i}`)
+    }
+
+    catch (e) {
+      log.push(`💥 error with ${name}predicate at iteration ${i}`);
+      log.push(e.stack);
+    }
+  });
+
+  if (log.length) {
+    console.warn(`⚠️  test ${title} has failed`);
+    console.log(log.join("\n"));
+  }
+
+  else console.log(`✅ ${title} has succeeded`);
+};
+
+
+/*█████████████████████████████████████████████████████████████████████████████
 ████████████████████████████████ TAGGED TYPES █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
@@ -428,7 +482,7 @@ export const make = (tag, cons = tag) => o => ({
 
 
 /*█████████████████████████████████████████████████████████████████████████████
-███████████████████████████ WELL-KNOWN COMBINATORS ████████████████████████████
+█████████████████████████████ GENERIC COMBINATORS █████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
@@ -496,6 +550,10 @@ export const appObj = f => o =>
 
 export const appTuple = f => xs =>
   xs.reduce((acc, x) => acc(x), f);
+
+
+export const chain2 = dict => o => p => f =>
+  dict.chain(o) (x => dict.chain(p) (y => f(x) (y)));
 
 
 // mimic let bindings
@@ -1231,6 +1289,36 @@ Lazy.eager = thunk => {
 ████████████████████████████████████ ARRAY ████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
+
+
+/* scriptum favors immutable data types over their mutable counterparts. The
+following lists comprise persistent data types and their effective uses cases
+and derived data structures, respectively.
+
+Per use case:
+
+  • consing: List, IJS* Stack
+  • unconsing: Array (A.focus), IJS Stack, List
+  • appending: IJS List, Diff (TODO)
+  • splitting: IJS List
+  • searching: Tree, IJS Map
+  • uniqueness: IJS Set
+  • index access: Array
+
+Per data structure:
+
+  • record: Object (O.update), IJS* Record
+  • value object: IJS ValueObject
+  • bag/collection: List, IJS List
+  • map: IJS Map/OrderedMap
+  • set: IJS Set/OrderedSet
+  • multimap: MultiMap
+  • queue: IJS List
+  • stack: List, IJS Stack
+  • deque: IJS List, Deque (TODO)
+  • heap/priority queue: Tree
+
+*immutable.js */
 
 
 export const A = {};
@@ -2837,6 +2925,56 @@ D.fromTimeStr = d => s => {
 
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
+███████████████████████████████ DIFFERENCE LIST ███████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+export const DList = {};
+
+
+// TODO: add tag
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+DList.append = f => g => tail => f(g(tail));
+
+
+DList.cons = x => tail => List.Cons(x) (tail);
+
+
+DList.snoc = f => x => DList.append(f) (DList.singleton(x));
+
+
+DList.empty = id;
+
+
+DList.toList = f => f(List.Nil);
+
+
+DList.fromList = xs => function go(ys) {
+  if (ys?.[Lazy.thunk]) {
+    return tail => {
+      const zs = Lazy.eager(ys), f = go(zs);
+      return f(tail);
+    };
+  }
+
+  else if (ys === List.Nil) return DList.empty;
+
+  else {
+    const f = go(ys[1]);
+    return tail => List.Cons(ys[0]) (lazy(() => f(tail)));
+  }
+} (xs);
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 ████████████████████████████████████ ERROR ████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -3866,11 +4004,7 @@ Iit.tails = function* (ix) {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Lazy list type specifically for cases where lots of consings are required.
-List consing benefits from structural sharing in lists and thus doesn't rely on
-mutations. Please note that the list type is stack-safe. While lists themselves
-are lazily constructed, the eliminiation of lists happens within an imperative
-loop. */
+// stack-safe lazy list type for consing/unconsing operations
 
 
 export const List = {};
@@ -3892,7 +4026,7 @@ List.Cons = x => xs => {
 };
 
 
-// unconsing is redundant due to pair structure
+// for unconsing just pattern match the underlying pair
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -3912,7 +4046,7 @@ List.foldr = f => acc => xs => {
   while (true) {
     const ys = Lazy.eager(xs);
     if (ys === List.Nil) return acc;
-    else acc = f(ys[0]) (acc);
+    else acc = f(acc, ys[0]);
     xs = ys[1];
   }
 };
@@ -4837,9 +4971,9 @@ export const O = {};
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Immutable object path updates with structural sharing that returns the newly
-created object. Please note that `f` also must be pure for the whole computation
-to be pure. */
+/* Immutable and composable object path updates with structural sharing that
+returns the newly created object. Please note that `f` also has to be pure for
+the whole computation to be pure as well. */
 
 O.update = ({path, f}) => o => {
   if (path.length === 0) return f(o);
@@ -4952,32 +5086,6 @@ export const Rex = {};
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Create a more general word boundary pattern (`\b`) by combining the passed
-subpattern with its left/right character classes and create a regular expression
-from it. */
-
-Rex.bound = ({left, right}) => rx => {
-  const flags = left.flags + right.flags + rx.flags;
-  return new RegExp(`(?<=^|[${left}])${rx.source}(?=$|[${right}])`, flags);
-};
-
-
-// create only a left boundary
-
-Rex.leftBound = left => rx => {
-  const flags = left.flags + rx.flags;
-  return new RegExp(`(?<=^|[${left}])${rx.source}`, flags);
-};
-
-
-// create only a right boundary
-
-Rex.rightBound = right => rx => {
-  const flags = right.flags + rx.flags;
-  return new RegExp(`${rx.source}(?=$|[${right}])`, flags);
-};
-
-
 /* Take an object with properties holding regular expressions and apply each
 to the provided string. Store each match under the respective property. */
 
@@ -4985,10 +5093,9 @@ Rex.extract = o => s =>
   O.fromIt(It.map(([k, rx]) => [k, Rex.matchFirst(rx) (s)]) (O.entries(o)));
 
 
+// count more complex substring patterns
+
 Rex.count = rx => s => Array.from(s.matchAll(rx)).length;
-
-
-Rex.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 
 // generalize from character classes
@@ -5015,9 +5122,9 @@ Rex.generalize = casing => s => {
 };
 
 
-// generalize from repetition
+// remove repetitive characters
 
-Rex.generalize2 = s => s.replaceAll(/(.)\1{1,}/g, "$1");
+Rex.dedupe = s => s.replaceAll(/(.)\1{1,}/g, "$1");
 
 
 /* Replace the following characters:
@@ -5034,6 +5141,11 @@ Rex.normalize = s => s
   .replaceAll(/ +$/g, " ")
   .replaceAll(/<nl\/>{2,}/g, "<nl/>")
   .replaceAll(/<nl\/>/g, "\n");
+
+
+Rex.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+
 
 
 //█████ Character Classes █████████████████████████████████████████████████████
@@ -5430,41 +5542,32 @@ Rex.classes.latin1.curr = {
 };
 
 
-//█████ Slicing ███████████████████████████████████████████████████████████████
+//█████ Word Boundaries ███████████████████████████████████████████████████████
 
 
-// composable combinators to slice substrings of greater strings
+/* Create a more general word boundary pattern (`\b`) by combining the passed
+subpattern with its left/right character classes and create a regular expression
+from it. */
 
-
-Rex.sliceFrom = f => s => {
-  const is = f(s);
-  if (is.length === 0) return s;
-  else return s.slice(is[0]);
+Rex.bound = ({left, right}) => rx => {
+  const flags = left.flags + right.flags + rx.flags;
+  return new RegExp(`(?<=^|[${left}])${rx.source}(?=$|[${right}])`, flags);
 };
 
 
-// excluding the delimiter
+// create only a left boundary
 
-Rex.sliceFromEx = f => s => {
-  const is = f(s);
-  if (is.length === 0) return s;
-  else return s.slice(is[0] + 1);
+Rex.leftBound = left => rx => {
+  const flags = left.flags + rx.flags;
+  return new RegExp(`(?<=^|[${left}])${rx.source}`, flags);
 };
 
 
-Rex.sliceUpTo = f => s => {
-  const is = f(s);
-  if (is.length === 0) return s;
-  else return s.slice(0, is[0] + 1);
-};
+// create only a right boundary
 
-
-// excluding the delimiter
-
-Rex.sliceUpToEx = f => s => {
-  const is = f(s);
-  if (is.length === 0) return s;
-  else return s.slice(0, is[0]);
+Rex.rightBound = right => rx => {
+  const flags = right.flags + rx.flags;
+  return new RegExp(`${rx.source}(?=$|[${right}])`, flags);
 };
 
 
@@ -5476,9 +5579,9 @@ regular expressions in the following form:
 
   (?<=charClass)(?!charClass)|(?<!charClass)(?=charClass)
 
-The combinator is meant to be used with the predefined character classes in this
-section. If you need more granular control, use one of the split combinators from
-the string section. */
+There are lots of suitable predefined character classes defined in this section.
+If you need more granular control, use one of the splitting combinators from the
+string section. */
 
 Rex.splitAt = flags => (...rs) => s => s.split(
   new RegExp(rs.map(rx => rx.source).join("|"), flags));
@@ -6101,7 +6204,7 @@ Rex.searchLast = rx => s => {
 
 Rex.searchLastWith = p => rx => s => {
   let last = [];
-
+Searching
   for (const ix of s.matchAll(rx))
     if (p(ix)) last = [ix.index];
 
@@ -6128,6 +6231,33 @@ Rex.searchNthWith = p => (rx, i) => s => {
 
   if (xs.length - 1 < i) return [];
   else return [xs[i]];
+};
+
+
+// slice a region of a string
+
+Rex.slice = search => {
+  const is = search(s);
+  if (is.length <= 1) return s;
+  else return s.slice(is[0], is[is.length - 1]);
+};
+
+
+// slice the left side of a string in a composable manner
+
+Rex.sliceFrom = search => s => {
+  const is = search(s);
+  if (is.length === 0) return s;
+  else return s.slice(is[0]);
+};
+
+
+// slice the right side of a string in a composable manner
+
+Rex.sliceTo = search => s => {
+  const is = search(s);
+  if (is.length === 0) return s;
+  else return s.slice(0, is[0]);
 };
 
 
@@ -6302,6 +6432,22 @@ export const Str = {}; // namespace
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
+/* Split at character transitions:
+  Str.splitChars("abbccc") // yields ["a", "bb", "ccc"] */
+
+Str.splitChars = s => {
+  return s.split("").reduce((acc, c) => {
+    const i = acc.length - 1;
+    
+    if (acc[i] === "") acc[i] += c;
+    else if (acc[i] [0] === c) acc[i] += c;
+    else acc.push(c);
+
+    return acc;
+  }, [""]);
+};
+
+
 // split at transitions from ASCII to not ASCII characters
 
 Str.splitAscii = s => {
@@ -6310,21 +6456,6 @@ Str.splitAscii = s => {
     
     if (acc[i] === "") acc[i] += c;
     else if (acc[i].charCodeAt(0) < 128 && c.charCodeAt(0) < 128) acc[i] += c;
-    else acc.push(c);
-
-    return acc;
-  }, [""]);
-};
-
-
-// split at character transitions
-
-Str.splitChars = s => {
-  return s.split("").reduce((acc, c) => {
-    const i = acc.length - 1;
-    
-    if (acc[i] === "") acc[i] += c;
-    else if (acc[i] [0] === c) acc[i] += c;
     else acc.push(c);
 
     return acc;
@@ -6350,80 +6481,20 @@ Str.splitChunk = ({size, pad = " ", overlap = false}) => s => {
 };
 
 
-Str.count = t => s => {
-  let n = 0, offset = 0;
-
-  while (true) {
-    const i = s.indexOf(t, offset);
-    if (i === -1) break;
-    else (n++, offset = i + 1);
-  }
-
-  return n;
-};
-
-
-Str.count_ = (s, t) => {
-  let n = 0, offset = 0;
-
-  while (true) {
-    const i = s.indexOf(t, offset);
-    if (i === -1) break;
-    else (n++, offset = i + 1);
-  }
-
-  return n;
-};
-
-
 Str.countChars = s => s.split("").reduce((acc, c) =>
   _Map.inc(c) (acc), new Map());
 
 
-/* Try to estimate how likely the given string is a password. Use length,
-string entropy, number of used character classes, and number of character
-class transitions as indicators. */
+Str.countSubstr = t => s => {
+  let n = 0, offset = 0;
 
-Str.isPwd = s => {
-  const m = new Map(), m2 = new Map();    
-
-  // upper-case letter in the middle/at the end
-  // uses digits and punctuation
-
-  for (let i = 0; i < s.length; i++) {
-    let n = 0;
-
-    if (!m.has(s[i])) m.set(s[i], n);
-
-    if (/\p{Lu}/v.test(s[i])) {
-      if (!m2.has("Lu")) m2.set("Lu", 26);
-    }
-
-    else if (/\p{Ll}/v.test(s[i])) {
-      if (!m2.has("Ll")) m2.set("Ll", 26);
-    }
-
-    else if (/\p{N}/v.test(s[i])) {
-      if (!m2.has("N")) m2.set("N", 10);
-    }
-
-    else if (/\p{P}|\p{S}/v.test(s[i])) {
-      if (!m2.has("S")) m2.set("S", 32);
-    }
-
-    else throw Err(`unexpected character "${s[i]}"`);
+  while (true) {
+    const i = s.indexOf(t, offset);
+    if (i === -1) break;
+    else (n++, offset = i + 1);
   }
 
-  const sum = Array.from(m2)
-    .reduce((acc, pair) => acc + pair[1], 0);
-
-  const entropy = sum + Math.log2(m.size),
-    numClasses = m2.size,
-    numTrans = Rex.splitAtToken(s).length,
-    features = numClasses + numTrans,
-    score = entropy * Math.log2(numClasses + numTrans);
-
-  return {entropy, numClasses, numTrans, features, score};
+  return n;
 };
 
 
@@ -6522,7 +6593,7 @@ Str.Diff.retrieve = l => r => {
     const right = Str.Diff.storeRight(r, seq),
       left = Str.Diff.storeLeft(l, right);
 
-    return tag("Str.Diff") ({left, right, offset: 0});
+    return tag("Str.Diff") ({left, right});
   }
 };
 
@@ -6626,22 +6697,16 @@ Str.Diff.storeRight = (r, seq) => {
 //█████ Diffing :: Evaluation █████████████████████████████████████████████████
 
 
+// evaluate differences between two strings
+
+
 Str.Diff.Eval = {};
 
 
-Str.Diff.Eval.equivalence = new Map([
-  ["ä", "ae"], ["ü", "ue"], ["ö", "oe"], ["ß", "ss"], ["Æ", "Ae"],
-  ["æ", "ae"], ["ᴭ", "Ae"], ["ᵆ", "ae"], ["Ǽ", "Ae"], ["ǽ", "ae"],
-  ["Ǣ", "Ae"], ["ǣ", "ae"], ["ᴁ", "Ae"], ["ᴂ", "ae"], ["ȸ", "db"],
-  ["Ǳ", "Dz"], ["ǲ", "Dz"], ["ǳ", "dz"], ["Ǆ", "Dz"], ["ǅ", "Dz"],
-  ["ǆ", "dz"], ["ﬀ", "ff"], ["ﬃ", "ffi"], ["ﬄ", "ffl"], ["ﬁ", "fi"],
-  ["ﬂ", "fl"], ["Ĳ", "Ij"], ["ĳ", "ij"], ["Ǉ", "Lj"], ["ǈ", "Lj"],
-  ["ǉ", "lj"], ["Ǌ", "Nj"], ["ǋ", "Nj"], ["ǌ", "nj"], ["Œ", "Oe"],
-  ["œ", "oe"], ["ᴔ", "oe"], ["ȹ", "qp"], ["ᵫ", "ue"],
-]);
+Str.Diff.Eval.deDE = {};
 
 
-Str.Diff.Eval.visualTypos = new Map([
+Str.Diff.Eval.misreadings = new Map([
   ["0", ["D", "O"]],
   ["1", ["I", "l"]],
   ["2", ["Z"]],
@@ -6652,6 +6717,7 @@ Str.Diff.Eval.visualTypos = new Map([
   ["9", ["g", "q"]],
   ["B", ["8"]],
   ["b", ["6"]],
+
   ["D", ["0"]],
   ["G", ["6"]],
   ["g", ["9"]],
@@ -6665,250 +6731,1268 @@ Str.Diff.Eval.visualTypos = new Map([
 ]);
 
 
-Str.Diff.Eval.phoneticTypos = new Map([
-  ["a", ["ah"]],
-  ["ä", ["äh"]],
-  ["c", ["k", "z"]],
-  ["d", ["dt", "t"]],
-  ["e", ["i"]],
-  ["f", ["ph"]],
-  ["g", ["gh"]],
-  ["i", ["e", "ie", "y"]],
-  ["k", ["c", "ck"]],
-  ["o", ["oh"]],
-  ["ö", ["öh"]],
-  ["p", ["ph"]],
-  ["r", ["rh"]],
-  ["s", ["ß", "z"]],
-  ["ß", ["s", "ss"]],
-  ["t", ["d", "th"]],
-  ["u", ["uh"]],
-  ["ü", ["üh"]],
-  ["y",["i"]],
-  ["z", ["c", "s", "ts", "tz"]],
-  ["ah", ["a"]],
-  ["äh", ["ä"]],
-  ["ck", ["k"]],
-  ["dt", ["d", "t"]],
-  ["gh", ["g"]],
-  ["ie", ["i"]],
-  ["oh", ["o"]],
-  ["öh", ["ö"]],
-  ["ph", ["f", "p"]],
-  ["rh", ["r"]],
-  ["ss", ["ß"]],
-  ["th", ["t"]],
-  ["ts", ["z"]],
-  ["tz", ["z"]],
-  ["uh", ["u"]],
-  ["üh", ["ü"]],
+Str.Diff.Eval.equivalences = new Map([
+  ["ä", "ae"], ["ü", "ue"], ["ö", "oe"], ["ß", "ss"], ["Æ", "Ae"],
+  ["æ", "ae"], ["ᴭ", "Ae"], ["ᵆ", "ae"], ["Ǽ", "Ae"], ["ǽ", "ae"],
+  ["Ǣ", "Ae"], ["ǣ", "ae"], ["ᴁ", "Ae"], ["ᴂ", "ae"], ["ȸ", "db"],
+  ["Ǳ", "Dz"], ["ǲ", "Dz"], ["ǳ", "dz"], ["Ǆ", "Dz"], ["ǅ", "Dz"],
+  ["ǆ", "dz"], ["ﬀ", "ff"], ["ﬃ", "ffi"], ["ﬄ", "ffl"], ["ﬁ", "fi"],
+  ["ﬂ", "fl"], ["Ĳ", "Ij"], ["ĳ", "ij"], ["Ǉ", "Lj"], ["ǈ", "Lj"],
+  ["ǉ", "lj"], ["Ǌ", "Nj"], ["ǋ", "Nj"], ["ǌ", "nj"], ["Œ", "Oe"],
+  ["œ", "oe"], ["ȹ", "qp"], ["ᵫ", "ue"],
+  
+  ["ae", "ä"], ["ue", "ü"], ["oe", "ö"], ["ss", "ß"], ["Ae", "Æ"],
+  ["ae", "æ"], ["Ae", "ᴭ"], ["ae", "ᵆ"], ["Ae", "Ǽ"], ["ae", "ǽ"],
+  ["Ae", "Ǣ"], ["ae", "ǣ"], ["Ae", "ᴁ"], ["ae", "ᴂ"], ["db", "ȸ"],
+  ["Dz", "Ǳ"], ["Dz", "ǲ"], ["dz", "ǳ"], ["Dz", "Ǆ"], ["Dz", "ǅ"],
+  ["dz", "ǆ"], ["ff", "ﬀ"], ["ffi", "ﬃ"], ["ffl", "ﬄ"], ["fi", "ﬁ"],
+  ["fl", "ﬂ"], ["Ij", "Ĳ"], ["ij", "ĳ"], ["Lj", "Ǉ"], ["Lj", "ǈ"],
+  ["lj", "ǉ"], ["Nj", "Ǌ"], ["Nj", "ǋ"], ["nj", "ǌ"], ["Oe", "Œ"],
+  ["oe", "œ"], ["qp", "ȹ"], ["ue", "ᵫ"],
 ]);
 
 
-// keyboard typos of adjacent keys on x-axis
+Str.Diff.Eval.deDE.mishearings = {
+  match11: [
+    {letters: ["ä", "e"], constraints: ["tail"]}, // abwägig/abwegig
+    {letters: ["b", "p"], constraints: ["tail"]}, // Absorbtion/Absorption
+    {letters: ["c", "k"], constraints: []}, // cirka/circa
+    {letters: ["f", "v"], constraints: []}, // Flies/Vlies
+    {letters: ["i", "e"], constraints: ["tail"]}, // deligieren/delegieren
+    {letters: ["i", "y"], constraints: ["tail"]}, // Gulli/Gully
+    {letters: ["m", "n"], constraints: ["tail"]}, // Pantomine/Pantomime
+    {letters: ["s", "ß"], constraints: ["tail"]}, // blos/bloß
+    {letters: ["t", "d"], constraints: ["tail"]}, // entgültig/endgültig
+    {letters: ["v", "w"], constraints: ["tail"]}, // Nirvana/Nirwana
+    {letters: ["z", "c"], constraints: []}, // Zellulite/Cellulite
+    {letters: ["z", "s"], constraints: ["tail"]}, // Konsenz/Konsens
+    {letters: ["z", "t"], constraints: ["tail"]}, // exponenziell/exponentiell
+  ],
 
-Str.Diff.Eval.keybordTypos = new Map([
-  ["q", ["w"]],
-  ["w", ["q", "e"]],
-  ["e", ["w", "r"]],
-  ["r", ["e", "t"]],
-  ["t", ["r", "z"]],
-  ["z", ["t", "u"]],
-  ["u", ["z", "i"]],
-  ["i", ["u", "o"]],
-  ["o", ["i", "p"]],
-  ["p", ["o", "ü"]],
-  ["ü", ["p"]],
-  ["a", ["s"]],
-  ["s", ["a", "d"]],
-  ["d", ["s", "f"]],
-  ["f", ["d", "g"]],
-  ["g", ["f", "h"]],
-  ["h", ["g", "j"]],
-  ["j", ["h", "k"]],
-  ["k", ["j", "l"]],
-  ["l", ["k", "ö"]],
-  ["ö", ["l", "ä"]],
-  ["ä", ["ö"]],
-  ["y", ["x"]],
-  ["x", ["y", "c"]],
-  ["c", ["x", "v"]],
-  ["v", ["c", "b"]],
-  ["b", ["v", "n"]],
-  ["n", ["b", "m"]],
-  ["m", ["n"]],
-]);
+  matchFirst12: [
+    {letters: ["i", "ia"], constraints: []}, // brilliant/brillant
+    {letters: ["i", "io"], constraints: []}, // Pavillion/Pavillon
+    {letters: ["o", "oo"], constraints: []}, // Looser/Loser
+    {letters: ["s", "sz"], constraints: []}, // sechszig/sechzig
+    {letters: ["t", "ts"], constraints: []}, // hälst/hältst
+    {letters: ["t", "tz"], constraints: []}, // Matraze/Matratze
+  ],
 
+  matchSecond12: [
+    {letters: ["a", "oa"], constraints: []}, // Board/Bord
+    {letters: ["e", "ie"], constraints: []}, // Maschiene/Maschine
+    {letters: ["h", "ah"], constraints: []},
+    {letters: ["h", "äh"], constraints: []},
+    {letters: ["h", "eh"], constraints: []}, // erwürdig/ehrwürdig
+    {letters: ["h", "gh"], constraints: []},
+    {letters: ["h", "ih"], constraints: []}, // gefeiht/gefeit
+    {letters: ["h", "oh"], constraints: []},
+    {letters: ["h", "öh"], constraints: []},
+    {letters: ["h", "ph"], constraints: []},
+    {letters: ["h", "rh"], constraints: []},
+    {letters: ["h", "th"], constraints: []},
+    {letters: ["h", "uh"], constraints: []},
+    {letters: ["h", "üh"], constraints: []},
+    {letters: ["k", "ck"], constraints: []}, // Hecktik/Hektik + Packet/Paket
+    {letters: ["r", "ar"], constraints: []}, // Amatur/Armatur
+    {letters: ["r", "ur"], constraints: []}, // Tunier/Turnier
+    {letters: ["t", "dt"], constraints: ["tail"]}, // verwand/verwandt
+    {letters: ["u", "ou"], constraints: []}, // Favouriten/Favoriten
+  ],
 
-// evaluate right prefix, e.g. left's foobar has a prefix of right's foo
+  mismatch12: [
+    {letters: ["ä", "ai"], constraints: []}, // Portrait/Porträt
+    {letters: ["c", "ss"], constraints: ["tail"]}, // Fassette/Facette
+    {letters: ["f", "ph"], constraints: []}, // Elephant/Elefant
+    {letters: ["g", "ch"], constraints: ["tail"]}, // revangieren/revanchieren
+    {letters: ["k", "ch"], constraints: []}, // Kaos/Chaos
+    {letters: ["t", "ed"], constraints: ["last", "noFlip"]}, // gemanaged/gemanagt
+    {letters: ["x", "ks"], constraints: ["tail"]}, // Extase/Ekstase
+    {letters: ["x", "kt"], constraints: ["tail"]}, // Reflektion/Reflexion
+    {letters: ["y", "ie"], constraints: ["tail"]}, // Hobbies Hobbys
+  ],
 
-Str.Diff.Eval.hasAPrefix = o => {
-  if (o.left.str.length <= o.right.str.length)
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+  matchFirst22: [
+    {letters: ["ee", "eh"], constraints: []}, // verhehrend/verheerend
+    {letters: ["pf", "ph"], constraints: []}, // Triumpf/Triumph
+  ],
 
-  else if (o.left.matches[0].index >= o.left.str.length - o.right.str.length - 1)
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+  matchSecond22: [
+    {letters: ["ai", "ei"], constraints: []}, // Leib/Laib
+    {letters: ["kt", "gt"], constraints: []}, // prankt/prangt
+    {letters: ["qu", "ku"], constraints: []}, // Bisquit/Biskuit
+  ],
 
-  else {
-    const p = {
-      mismatches: [],
-      offset: 0,
-      reason: "left-has-a-right-prefix",
-      penalty: 1
-    };
+  mismatch22: [
+    {letters: ["ss", "cc"], constraints: []}, // Asseccoire/Accessoire
+  ],
 
-    for (let i = o.left.mismatches.length - 1; i >= 0; i--) {
-      const xs = o.left.mismatches;
-
-      if (i === 0) {
-        p.mismatches.unshift(xs[0]);
-        break;
-      }
-
-      else if (xs[i].index - xs[i - 1].index === 1)
-        p.mismatches.unshift(xs[i]);
-      
-      else break;
-    }
-
-    const q = O.update({
-      path: ["left", "mismatches"],
-      f: ys => ys.filter(r => !p.mismatches.includes(r))
-    }) (o);
-
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.Some")
-      ({remainder: q, evaluation: p});
-  }
+  mismatch13: [
+    {letters: ["x", "chs"], constraints: []}, // achsial/axial
+    {letters: ["x", "cks"], constraints: []}, // Boxhorn/Bockshorn
+  ],
 };
 
 
-// evaluate left prefix, e.g. left's foo is a prefix of right's foobar
+Str.Diff.Eval.match11 = diff => {
+  const go = (o, side, i) => {
+    const mismatch = diff[side].mismatches[i],
+      side2 = ({left: "right", right: "left"}) [side],
+      xs = [];
 
-Str.Diff.Eval.isAPrefix = o => {
-  if (o.left.str.length >= o.right.str.length)
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+    if (mismatch.char === o.letters[0]) {
+      const mismatches2 = diff[side2].mismatches
+        .filter(p => p.char === o.letters[1]);
 
-  else if (o.right.matches[0].index >= o.right.str.length - o.left.str.length - 1)
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+      for (const mismatch2 of mismatches2) {
+        for (const constraint of o.constraints) switch (constraint) {
+          case "tail": {
+            if (mismatch.index === 0 || mismatch2.index === 0) return [{
+              $: "Str.Diff.Candidate",
+              $$: "Str.Diff.Candidate.None",
+              left: diff.left,
+              right: diff.right
+            }];
 
-  else {
-    const p = {
-      mismatches: [],
-      offset: 0,
-      reason: "left-is-a-right-prefix",
-      penalty: 1
-    };
+            break;
+          }
 
-    for (let i = o.right.mismatches.length - 1; i >= 0; i--) {
-      const xs = o.right.mismatches;
+          default: throw new Err(`unknown constraint "${constraint}"`);
+        }
 
-      if (i === 0) {
-        p.mismatches.unshift(xs[0]);
-        break;
+        const diff2 = comp(O.update({
+          path: [side, "mismatches"],
+          f: ys => ys.filter(p => p.index !== mismatch.index)
+        })) (O.update({
+          path: [side2, "mismatches"],
+          f: ys => ys.filter(p => p.index !== mismatch2.index)
+        })) (diff);
+
+        const desc = side === "left"
+          ? o.letters.join("/")
+          : o.letters.toReversed().join("/");
+
+        const offset = side === "left"
+          ? mismatch.index - mismatch2.index
+          : mismatch2.index - mismatch.index;
+
+        xs.push({
+          $: "Str.Diff.Candidate",
+          $$: "Str.Diff.Candidate.Some",
+          desc,
+          reason: "mishearing",
+          offset: mismatch.index - mismatch2.index,
+          penalty: 2,
+          left: diff2.left,
+          right: diff2.right,
+        });
       }
-
-      else if (xs[i].index - xs[i - 1].index === 1)
-        p.mismatches.unshift(xs[i]);
-      
-      else break;
     }
 
-    const q = O.update({
-      path: ["right", "mismatches"],
-      f: ys => ys.filter(r => !p.mismatches.includes(r))
-    }) (o);
+    return xs;
+  };
 
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.Some")
-      ({remainder: q, evaluation: p});
+  const os = Str.Diff.Eval.deDE.mishearings.match11,
+    candidates = [];
+
+  for (const o of os) {
+    for (let i = 0; i < diff.left.mismatches.length; i++)
+      candidates.push(...go(o, "left", i));
+
+    for (let i = 0; i < diff.right.mismatches.length; i++)
+      candidates.push(...go(o, "right", i));
   }
+
+  return candidates;
 };
 
 
-// evaluate right suffix, e.g. left's foobar has a suffix of right's bar
+Str.Diff.Eval.matchFirst12 = diff => {
+  const go = (o, side, i) => {
+    const mismatch = diff[side].mismatches[i];
 
-Str.Diff.Eval.hasASuffix = o => {
-  if (o.left.str.length <= o.right.str.length)
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+    if (mismatch.char === o.letters[0]) {
+      const match = diff[side].matches
+        .find(p => p.index === mismatch.index + 1
+          && p.char === o.letters[1] [1]);
 
-  else if (o.left.matches[0].index < o.left.str.length - o.right.str.length - 1)
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+      if (match) {
+        const diff2 = O.update({
+          path: [side, "mismatches"],
+          f: ys => ys.filter(p => p.index !== mismatch.index)
+        }) (diff);
 
-  else {
-    const evaluation = {
-      mismatches: [],
-      reason: "left-has-a-right-suffix",
-      penalty: 2
-    };
+        const desc = side === "left"
+          ? o.letters.toReversed().join("/")
+          : o.letters.join("/");
 
-    for (let i = 0; i < o.left.mismatches.length; i++) {
-      const xs = o.left.mismatches;
-
-      if (i === xs.length - 1) {
-        evaluation.mismatches.push(xs[xs.length - 1]);
-        o.offset++;
-        break;
+        return [{
+          $: "Str.Diff.Candidate",
+          $$: "Str.Diff.Candidate.Some",
+          desc,
+          reason: "mishearing",
+          offset: 0, // cannot retrieve offset
+          penalty: 2,
+          left: diff2.left,
+          right: diff2.right,
+        }];
       }
-
-      else if (xs[i + 1].index - xs[i].index === 1) {
-        evaluation.mismatches.push(xs[i]);
-        o.offset++;
-      }
-      
-      else break;
     }
 
-    const remainder = O.update({
-      path: ["left", "mismatches"],
-      f: ys => ys.filter(r => !evaluation.mismatches.includes(r))
-    }) (o);
+    return [{
+      $: "Str.Diff.Candidate",
+      $$: "Str.Diff.Candidate.None",
+      left: diff.left,
+      right: diff.right
+    }];
+  };
 
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.Some")
-      ({remainder, evaluations: [evaluation]});
+  const os = Str.Diff.Eval.deDE.mishearings.matchFirst12,
+    candidates = [];
+
+  for (const o of os) {
+    for (let i = 0; i < diff.left.mismatches.length; i++)
+      candidates.push(...go(o, "left", i));
+
+    for (let i = 0; i < diff.right.mismatches.length; i++)
+      candidates.push(...go(o, "right", i));
   }
+
+  return candidates;
 };
 
 
-// evaluate left suffix, e.g. left's bar is a suffix of right's foobar
+Str.Diff.Eval.matchSecond12 = diff => {
+  const go = (o, side, i) => {
+    const mismatch = diff[side].mismatches[i];
 
-Str.Diff.Eval.isASuffix = o => {
-  if (o.left.str.length >= o.right.str.length)
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+    if (mismatch.char === o.letters[0]) {
+      for (const constraint of o.constraints) switch (constraint) {
+        case "tail": {
+          if (mismatch.index === 0) return [{
+            $: "Str.Diff.Candidate",
+            $$: "Str.Diff.Candidate.None",
+            left: diff.left,
+            right: diff.right
+          }];
 
-  else if (o.right.matches[0].index < o.right.str.length - o.left.str.length - 1)
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.None") ({remainder: o});
+          break;
+        }
 
-  else {
-    const evaluation = {
-      mismatches: [],
-      reason: "left-is-a-right-suffix",
-      penalty: 2
-    };
-
-    for (let i = 0; i < o.right.mismatches.length; i++) {
-      const xs = o.right.mismatches;
-
-      if (i === xs.length - 1) {
-        evaluation.mismatches.push(xs[xs.length - 1]);
-        o.offset++;
-        break;
+        default: throw new Err(`unknown constraint "${constraint}"`);
       }
 
-      else if (xs[i + 1].index - xs[i].index === 1) {
-        evaluation.mismatches.push(xs[i]);
-        o.offset++;
+      const match = diff[side].matches
+        .find(p => p.index === mismatch.index - 1
+          && p.char === o.letters[1] [0]);
+
+      if (match) {
+        const diff2 = O.update({
+          path: [side, "mismatches"],
+          f: ys => ys.filter(p => p.index !== mismatch.index)
+        }) (diff);
+
+        const desc = side === "left"
+          ? o.letters.toReversed().join("/")
+          : o.letters.join("/");
+
+        return [{
+          $: "Str.Diff.Candidate",
+          $$: "Str.Diff.Candidate.Some",
+          desc,
+          reason: "mishearing",
+          offset: 0, // cannot retrieve offset
+          penalty: 2,
+          left: diff2.left,
+          right: diff2.right,
+        }];
       }
-      
-      else break;
     }
 
-    const remainder = O.update({
-      path: ["right", "mismatches"],
-      f: ys => ys.filter(r => !evaluation.mismatches.includes(r))
-    }) (o);
+    return [{
+      $: "Str.Diff.Candidate",
+      $$: "Str.Diff.Candidate.None",
+      left: diff.left,
+      right: diff.right
+    }];
+  };
 
-    return tag("Str.Diff.Eval", "Str.Diff.Eval.Some")
-      ({remainder, evaluations: [evaluation]});
+  const os = Str.Diff.Eval.deDE.mishearings.matchSecond12,
+    candidates = [];
+
+  for (const o of os) {
+    for (let i = 0; i < diff.left.mismatches.length; i++)
+      candidates.push(...go(o, "left", i));
+
+    for (let i = 0; i < diff.right.mismatches.length; i++)
+      candidates.push(...go(o, "right", i));
   }
+
+  return candidates;
+};
+
+
+Str.Diff.Eval.mismatch12 = diff => {
+  const go = (o, side, i) => {
+    const mismatch = diff[side].mismatches[i],
+      side2 = ({left: "right", right: "left"}) [side],
+      xs = [];
+
+    if (mismatch.char === o.letters[0]) {
+      const mismatches2 = diff[side2].mismatches
+        .filter((p, i2) => p.char === o.letters[1] [0]
+          && diff[side2].mismatches[i2 + 1]?.char === o.letters[1] [1]);
+
+      for (const mismatch2 of mismatches2) {
+        for (const constraint of o.constraints) switch (constraint) {
+          case "last": {
+            if (diff[side].str.length - mismatch.index - 1 > 1) return [{
+              $: "Str.Diff.Candidate",
+              $$: "Str.Diff.Candidate.None",
+              left: diff.left,
+              right: diff.right
+            }];
+
+            else if (diff[side2].str.length - mismatch2.index - 1 > 1) return [{
+              $: "Str.Diff.Candidate",
+              $$: "Str.Diff.Candidate.None",
+              left: diff.left,
+              right: diff.right
+            }];
+
+            break;
+          }
+
+          case "noFlip": {
+            if (side !== "right") return [{
+              $: "Str.Diff.Candidate",
+              $$: "Str.Diff.Candidate.None",
+              left: diff.left,
+              right: diff.right
+            }];
+
+            break;
+          }
+
+          case "tail": {
+            if (mismatch.index === 0 || mismatch2.index === 0) return [{
+              $: "Str.Diff.Candidate",
+              $$: "Str.Diff.Candidate.None",
+              left: diff.left,
+              right: diff.right
+            }];
+
+            break;
+          }
+
+          default: throw new Err(`unknown constraint "${constraint}"`);
+        }
+
+        const mismatch3 = diff[side2].mismatches
+          .find(p => p.index === mismatch2.index + 1);
+
+        const diff2 = comp(O.update({
+          path: [side, "mismatches"],
+          f: ys => ys.filter(p => p.index !== mismatch.index)
+        })) (O.update({
+          path: [side2, "mismatches"],
+          f: ys => ys.filter(p =>
+            p.index !== mismatch2.index
+              && p.index !== mismatch3.index)
+        })) (diff);
+
+        const desc = side === "left"
+          ? o.letters.join("/")
+          : o.letters.toReversed().join("/");
+
+        const offset = side === "left"
+          ? mismatch.index - mismatch2.index
+          : mismatch2.index - mismatch.index;
+
+        xs.push({
+          $: "Str.Diff.Candidate",
+          $$: "Str.Diff.Candidate.Some",
+          desc,
+          reason: "mishearing",
+          offset,
+          penalty: 2,
+          left: diff2.left,
+          right: diff2.right,
+        });
+      }
+    }
+
+    return xs;
+  };
+
+  const os = Str.Diff.Eval.deDE.mishearings.mismatch12,
+    candidates = [];
+
+  for (const o of os) {
+    for (let i = 0; i < diff.left.mismatches.length; i++)
+      candidates.push(...go(o, "left", i));
+
+    for (let i = 0; i < diff.right.mismatches.length; i++)
+      candidates.push(...go(o, "right", i));
+  }
+
+  return candidates;
+};
+
+
+Str.Diff.Eval.matchFirst22 = diff => {
+  const go = (o, side, i) => {
+    const mismatch = diff[side].mismatches[i],
+      side2 = ({left: "right", right: "left"}) [side],
+      xs = [];
+
+    const match = diff[side].matches
+      .find(p => p.index === mismatch.index - 1);
+
+    if (!match) return [{
+      $: "Str.Diff.Candidate",
+      $$: "Str.Diff.Candidate.None",
+      left: diff.left,
+      right: diff.right
+    }];
+
+    else if (match.char + mismatch.char === o.letters[0]) {
+      const mismatches2 = diff[side2].mismatches
+        .filter(p => p.char === o.letters[1] [1]);
+
+      for (const mismatch2 of mismatches2) {
+        const match2 = diff[side2].matches
+          .find(p => p.index === mismatch2.index - 1
+            && p.char === o.letters[1] [0]);
+
+        if (match2) {
+          const diff2 = comp(O.update({
+            path: [side, "mismatches"],
+            f: ys => ys.filter(p => p.index !== mismatch.index)
+          })) (O.update({
+            path: [side2, "mismatches"],
+            f: ys => ys.filter(p => p.index !== mismatch2.index)
+          })) (diff);
+
+          const desc = side === "left"
+            ? o.letters.join("/")
+            : o.letters.toReversed().join("/");
+
+          const offset = side === "left"
+            ? mismatch.index - mismatch2.index
+            : mismatch2.index - mismatch.index;
+
+          return [{
+            $: "Str.Diff.Candidate",
+            $$: "Str.Diff.Candidate.Some",
+            desc,
+            reason: "mishearing",
+            offset,
+            penalty: 2,
+            left: diff2.left,
+            right: diff2.right,
+          }];
+        }
+      }
+    }
+
+    return [{
+      $: "Str.Diff.Candidate",
+      $$: "Str.Diff.Candidate.None",
+      left: diff.left,
+      right: diff.right
+    }];
+  };
+
+  const os = Str.Diff.Eval.deDE.mishearings.matchFirst22,
+    candidates = [];
+
+  for (const o of os) {
+    for (let i = 0; i < diff.left.mismatches.length; i++)
+      candidates.push(...go(o, "left", i));
+
+    for (let i = 0; i < diff.right.mismatches.length; i++)
+      candidates.push(...go(o, "right", i));
+  }
+
+  return candidates;
+};
+
+
+Str.Diff.Eval.matchSecond22 = diff => {
+  const go = (o, side, i) => {
+    const mismatch = diff[side].mismatches[i],
+      side2 = ({left: "right", right: "left"}) [side],
+      xs = [];
+
+    const match = diff[side].matches
+      .find(p => p.index === mismatch.index + 1);
+
+    if (!match) return [{
+      $: "Str.Diff.Candidate",
+      $$: "Str.Diff.Candidate.None",
+      left: diff.left,
+      right: diff.right
+    }];
+
+    else if (mismatch.char + match.char === o.letters[0]) {
+      const mismatches2 = diff[side2].mismatches
+        .filter(p => p.char === o.letters[1] [0]);
+
+      for (const mismatch2 of mismatches2) {
+        const match2 = diff[side2].matches
+          .find(p => p.index === mismatch2.index + 1
+            && p.char === o.letters[1] [1]);
+
+        if (match2) {
+          const diff2 = comp(O.update({
+            path: [side, "mismatches"],
+            f: ys => ys.filter(p => p.index !== mismatch.index)
+          })) (O.update({
+            path: [side2, "mismatches"],
+            f: ys => ys.filter(p => p.index !== mismatch2.index)
+          })) (diff);
+
+          const desc = side === "left"
+            ? o.letters.join("/")
+            : o.letters.toReversed().join("/");
+
+          const offset = side === "left"
+            ? mismatch.index - mismatch2.index
+            : mismatch2.index - mismatch.index;
+
+          return [{
+            $: "Str.Diff.Candidate",
+            $$: "Str.Diff.Candidate.Some",
+            desc,
+            reason: "mishearing",
+            offset,
+            penalty: 2,
+            left: diff2.left,
+            right: diff2.right,
+          }];
+        }
+      }
+    }
+
+    return [{
+      $: "Str.Diff.Candidate",
+      $$: "Str.Diff.Candidate.None",
+      left: diff.left,
+      right: diff.right
+    }];
+  };
+
+  const os = Str.Diff.Eval.deDE.mishearings.matchSecond22,
+    candidates = [];
+
+  for (const o of os) {
+    for (let i = 0; i < diff.left.mismatches.length; i++)
+      candidates.push(...go(o, "left", i));
+
+    for (let i = 0; i < diff.right.mismatches.length; i++)
+      candidates.push(...go(o, "right", i));
+  }
+
+  return candidates;
+};
+
+
+Str.Diff.Eval.mismatch22 = diff => {
+  const go = (o, side, i) => {
+    const mismatch = diff[side].mismatches[i],
+      side2 = ({left: "right", right: "left"}) [side],
+      xs = [];
+
+    const mismatch2 = diff[side].mismatches[i + 1];
+
+    if (!mismatch2) return [{
+      $: "Str.Diff.Candidate",
+      $$: "Str.Diff.Candidate.None",
+      left: diff.left,
+      right: diff.right
+    }];
+
+    else if (mismatch.char + mismatch2.char === o.letters[0]) {
+      const mismatches3 = diff[side2].mismatches
+        .filter((p, i2) => p.char === o.letters[1] [0]
+          && diff[side2].mismatches[i2 + 1]?.char === o.letters[1] [1]);
+
+      for (const mismatch3 of mismatches3) {
+        const mismatch4 = diff[side2].mismatches
+          .find(p => p.index === mismatch3.index + 1);
+
+        const diff2 = comp(O.update({
+          path: [side, "mismatches"],
+          f: ys => ys.filter(p =>
+            p.index !== mismatch.index
+              && p.index !== mismatch2.index)
+        })) (O.update({
+          path: [side2, "mismatches"],
+          f: ys => ys.filter(p =>
+            p.index !== mismatch3.index
+              && p.index !== mismatch4.index)
+        })) (diff);
+
+        const desc = side === "left"
+          ? o.letters.join("/")
+          : o.letters.toReversed().join("/");
+
+        const offset = side === "left"
+          ? mismatch.index - mismatch3.index
+          : mismatch3.index - mismatch.index;
+
+        xs.push({
+          $: "Str.Diff.Candidate",
+          $$: "Str.Diff.Candidate.Some",
+          desc,
+          reason: "mishearing",
+          offset,
+          penalty: 2,
+          left: diff2.left,
+          right: diff2.right,
+        });
+      }
+    }
+
+    return xs;
+  };
+
+  const os = Str.Diff.Eval.deDE.mishearings.mismatch22,
+    candidates = [];
+
+  for (const o of os) {
+    for (let i = 0; i < diff.left.mismatches.length; i++)
+      candidates.push(...go(o, "left", i));
+
+    for (let i = 0; i < diff.right.mismatches.length; i++)
+      candidates.push(...go(o, "right", i));
+  }
+
+  return candidates;
+};
+
+
+Str.Diff.Eval.mismatch13 = diff => {
+  const go = (o, side, i) => {
+    const mismatch = diff[side].mismatches[i],
+      side2 = ({left: "right", right: "left"}) [side],
+      xs = [];
+
+    if (mismatch.char === o.letters[0]) {
+      const mismatches2 = diff[side2].mismatches
+        .filter((p, i2) => p.char === o.letters[1] [0]
+          && diff[side2].mismatches[i2 + 1]?.char === o.letters[1] [1]
+          && diff[side2].mismatches[i2 + 2]?.char === o.letters[1] [2]);
+
+      for (const mismatch2 of mismatches2) {
+        const mismatch3 = diff[side2].mismatches
+          .find(p => p.index === mismatch2.index + 1);
+
+        const mismatch4 = diff[side2].mismatches
+          .find(p => p.index === mismatch2.index + 2);
+
+        const diff2 = comp(O.update({
+          path: [side, "mismatches"],
+          f: ys => ys.filter(p => p.index !== mismatch.index)
+        })) (O.update({
+          path: [side2, "mismatches"],
+          f: ys => ys.filter(p =>
+            p.index !== mismatch2.index
+              && p.index !== mismatch3.index
+              && p.index !== mismatch4.index)
+        })) (diff);
+
+        const desc = side === "left"
+          ? o.letters.join("/")
+          : o.letters.toReversed().join("/");
+
+        const offset = side === "left"
+          ? mismatch.index - mismatch2.index
+          : mismatch2.index - mismatch.index;
+
+        xs.push({
+          $: "Str.Diff.Candidate",
+          $$: "Str.Diff.Candidate.Some",
+          desc,
+          reason: "mishearing",
+          offset,
+          penalty: 2,
+          left: diff2.left,
+          right: diff2.right,
+        });
+      }
+    }
+
+    return xs;
+  };
+
+  const os = Str.Diff.Eval.deDE.mishearings.mismatch13,
+    candidates = [];
+
+  for (const o of os) {
+    for (let i = 0; i < diff.left.mismatches.length; i++)
+      candidates.push(...go(o, "left", i));
+
+    for (let i = 0; i < diff.right.mismatches.length; i++)
+      candidates.push(...go(o, "right", i));
+  }
+
+  return candidates;
+};
+
+
+Str.Diff.Eval.misreading = diff => {
+  const candidates = [];
+
+  for (const mismatch of diff.left.mismatches) {
+    if (Str.Diff.Eval.misreadings.has(mismatch.char)) {
+      const xs = Str.Diff.Eval.misreadings.get(mismatch.char);
+
+      for (const mismatch2 of diff.right.mismatches) {
+        if (xs.includes(mismatch2.char)) {
+          const diff2 = comp(O.update({
+            path: ["left", "mismatches"],
+            f: ys => ys.filter(o => o.index !== mismatch.index)
+          })) (O.update({
+            path: ["right", "mismatches"],
+            f: ys => ys.filter(o => o.index !== mismatch2.index)
+          })) (diff);
+
+          candidates.push({
+            $: "Str.Diff.Candidate",
+            $$: "Str.Diff.Candidate.Some",
+            desc: `${mismatch.char}/${mismatch2.char}`,
+            reason: "misreading",
+            offset: mismatch.index - mismatch2.index,
+            penalty: 1,
+            left: diff2.left,
+            right: diff2.right,
+          });
+        }
+      }
+    }
+  }
+
+  return candidates;
+};
+
+
+Str.Diff.Eval.transposition = diff => {
+  const candidates = [];
+
+  for (const mismatch of diff.left.mismatches) {
+    for (const mismatch2 of diff.right.mismatches) {
+      if (mismatch.char === mismatch2.char) {
+        let offset = 0;
+
+        if (diff.left.str[mismatch.index - 1] === diff.right.str[mismatch2.index + 1])
+          offset = -1;
+
+        else if (diff.left.str[mismatch.index + 1] === diff.right.str[mismatch2.index - 1])
+          offset = 1;
+
+        else continue;
+
+        const diff2 = comp(O.update({
+          path: ["left", "mismatches"],
+          f: ys => ys.filter(o => o.index !== mismatch.index)
+        })) (O.update({
+          path: ["right", "mismatches"],
+          f: ys => ys.filter(o => o.index !== mismatch2.index)
+        })) (diff);
+
+        const match2 = diff.left.matches
+          .find(o => o.index === mismatch.index + offset);
+
+        const desc = offset < 0
+          ? `${mismatch2.char}/${match2.char}`
+          : `${match2.char}/${mismatch2.char}`;
+
+        candidates.push({
+          $: "Str.Diff.Candidate",
+          $$: "Str.Diff.Candidate.Some",
+          desc,
+          reason: "transposition",
+          offset: mismatch.index - mismatch2.index + offset,
+          penalty: 1,
+          left: diff2.left,
+          right: diff2.right,
+        });
+      }
+    }
+  }
+
+  return candidates;
+};
+
+
+Str.Diff.Eval.repetition = diff => {
+  const candidates = [];
+
+  for (const mismatch of diff.left.mismatches) {
+    const matches2 = diff.right.matches
+      .filter(o => o.char === mismatch.char);
+
+    for (const match2 of matches2) {
+      const diff2 = O.update({
+        path: ["left", "mismatches"],
+        f: ys => ys.filter(o => o.index !== mismatch.index)
+      }) (diff);
+
+      candidates.push({
+        $: "Str.Diff.Candidate",
+        $$: "Str.Diff.Candidate.Some",
+        desc: `${mismatch.char.repeat(2)}/${match2.char}`,
+        reason: "repetition",
+        offset: mismatch.index - match2.index - 1,
+        penalty: 1,
+        left: diff2.left,
+        right: diff2.right,
+      });
+    }
+  }
+
+  for (const mismatch of diff.right.mismatches) {
+    const matches2 = diff.left.matches
+      .filter(o => o.char === mismatch.char);
+
+    for (const match2 of matches2) {
+      const diff2 = O.update({
+        path: ["right", "mismatches"],
+        f: ys => ys.filter(o => o.index !== mismatch.index)
+      }) (diff);
+
+      candidates.push({
+        $: "Str.Diff.Candidate",
+        $$: "Str.Diff.Candidate.Some",
+        desc: `${match2.char}/${mismatch.char.repeat(2)}`,
+        reason: "repetition",
+        offset: match2.index - mismatch.index + 1,
+        penalty: 1,
+        left: diff2.left,
+        right: diff2.right,
+      });
+    }
+  }
+
+  return candidates;
+};
+
+
+Str.Diff.Eval.modifier = diff => {
+  const candidates = [];
+
+  for (const mismatch of diff.left.mismatches) {
+    for (const mismatch2 of diff.right.mismatches) {
+      if (Str.Norm.modifier.has(mismatch.char)) {
+        const c = Str.Norm.modifier.get(mismatch.char);
+
+        if (mismatch2.char === c) {
+          const diff2 = comp(O.update({
+            path: ["left", "mismatches"],
+            f: ys => ys.filter(o => o.index !== mismatch.index)
+          })) (O.update({
+            path: ["right", "mismatches"],
+            f: ys => ys.filter(o => o.index !== mismatch2.index)
+          })) (diff);
+
+          candidates.push({
+            $: "Str.Diff.Candidate",
+            $$: "Str.Diff.Candidate.Some",
+            desc: `${mismatch.char}/${mismatch2.char}`,
+            reason: "modifier",
+            offset: mismatch.index - mismatch2.index,
+            penalty: 1,
+            left: diff2.left,
+            right: diff2.right,
+          });
+        }
+      }
+
+      else if (Str.Norm.modifier.has(mismatch2.char)) {
+        const c = Str.Norm.modifier.get(mismatch2.char);
+
+        if (mismatch.char === c) {
+          const diff2 = comp(O.update({
+            path: ["left", "mismatches"],
+            f: ys => ys.filter(o => o.index !== mismatch.index)
+          })) (O.update({
+            path: ["right", "mismatches"],
+            f: ys => ys.filter(o => o.index !== mismatch2.index)
+          })) (diff);
+
+          candidates.push({
+            $: "Str.Diff.Candidate",
+            $$: "Str.Diff.Candidate.Some",
+            desc: `${mismatch.char}/${mismatch2.char}`,
+            reason: "modifier",
+            offset: mismatch.index - mismatch2.index,
+            penalty: 1,
+            left: diff2.left,
+            right: diff2.right,
+          });
+        }
+      }
+    }
+  }
+
+  return candidates;
+};
+
+
+Str.Diff.Eval.equivalence = diff => {
+  const candidates = [];
+
+  for (const [k, v] of Str.Diff.Eval.equivalences) {
+    for (let i = 0; i < diff.left.mismatches.length; i++) {
+      const mismatch = diff.left.mismatches[i];
+
+      for (let j = 0; j < diff.right.mismatches.length; j++) {
+        const mismatch2 = diff.right.mismatches[j];
+
+        if (k.length === 1) {
+          if (mismatch.char === k) {
+            if (v.length === 2) {
+              const s = mismatch2.char + diff.right.mismatches[j + 1]?.char;
+
+              if (s === v) {
+                const diff2 = comp(O.update({
+                  path: ["left", "mismatches"],
+                  f: ys => ys.filter(o => o.index !== mismatch.index)
+                })) (O.update({
+                  path: ["right", "mismatches"],
+                  f: ys => ys.filter(o => o.index !== mismatch2.index
+                    && o.index !== mismatch2.index + 1)
+                })) (diff);
+
+                candidates.push({
+                  $: "Str.Diff.Candidate",
+                  $$: "Str.Diff.Candidate.Some",
+                  desc: `${mismatch.char}/${s}`,
+                  reason: "modifier",
+                  offset: mismatch.index - mismatch2.index,
+                  penalty: 1,
+                  left: diff2.left,
+                  right: diff2.right,
+                });
+              }
+            }
+
+            else if (v.length === 3) {
+              const s = mismatch2.char
+                + diff.right.mismatches[j + 1]?.char
+                + diff.right.mismatches[j + 2]?.char;
+
+              if (s === v) {
+                const diff2 = comp(O.update({
+                  path: ["left", "mismatches"],
+                  f: ys => ys.filter(o => o.index !== mismatch.index)
+                })) (O.update({
+                  path: ["right", "mismatches"],
+                  f: ys => ys.filter(o => o.index !== mismatch2.index
+                    && o.index !== mismatch2.index + 1
+                    && o.index !== mismatch2.index + 2)
+                })) (diff);
+
+                candidates.push({
+                  $: "Str.Diff.Candidate",
+                  $$: "Str.Diff.Candidate.Some",
+                  desc: `${mismatch.char}/${s}`,
+                  reason: "modifier",
+                  offset: mismatch.index - mismatch2.index,
+                  penalty: 1,
+                  left: diff2.left,
+                  right: diff2.right,
+                });
+              }
+            }
+
+            else throw new Err("unexpected length");
+          }
+        }
+
+        else if (k.length === 2) {
+          const s = mismatch.char + diff.left.mismatches[i + 1]?.char;
+
+          if (s === k) {
+            if (v.length === 1) {
+              if (mismatch2.char === v) {
+                const diff2 = comp(O.update({
+                  path: ["left", "mismatches"],
+                  f: ys => ys.filter(o => o.index !== mismatch.index
+                    && o.index !== mismatch.index + 1)
+                })) (O.update({
+                  path: ["right", "mismatches"],
+                  f: ys => ys.filter(o => o.index !== mismatch2.index)
+                })) (diff);
+
+                candidates.push({
+                  $: "Str.Diff.Candidate",
+                  $$: "Str.Diff.Candidate.Some",
+                  desc: `${s}/${mismatch2.char}`,
+                  reason: "modifier",
+                  offset: mismatch.index - mismatch2.index,
+                  penalty: 1,
+                  left: diff2.left,
+                  right: diff2.right,
+                });
+              }
+            }
+
+            else throw new Err("unexpected length");
+          }
+        }
+
+        else if (k.length === 3) {
+          const s = mismatch.char
+            + diff.left.mismatches[i + 1]?.char
+            + diff.left.mismatches[i + 2]?.char;
+
+          if (s === k) {
+            if (v.length === 1) {
+              if (mismatch2.char === v) {
+                const diff2 = comp(O.update({
+                  path: ["left", "mismatches"],
+                  f: ys => ys.filter(o => o.index !== mismatch.index
+                    && o.index !== mismatch.index + 1
+                    && o.index !== mismatch.index + 2)
+                })) (O.update({
+                  path: ["right", "mismatches"],
+                  f: ys => ys.filter(o => o.index !== mismatch2.index)
+                })) (diff);
+
+                candidates.push({
+                  $: "Str.Diff.Candidate",
+                  $$: "Str.Diff.Candidate.Some",
+                  desc: `${s}/${mismatch2.char}`,
+                  reason: "modifier",
+                  offset: mismatch.index - mismatch2.index,
+                  penalty: 1,
+                  left: diff2.left,
+                  right: diff2.right,
+                });
+              }
+            }
+
+            else throw new Err("unexpected length");
+          }
+        }
+
+        else throw new Err("unexpected length");
+      }
+    }
+  }
+
+  return candidates;
+};
+
+
+Str.Diff.Eval.hasAPrefix = diff => {
+  const s = diff.left.str,
+    s2 = diff.right.str;
+
+  let coincide = 0, slice = 0;
+
+  if (s.length <= s2.length) return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.None",
+    left: diff.left,
+    right: diff.right
+  }];
+
+  for (let i = 0, i2 = 0; i < s.length - 1 && i2 < s2.length - 1; i++, i2++) {
+    if (s[i].toLowerCase() === s2[i2].toLowerCase()) coincide++;
+    else break;
+  }
+
+  if (coincide === 0) return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.None",
+    left: diff.left,
+    right: diff.right
+  }];
+
+  for (let i = diff.left.mismatches.length - 1; i >= 0; i--) {
+    if (diff.left.mismatches[i].index - diff.left.mismatches[i - 1]?.index === 1)
+      slice++;
+
+    else {slice++; break};
+  }
+
+  const diff2 = O.update({
+    path: ["left", "mismatches"],
+    f: ys => ys.slice(0, -slice)
+  }) (diff);
+
+  const desc = `${diff.left.str.slice(0, coincide + 1)}/${diff.right.str.slice(0, coincide + 1)}`;
+
+  return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.Some",
+    desc,
+    reason: "hasAPrefix",
+    offset: 0,
+    penalty: 1,
+    left: diff2.left,
+    right: diff2.right,
+  }];
+};
+
+
+Str.Diff.Eval.hasASuffix = diff => {
+  const s = diff.left.str,
+    s2 = diff.right.str;
+
+  let coincide = 0, slice = 0;
+
+  if (s.length <= s2.length) return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.None",
+    left: diff.left,
+    right: diff.right
+  }];
+
+  for (let i = s.length - 1, i2 = s2.length - 1; i >= 0 && i2 >= 0; i--, i2--) {
+    if (s[i].toLowerCase() === s2[i2].toLowerCase()) coincide++;
+    else break;
+  }
+
+  if (coincide === 0) return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.None",
+    left: diff.left,
+    right: diff.right
+  }];
+
+  for (let i = 0; i < diff.left.mismatches.length; i++) {
+    if (diff.left.mismatches[i + 1]?.index - diff.left.mismatches[i].index === 1)
+      slice++;
+
+    else {slice++; break};
+  }
+
+  const diff2 = O.update({
+    path: ["left", "mismatches"],
+    f: ys => ys.slice(slice)
+  }) (diff);
+
+  const desc = `${diff.left.str.slice(-coincide)}/${diff.right.str.slice(-coincide)}`;
+
+  return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.Some",
+    desc,
+    reason: "hasASuffix",
+    offset: 0,
+    penalty: 1,
+    left: diff2.left,
+    right: diff2.right,
+  }];
+};
+
+
+Str.Diff.Eval.isAPrefix = diff => {
+  const s = diff.left.str,
+    s2 = diff.right.str;
+
+  let coincide = 0, slice = 0;
+
+  if (s.length >= s2.length) return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.None",
+    left: diff.left,
+    right: diff.right
+  }];
+
+  for (let i = 0, i2 = 0; i < s.length - 1 && i2 < s2.length - 1; i++, i2++) {
+    if (s[i].toLowerCase() === s2[i2].toLowerCase()) coincide++;
+    else break;
+  }
+
+  if (coincide === 0) return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.None",
+    left: diff.left,
+    right: diff.right
+  }];
+
+  for (let i = diff.right.mismatches.length - 1; i >= 0; i--) {
+    if (diff.right.mismatches[i].index - diff.right.mismatches[i - 1]?.index === 1)
+      slice++;
+
+    else {slice++; break};
+  }
+
+  const diff2 = O.update({
+    path: ["right", "mismatches"],
+    f: ys => ys.slice(0, -slice)
+  }) (diff);
+
+  const desc = `${diff.left.str.slice(0, coincide + 1)}/${diff.right.str.slice(0, coincide + 1)}`;
+
+  return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.Some",
+    desc,
+    reason: "isAPrefix",
+    offset: 0,
+    penalty: 1,
+    left: diff2.left,
+    right: diff2.right,
+  }];
+};
+
+
+Str.Diff.Eval.isASuffix = diff => {
+  const s = diff.left.str,
+    s2 = diff.right.str;
+
+  let coincide = 0, slice = 0;
+
+  if (s.length >= s2.length) return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.None",
+    left: diff.left,
+    right: diff.right
+  }];
+
+  for (let i = s.length - 1, i2 = s2.length - 1; i >= 0 && i2 >= 0; i--, i2--) {
+    if (s[i].toLowerCase() === s2[i2].toLowerCase()) coincide++;
+    else break;
+  }
+
+  if (coincide === 0) return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.None",
+    left: diff.left,
+    right: diff.right
+  }];
+
+  for (let i = 0; i < diff.right.mismatches.length; i++) {
+    if (diff.right.mismatches[i + 1]?.index - diff.right.mismatches[i].index === 1)
+      slice++;
+
+    else {slice++; break};
+  }
+
+  const diff2 = O.update({
+    path: ["right", "mismatches"],
+    f: ys => ys.slice(slice)
+  }) (diff);
+
+  const desc = `${diff.left.str.slice(-coincide)}/${diff.right.str.slice(-coincide)}`;
+
+  return [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.Some",
+    desc,
+    reason: "isASuffix",
+    offset: 0,
+    penalty: 1,
+    left: diff2.left,
+    right: diff2.right,
+  }];
 };
 
 
@@ -7005,7 +8089,10 @@ Str.distance = a => b => {
 //█████ Normalizing ███████████████████████████████████████████████████████████
 
 
-Str.fraction = new Map([
+Str.Norm = {};
+
+
+Str.Norm.fraction = new Map([
   ["½", "1/2"],
   ["⅓", "1/3"],
   ["⅔", "2/3"],
@@ -7027,7 +8114,7 @@ Str.fraction = new Map([
 ]);
 
 
-Str.modifier = new Map([
+Str.Norm.modifier = new Map([
   ["Á", "A"], ["á", "a"], ["À", "A"], ["à", "a"], ["Â", "A"], ["â", "a"], ["Ǎ", "A"], ["ǎ", "a"], ["Ă", "A"],
   ["ă", "a"], ["Ã", "A"], ["ã", "a"], ["Ả", "A"], ["ả", "a"], ["Ȧ", "A"], ["ȧ", "a"], ["Ạ", "A"], ["ạ", "a"],
   ["Ä", "A"], ["ä", "a"], ["Å", "A"], ["å", "a"], ["Ḁ", "A"], ["ḁ", "a"], ["Ā", "A"], ["ā", "a"], ["Ą", "A"],
@@ -7035,97 +8122,105 @@ Str.modifier = new Map([
   ["ầ", "a"], ["Ẫ", "A"], ["ẫ", "a"], ["Ẩ", "A"], ["ẩ", "a"], ["Ậ", "A"], ["ậ", "a"], ["Ắ", "A"], ["ắ", "a"],
   ["Ằ", "A"], ["ằ", "a"], ["Ẵ", "A"], ["ẵ", "a"], ["Ẳ", "A"], ["ẳ", "a"], ["Ặ", "A"], ["ặ", "a"], ["Ǻ", "A"],
   ["ǻ", "a"], ["Ǡ", "A"], ["ǡ", "a"], ["Ǟ", "A"], ["ǟ", "a"], ["Ȃ", "A"], ["ȃ", "a"], ["Ɑ", "A"], ["ɑ", "a"],
-  ["ᴀ", "A"], ["Ɐ", "A"], ["ɐ", "a"], ["ɒ", "a"], ["Ａ", "A"], ["ａ", "a"], ["Æ", "A"], ["æ", "a"], ["ᴭ", "A"],
-  ["ᵆ", "a"], ["Ǽ", "A"], ["ǽ", "a"], ["Ǣ", "A"], ["ǣ", "a"], ["ᴁ", "A"], ["ᴂ", "a"], ["Ḃ", "B"], ["ḃ", "b"],
-  ["Ḅ", "B"], ["ḅ", "b"], ["Ḇ", "B"], ["ḇ", "b"], ["Ƀ", "B"], ["ƀ", "b"], ["Ɓ", "B"], ["ɓ", "b"], ["Ƃ", "b"],
-  ["ƃ", "b"], ["ᵬ", "b"], ["ᶀ", "b"], ["ʙ", "B"], ["Ｂ", "B"], ["ｂ", "b"], ["Ć", "C"], ["ć", "c"], ["Ĉ", "C"],
-  ["ĉ", "c"], ["Č", "C"], ["č", "c"], ["Ċ", "C"], ["ċ", "c"], ["C̄", "C"], ["c̄", "c"], ["Ç", "C"], ["ç", "c"],
-  ["Ḉ", "C"], ["ḉ", "c"], ["Ȼ", "C"], ["ȼ", "c"], ["Ƈ", "C"], ["ƈ", "c"], ["ɕ", "c"], ["ᴄ", "c"], ["Ｃ", "C"],
-  ["ｃ", "c"], ["Ď", "D"], ["ď", "d"], ["Ḋ", "D"], ["ḋ", "d"], ["Ḑ", "D"], ["ḑ", "d"], ["D̦", "D"], ["d̦", "d"],
-  ["Ḍ", "D"], ["ḍ", "d"], ["Ḓ", "D"], ["ḓ", "d"], ["Ḏ", "D"], ["ḏ", "d"], ["Đ", "D"], ["đ", "d"], ["Ð", "D"],
-  ["ð", "d"], ["D̦", "D"], ["d̦", "d"], ["Ɖ", "D"], ["ɖ", "d"], ["Ɗ", "D"], ["ɗ", "d"], ["Ƌ", "D"], ["ƌ", "d"],
-  ["ᵭ", "d"], ["ᶁ", "d"], ["ᶑ", "d"], ["ȡ", "d"], ["ᴅ", "D"], ["Ｄ", "D"], ["ｄ", "d"], ["Þ", "D"], ["þ", "d"],
-  ["ȸ", "d"], ["Ǳ", "D"], ["ǲ", "D"], ["ǳ", "d"], ["Ǆ", "D"], ["ǅ", "D"], ["ǆ", "d"], ["É", "E"], ["é", "e"],
-  ["È", "E"], ["è", "e"], ["Ê", "E"], ["ê", "e"], ["Ḙ", "E"], ["ḙ", "e"], ["Ě", "E"], ["ě", "e"], ["Ĕ", "E"],
-  ["ĕ", "e"], ["Ẽ", "E"], ["ẽ", "e"], ["Ḛ", "E"], ["ḛ", "e"], ["Ẻ", "E"], ["ẻ", "e"], ["Ė", "E"], ["ė", "e"],
-  ["Ë", "E"], ["ë", "e"], ["Ē", "E"], ["ē", "e"], ["Ȩ", "E"], ["ȩ", "e"], ["Ę", "E"], ["ę", "e"], ["ᶒ", "e"],
-  ["Ɇ", "E"], ["ɇ", "e"], ["Ȅ", "E"], ["ȅ", "e"], ["Ế", "E"], ["ế", "e"], ["Ề", "E"], ["ề", "e"], ["Ễ", "E"],
-  ["ễ", "e"], ["Ể", "E"], ["ể", "e"], ["Ḝ", "E"], ["ḝ", "e"], ["Ḗ", "E"], ["ḗ", "e"], ["Ḕ", "E"], ["ḕ", "e"],
-  ["Ȇ", "E"], ["ȇ", "e"], ["Ẹ", "E"], ["ẹ", "e"], ["Ệ", "E"], ["ệ", "e"], ["ⱸ", "e"], ["ᴇ", "E"], ["Ə", "e"],
-  ["ə", "e"], ["Ǝ", "E"], ["ǝ", "e"], ["Ɛ", "E"], ["ɛ", "e"], ["Ｅ", "E"], ["ｅ", "e"], ["Ḟ", "F"], ["ḟ", "f"],
-  ["Ƒ", "F"], ["ƒ", "f"], ["ᵮ", "f"], ["ᶂ", "f"], ["ꜰ", "F"], ["Ｆ", "F"], ["ｆ", "f"], ["ﬀ", "f"], ["ﬃ", "f"],
-  ["ﬄ", "f"], ["ﬁ", "f"], ["ﬂ", "f"], ["Ǵ", "G"], ["ǵ", "g"], ["Ğ", "G"], ["ğ", "g"], ["Ĝ", "G"], ["ĝ", "g"],
-  ["Ǧ", "G"], ["ǧ", "g"], ["Ġ", "G"], ["ġ", "g"], ["Ģ", "G"], ["ģ", "g"], ["Ḡ", "G"], ["ḡ", "g"], ["Ǥ", "G"],
-  ["ǥ", "g"], ["Ɠ", "G"], ["ɠ", "g"], ["ᶃ", "g"], ["ɢ", "G"], ["Ȝ", "G"], ["ȝ", "g"], ["Ｇ", "G"], ["ｇ", "g"],
-  ["ɢ", "G"], ["ɢ̆", "G"], ["Ĥ", "H"], ["ĥ", "h"], ["Ȟ", "H"], ["ȟ", "h"], ["Ḧ", "H"], ["ḧ", "h"], ["Ḣ", "H"],
-  ["ḣ", "h"], ["Ḩ", "H"], ["ḩ", "h"], ["Ḥ", "H"], ["ḥ", "h"], ["Ḫ", "H"], ["ḫ", "h"], ["H̱", "H"], ["ẖ", "h"],
-  ["Ħ", "H"], ["ħ", "h"], ["Ⱨ", "H"], ["ⱨ", "h"], ["Ɦ", "H"], ["ɦ", "h"], ["Ꜧ", "H"], ["ꜧ", "h"], ["ʰ", "h"],
-  ["ʜ", "H"], ["Ｈ", "H"], ["ｈ", "h"], ["h̃", "h"], ["ɧ", "h"], ["Í", "I"], ["í", "i"], ["Ì", "I"], ["ì", "i"],
-  ["Ĭ", "I"], ["ĭ", "i"], ["Î", "I"], ["î", "i"], ["Ǐ", "I"], ["ǐ", "i"], ["Ï", "I"], ["ï", "i"], ["Ḯ", "I"],
-  ["ḯ", "i"], ["Ĩ", "I"], ["ĩ", "i"], ["Į", "I"], ["į", "i"], ["Ī", "I"], ["ī", "i"], ["Ỉ", "I"], ["ỉ", "i"],
-  ["Ȉ", "I"], ["ȉ", "i"], ["Ȋ", "I"], ["ȋ", "i"], ["Ị", "I"], ["ị", "i"], ["Ḭ", "I"], ["ḭ", "i"], ["Ɨ", "I"],
-  ["ɨ", "i"], ["ᵻ", "I"], ["ᶖ", "i"], ["İ", "I"], ["i", "i"], ["I", "I"], ["ı", "i"], ["ɪ", "I"], ["Ɩ", "I"],
-  ["ɩ", "i"], ["Ｉ", "I"], ["ｉ", "i"], ["Ĳ", "I"], ["ĳ", "i"], ["Ĵ", "J"], ["ĵ", "j"], ["Ɉ", "J"], ["ɉ", "j"],
-  ["J̌", "J"], ["ǰ", "j"], ["ȷ", "J"], ["ʝ", "j"], ["ɟ", "j"], ["ʄ", "j"], ["ᴊ", "J"], ["Ｊ", "J"], ["ｊ", "j"],
-  ["ʲ", "j"], ["j̃", "j"], ["Ḱ", "K"], ["ḱ", "k"], ["Ǩ", "K"], ["ǩ", "k"], ["Ķ", "K"], ["ķ", "k"], ["Ḳ", "K"],
-  ["ḳ", "k"], ["Ḵ", "K"], ["ḵ", "k"], ["Ƙ", "K"], ["ƙ", "k"], ["Ⱪ", "K"], ["ⱪ", "k"], ["ᶄ", "k"], ["Ꝁ", "K"],
-  ["ꝁ", "k"], ["ᴋ", "K"], ["Ｋ", "K"], ["ｋ", "k"], ["Ĺ", "L"], ["ĺ", "l"], ["Ľ", "L"], ["ľ", "l"], ["Ļ", "L"],
-  ["ļ", "l"], ["Ḷ", "L"], ["ḷ", "l"], ["Ḹ", "L"], ["ḹ", "l"], ["Ḽ", "L"], ["ḽ", "l"], ["Ḻ", "L"], ["ḻ", "l"],
-  ["Ł", "L"], ["ł", "l"], ["Ŀ", "L"], ["ŀ", "l"], ["Ƚ", "L"], ["ƚ", "l"], ["Ⱡ", "L"], ["ⱡ", "l"], ["Ɫ", "L"],
-  ["ɫ", "l"], ["ɬ", "l"], ["ᶅ", "l"], ["ɭ", "l"], ["ȴ", "l"], ["ʟ", "L"], ["Ｌ", "L"], ["ｌ", "l"], ["Ǉ", "L"],
-  ["ǈ", "L"], ["ǉ", "l"], ["Ḿ", "M"], ["ḿ", "m"], ["Ṁ", "M"], ["ṁ", "m"], ["Ṃ", "M"], ["ṃ", "m"], ["ᵯ", "m"],
+  ["ᴀ", "A"], ["Ɐ", "A"], ["ɐ", "a"], ["ɒ", "a"], ["Ａ", "A"], ["ａ", "a"], ["Ḃ", "B"], ["ḃ", "b"], ["Ḅ", "B"],
+  ["ḅ", "b"], ["Ḇ", "B"], ["ḇ", "b"], ["Ƀ", "B"], ["ƀ", "b"], ["Ɓ", "B"], ["ɓ", "b"], ["Ƃ", "b"], ["ƃ", "b"],
+  ["ᵬ", "b"], ["ᶀ", "b"], ["ʙ", "B"], ["Ｂ", "B"], ["ｂ", "b"], ["Ć", "C"], ["ć", "c"], ["Ĉ", "C"], ["ĉ", "c"],
+  ["Č", "C"], ["č", "c"], ["Ċ", "C"], ["ċ", "c"], ["C̄", "C"], ["c̄", "c"], ["Ç", "C"], ["ç", "c"], ["Ḉ", "C"],
+  ["ḉ", "c"], ["Ȼ", "C"], ["ȼ", "c"], ["Ƈ", "C"], ["ƈ", "c"], ["ɕ", "c"], ["ᴄ", "c"], ["Ｃ", "C"], ["ｃ", "c"],
+  ["Ď", "D"], ["ď", "d"], ["Ḋ", "D"], ["ḋ", "d"], ["Ḑ", "D"], ["ḑ", "d"], ["D̦", "D"], ["d̦", "d"], ["Ḍ", "D"],
+  ["ḍ", "d"], ["Ḓ", "D"], ["ḓ", "d"], ["Ḏ", "D"], ["ḏ", "d"], ["Đ", "D"], ["đ", "d"], ["Ð", "D"], ["ð", "d"],
+  ["D̦", "D"], ["d̦", "d"], ["Ɖ", "D"], ["ɖ", "d"], ["Ɗ", "D"], ["ɗ", "d"], ["Ƌ", "D"], ["ƌ", "d"], ["ᵭ", "d"],
+  ["ᶁ", "d"], ["ᶑ", "d"], ["ȡ", "d"], ["ᴅ", "D"], ["Ｄ", "D"], ["ｄ", "d"], ["Þ", "D"], ["þ", "d"], ["É", "E"],
+  ["é", "e"], ["È", "E"], ["è", "e"], ["Ê", "E"], ["ê", "e"], ["Ḙ", "E"], ["ḙ", "e"], ["Ě", "E"], ["ě", "e"],
+  ["Ĕ", "E"], ["ĕ", "e"], ["Ẽ", "E"], ["ẽ", "e"], ["Ḛ", "E"], ["ḛ", "e"], ["Ẻ", "E"], ["ẻ", "e"], ["Ė", "E"],
+  ["ė", "e"], ["Ë", "E"], ["ë", "e"], ["Ē", "E"], ["ē", "e"], ["Ȩ", "E"], ["ȩ", "e"], ["Ę", "E"], ["ę", "e"],
+  ["ᶒ", "e"], ["Ɇ", "E"], ["ɇ", "e"], ["Ȅ", "E"], ["ȅ", "e"], ["Ế", "E"], ["ế", "e"], ["Ề", "E"], ["ề", "e"],
+  ["Ễ", "E"], ["ễ", "e"], ["Ể", "E"], ["ể", "e"], ["Ḝ", "E"], ["ḝ", "e"], ["Ḗ", "E"], ["ḗ", "e"], ["Ḕ", "E"],
+  ["ḕ", "e"], ["Ȇ", "E"], ["ȇ", "e"], ["Ẹ", "E"], ["ẹ", "e"], ["Ệ", "E"], ["ệ", "e"], ["ⱸ", "e"], ["ᴇ", "E"],
+  ["Ə", "e"], ["ə", "e"], ["Ǝ", "E"], ["ǝ", "e"], ["Ɛ", "E"], ["ɛ", "e"], ["Ｅ", "E"], ["ｅ", "e"], ["Ḟ", "F"],
+  ["ḟ", "f"], ["Ƒ", "F"], ["ƒ", "f"], ["ᵮ", "f"], ["ᶂ", "f"], ["ꜰ", "F"], ["Ｆ", "F"], ["ｆ", "f"], ["Ǵ", "G"],
+  ["ǵ", "g"], ["Ğ", "G"], ["ğ", "g"], ["Ĝ", "G"], ["ĝ", "g"], ["Ǧ", "G"], ["ǧ", "g"], ["Ġ", "G"], ["ġ", "g"],
+  ["Ģ", "G"], ["ģ", "g"], ["Ḡ", "G"], ["ḡ", "g"], ["Ǥ", "G"], ["ǥ", "g"], ["Ɠ", "G"], ["ɠ", "g"], ["ᶃ", "g"],
+  ["ɢ", "G"], ["Ȝ", "G"], ["ȝ", "g"], ["Ｇ", "G"], ["ｇ", "g"], ["ɢ", "G"], ["ɢ̆", "G"], ["Ĥ", "H"], ["ĥ", "h"],
+  ["Ȟ", "H"], ["ȟ", "h"], ["Ḧ", "H"], ["ḧ", "h"], ["Ḣ", "H"], ["ḣ", "h"], ["Ḩ", "H"], ["ḩ", "h"], ["Ḥ", "H"],
+  ["ḥ", "h"], ["Ḫ", "H"], ["ḫ", "h"], ["H̱", "H"], ["ẖ", "h"], ["Ħ", "H"], ["ħ", "h"], ["Ⱨ", "H"], ["ⱨ", "h"],
+  ["Ɦ", "H"], ["ɦ", "h"], ["Ꜧ", "H"], ["ꜧ", "h"], ["ʰ", "h"], ["ʜ", "H"], ["Ｈ", "H"], ["ｈ", "h"], ["h̃", "h"],
+  ["ɧ", "h"], ["Í", "I"], ["í", "i"], ["Ì", "I"], ["ì", "i"], ["Ĭ", "I"], ["ĭ", "i"], ["Î", "I"], ["î", "i"],
+  ["Ǐ", "I"], ["ǐ", "i"], ["Ï", "I"], ["ï", "i"], ["Ḯ", "I"], ["ḯ", "i"], ["Ĩ", "I"], ["ĩ", "i"], ["Į", "I"],
+  ["į", "i"], ["Ī", "I"], ["ī", "i"], ["Ỉ", "I"], ["ỉ", "i"], ["Ȉ", "I"], ["ȉ", "i"], ["Ȋ", "I"], ["ȋ", "i"],
+  ["Ị", "I"], ["ị", "i"], ["Ḭ", "I"], ["ḭ", "i"], ["Ɨ", "I"], ["ɨ", "i"], ["ᵻ", "I"], ["ᶖ", "i"], ["İ", "I"],
+  ["i", "i"], ["I", "I"], ["ı", "i"], ["ɪ", "I"], ["Ɩ", "I"], ["ɩ", "i"], ["Ｉ", "I"], ["ｉ", "i"], ["Ĵ", "J"],
+  ["ĵ", "j"], ["Ɉ", "J"], ["ɉ", "j"], ["J̌", "J"], ["ǰ", "j"], ["ȷ", "J"], ["ʝ", "j"], ["ɟ", "j"], ["ʄ", "j"],
+  ["ᴊ", "J"], ["Ｊ", "J"], ["ｊ", "j"], ["ʲ", "j"], ["j̃", "j"], ["Ḱ", "K"], ["ḱ", "k"], ["Ǩ", "K"], ["ǩ", "k"],
+  ["Ķ", "K"], ["ķ", "k"], ["Ḳ", "K"], ["ḳ", "k"], ["Ḵ", "K"], ["ḵ", "k"], ["Ƙ", "K"], ["ƙ", "k"], ["Ⱪ", "K"],
+  ["ⱪ", "k"], ["ᶄ", "k"], ["Ꝁ", "K"], ["ꝁ", "k"], ["ᴋ", "K"], ["Ｋ", "K"], ["ｋ", "k"], ["Ĺ", "L"], ["ĺ", "l"],
+  ["Ľ", "L"], ["ľ", "l"], ["Ļ", "L"], ["ļ", "l"], ["Ḷ", "L"], ["ḷ", "l"], ["Ḹ", "L"], ["ḹ", "l"], ["Ḽ", "L"],
+  ["ḽ", "l"], ["Ḻ", "L"], ["ḻ", "l"], ["Ł", "L"], ["ł", "l"], ["Ŀ", "L"], ["ŀ", "l"], ["Ƚ", "L"], ["ƚ", "l"],
+  ["Ⱡ", "L"], ["ⱡ", "l"], ["Ɫ", "L"], ["ɫ", "l"], ["ɬ", "l"], ["ᶅ", "l"], ["ɭ", "l"], ["ȴ", "l"], ["ʟ", "L"],
+  ["Ｌ", "L"], ["ｌ", "l"], ["Ḿ", "M"], ["ḿ", "m"], ["Ṁ", "M"], ["ṁ", "m"], ["Ṃ", "M"], ["ṃ", "m"], ["ᵯ", "m"],
   ["ᶆ", "m"], ["Ɱ", "M"], ["ɱ", "m"], ["ᴍ", "M"], ["Ｍ", "M"], ["ｍ", "m"], ["Ń", "N"], ["ń", "n"], ["Ǹ", "N"],
   ["ǹ", "n"], ["Ň", "N"], ["ň", "n"], ["Ñ", "N"], ["ñ", "n"], ["Ṅ", "N"], ["ṅ", "n"], ["Ņ", "N"], ["ņ", "n"],
   ["Ṇ", "N"], ["ṇ", "n"], ["Ṋ", "N"], ["ṋ", "n"], ["Ṉ", "N"], ["ṉ", "n"], ["N̈", "N"], ["n̈", "n"], ["Ɲ", "N"],
   ["ɲ", "n"], ["Ƞ", "N"], ["ƞ", "n"], ["ᵰ", "n"], ["ᶇ", "n"], ["ɳ", "n"], ["ȵ", "n"], ["ɴ", "N"], ["Ｎ", "N"],
-  ["ｎ", "n"], ["Ŋ", "N"], ["ŋ", "n"], ["Ǌ", "N"], ["ǋ", "N"], ["ǌ", "n"], ["Ó", "O"], ["ó", "o"], ["Ò", "O"],
-  ["ò", "o"], ["Ŏ", "O"], ["ŏ", "o"], ["Ô", "O"], ["ô", "o"], ["Ố", "O"], ["ố", "o"], ["Ồ", "O"], ["ồ", "o"],
-  ["Ỗ", "O"], ["ỗ", "o"], ["Ổ", "O"], ["ổ", "o"], ["Ǒ", "O"], ["ǒ", "o"], ["Ö", "O"], ["ö", "o"], ["Ȫ", "O"],
-  ["ȫ", "o"], ["Ő", "O"], ["ő", "o"], ["Õ", "O"], ["õ", "o"], ["Ṍ", "O"], ["ṍ", "o"], ["Ṏ", "O"], ["ṏ", "o"],
-  ["Ȭ", "O"], ["ȭ", "o"], ["Ȯ", "O"], ["ȯ", "o"], ["Ȱ", "O"], ["ȱ", "o"], ["Ø", "O"], ["ø", "o"], ["Ǿ", "O"],
-  ["ǿ", "o"], ["Ǫ", "O"], ["ǫ", "o"], ["Ǭ", "O"], ["ǭ", "o"], ["Ō", "O"], ["ō", "o"], ["Ṓ", "O"], ["ṓ", "o"],
-  ["Ṑ", "O"], ["ṑ", "o"], ["Ỏ", "O"], ["ỏ", "o"], ["Ȍ", "O"], ["ȍ", "o"], ["Ȏ", "O"], ["ȏ", "o"], ["Ơ", "O"],
-  ["ơ", "o"], ["Ớ", "O"], ["ớ", "o"], ["Ờ", "O"], ["ờ", "o"], ["Ỡ", "O"], ["ỡ", "o"], ["Ở", "O"], ["ở", "o"],
-  ["Ợ", "O"], ["ợ", "o"], ["Ọ", "O"], ["ọ", "o"], ["Ộ", "O"], ["ộ", "o"], ["Ɵ", "O"], ["ɵ", "o"], ["Ɔ", "O"],
-  ["ɔ", "o"], ["Ȣ", "O"], ["ȣ", "o"], ["ⱺ", "O"], ["ᴏ", "o"], ["Ｏ", "O"], ["ｏ", "o"], ["Œ", "O"], ["œ", "o"],
-  ["ᴔ", "o"], ["Ṕ", "P"], ["ṕ", "p"], ["Ṗ", "P"], ["ṗ", "p"], ["Ᵽ", "P"], ["ᵽ", "p"], ["Ƥ", "P"], ["ƥ", "p"],
-  ["P̃", "P"], ["p̃", "p"], ["ᵱ", "p"], ["ᶈ", "p"], ["ᴘ", "P"], ["Ƿ", "P"], ["ƿ", "p"], ["Ｐ", "P"], ["ｐ", "p"],
-  ["Ɋ", "q"], ["ɋ", "q"], ["Ƣ", "Q"], ["ƣ", "q"], ["ʠ", "q"], ["Ｑ", "Q"], ["ｑ", "q"], ["ȹ", "q"], ["ꞯ", "Q"],
-  ["Ŕ", "R"], ["ŕ", "r"], ["Ř", "R"], ["ř", "r"], ["Ṙ", "R"], ["ṙ", "r"], ["Ŗ", "R"], ["ŗ", "r"], ["Ȑ", "R"],
-  ["ȑ", "r"], ["Ȓ", "R"], ["ȓ", "r"], ["Ṛ", "R"], ["ṛ", "r"], ["Ṝ", "R"], ["ṝ", "r"], ["Ṟ", "R"], ["ṟ", "r"],
-  ["Ɍ", "R"], ["ɍ", "r"], ["Ɽ", "R"], ["ɽ", "r"], ["Ꝛ", "R"], ["ꝛ", "r"], ["ᵲ", "r"], ["ᶉ", "r"], ["ɼ", "r"],
-  ["ɾ", "r"], ["ᵳ", "r"], ["ʀ", "R"], ["Ｒ", "R"], ["ｒ", "r"], ["ɹ", "r"], ["ʁ", "R"], ["ſ", "s"], ["ẞ", "S"],
-  ["ß", "s"], ["Ś", "S"], ["ś", "s"], ["Ṥ", "S"], ["ṥ", "s"], ["Ŝ", "S"], ["ŝ", "s"], ["Š", "S"], ["š", "s"],
-  ["Ṧ", "S"], ["ṧ", "s"], ["Ṡ", "S"], ["ṡ", "s"], ["ẛ", "s"], ["Ş", "S"], ["ş", "s"], ["Ṣ", "S"], ["ṣ", "s"],
-  ["Ṩ", "S"], ["ṩ", "s"], ["Ș", "S"], ["ș", "s"], ["S̩", "S"], ["s̩", "s"], ["ᵴ", "s"], ["ᶊ", "s"], ["Ʂ", "S"],
-  ["ʂ", "s"], ["Ȿ", "S"], ["ȿ", "s"], ["ꜱ", "s"], ["Ʃ", "S"], ["ʃ", "s"], ["Ｓ", "S"], ["ｓ", "s"], ["Ť", "T"],
-  ["ť", "t"], ["Ṫ", "T"], ["ṫ", "t"], ["Ţ", "T"], ["ţ", "t"], ["Ṭ", "T"], ["ṭ", "t"], ["Ț", "T"], ["ț", "t"],
-  ["Ṱ", "T"], ["ṱ", "t"], ["Ṯ", "T"], ["ṯ", "t"], ["Ŧ", "T"], ["ŧ", "t"], ["Ⱦ", "T"], ["ⱦ", "t"], ["Ƭ", "T"],
-  ["ƭ", "t"], ["Ʈ", "T"], ["ʈ", "t"], ["T̈", "T"], ["ẗ", "t"], ["ᵵ", "t"], ["ƫ", "t"], ["ȶ", "t"], ["ᴛ", "T"],
-  ["Ｔ", "T"], ["ｔ", "t"], ["Ú", "U"], ["ú", "u"], ["Ù", "U"], ["ù", "u"], ["Ŭ", "U"], ["ŭ", "u"], ["Û", "U"],
-  ["û", "u"], ["Ǔ", "U"], ["ǔ", "u"], ["Ů", "U"], ["ů", "u"], ["Ü", "U"], ["ü", "u"], ["Ǘ", "U"], ["ǘ", "u"],
-  ["Ǜ", "U"], ["ǜ", "u"], ["Ǚ", "U"], ["ǚ", "u"], ["Ǖ", "U"], ["ǖ", "u"], ["Ű", "U"], ["ű", "u"], ["Ũ", "U"],
-  ["ũ", "u"], ["Ṹ", "U"], ["ṹ", "u"], ["Ų", "U"], ["ų", "u"], ["Ū", "U"], ["ū", "u"], ["Ṻ", "U"], ["ṻ", "u"],
-  ["Ủ", "U"], ["ủ", "u"], ["Ȕ", "U"], ["ȕ", "u"], ["Ȗ", "U"], ["ȗ", "u"], ["Ư", "U"], ["ư", "u"], ["Ứ", "U"],
-  ["ứ", "u"], ["Ừ", "U"], ["ừ", "u"], ["Ữ", "U"], ["ữ", "u"], ["Ử", "U"], ["ử", "u"], ["Ự", "U"], ["ự", "u"],
-  ["Ụ", "U"], ["ụ", "u"], ["Ṳ", "U"], ["ṳ", "u"], ["Ṷ", "U"], ["ṷ", "u"], ["Ṵ", "U"], ["ṵ", "u"], ["Ʉ", "U"],
-  ["ʉ", "u"], ["Ʊ", "U"], ["ʊ", "u"], ["Ȣ", "U"], ["ȣ", "u"], ["ᵾ", "U"], ["ᶙ", "u"], ["ᴜ", "u"], ["Ｕ", "U"],
-  ["ｕ", "u"], ["ᵫ", "u"], ["ɯ", "u"], ["Ṽ", "V"], ["ṽ", "v"], ["Ṿ", "V"], ["ṿ", "v"], ["Ʋ", "V"], ["ʋ", "v"],
-  ["ᶌ", "v"], ["ⱱ", "v"], ["ⱴ", "v"], ["ᴠ", "v"], ["Ʌ", "V"], ["ʌ", "v"], ["Ｖ", "V"], ["ｖ", "v"], ["Ẃ", "W"],
-  ["ẃ", "w"], ["Ẁ", "W"], ["ẁ", "w"], ["Ŵ", "W"], ["ŵ", "w"], ["Ẅ", "W"], ["ẅ", "w"], ["Ẇ", "W"], ["ẇ", "w"],
-  ["Ẉ", "W"], ["ẉ", "w"], ["W̊", "W"], ["ẘ", "w"], ["Ⱳ", "W"], ["ⱳ", "w"], ["ᴡ", "w"], ["Ｗ", "W"], ["ｗ", "w"],
-  ["ʷ", "w"], ["ʍ", "w"], ["w̃", "w"], ["Ẍ", "X"], ["ẍ", "x"], ["Ẋ", "X"], ["ẋ", "x"], ["ᶍ", "x"], ["Ｘ", "X"],
-  ["ｘ", "x"], ["Ý", "Y"], ["ý", "y"], ["Ỳ", "Y"], ["ỳ", "y"], ["Ŷ", "Y"], ["ŷ", "y"], ["ẙ", "y"], ["Ÿ", "Y"],
-  ["ÿ", "y"], ["Ỹ", "Y"], ["ỹ", "y"], ["Ẏ", "Y"], ["ẏ", "y"], ["Ȳ", "Y"], ["ȳ", "y"], ["Ỷ", "Y"], ["ỷ", "y"],
-  ["Ỵ", "Y"], ["ỵ", "y"], ["Ɏ", "Y"], ["ɏ", "y"], ["Ƴ", "Y"], ["ƴ", "y"], ["ʏ", "Y"], ["Ｙ", "Y"], ["ｙ", "y"],
-  ["Ź", "Z"], ["ź", "z"], ["Ẑ", "Z"], ["ẑ", "z"], ["Ž", "Z"], ["ž", "z"], ["Ż", "Z"], ["ż", "z"], ["Ẓ", "Z"],
-  ["ẓ", "z"], ["Ẕ", "Z"], ["ẕ", "z"], ["Ƶ", "Z"], ["ƶ", "z"], ["Ȥ", "Z"], ["ȥ", "z"], ["Ⱬ", "Z"], ["ⱬ", "z"],
-  ["ᵶ", "z"], ["ᶎ", "z"], ["ʐ", "z"], ["ʑ", "z"], ["ɀ", "z"], ["ᴢ", "z"], ["Ʒ", "Z"], ["ʒ", "z"], ["Ǯ", "Z"],
-  ["ǯ", "z"], ["Ƹ", "Z"], ["ƹ", "z"], ["Ｚ", "Z"], ["ｚ", "z"],
+  ["ｎ", "n"], ["Ŋ", "N"], ["ŋ", "n"], ["Ó", "O"], ["ó", "o"], ["Ò", "O"], ["ò", "o"], ["Ŏ", "O"], ["ŏ", "o"],
+  ["Ô", "O"], ["ô", "o"], ["Ố", "O"], ["ố", "o"], ["Ồ", "O"], ["ồ", "o"], ["Ỗ", "O"], ["ỗ", "o"], ["Ổ", "O"],
+  ["ổ", "o"], ["Ǒ", "O"], ["ǒ", "o"], ["Ö", "O"], ["ö", "o"], ["Ȫ", "O"], ["ȫ", "o"], ["Ő", "O"], ["ő", "o"],
+  ["Õ", "O"], ["õ", "o"], ["Ṍ", "O"], ["ṍ", "o"], ["Ṏ", "O"], ["ṏ", "o"], ["Ȭ", "O"], ["ȭ", "o"], ["Ȯ", "O"],
+  ["ȯ", "o"], ["Ȱ", "O"], ["ȱ", "o"], ["Ø", "O"], ["ø", "o"], ["Ǿ", "O"], ["ǿ", "o"], ["Ǫ", "O"], ["ǫ", "o"],
+  ["Ǭ", "O"], ["ǭ", "o"], ["Ō", "O"], ["ō", "o"], ["Ṓ", "O"], ["ṓ", "o"], ["Ṑ", "O"], ["ṑ", "o"], ["Ỏ", "O"],
+  ["ỏ", "o"], ["Ȍ", "O"], ["ȍ", "o"], ["Ȏ", "O"], ["ȏ", "o"], ["Ơ", "O"], ["ơ", "o"], ["Ớ", "O"], ["ớ", "o"],
+  ["Ờ", "O"], ["ờ", "o"], ["Ỡ", "O"], ["ỡ", "o"], ["Ở", "O"], ["ở", "o"], ["Ợ", "O"], ["ợ", "o"], ["Ọ", "O"],
+  ["ọ", "o"], ["Ộ", "O"], ["ộ", "o"], ["Ɵ", "O"], ["ɵ", "o"], ["Ɔ", "O"], ["ɔ", "o"], ["Ȣ", "O"], ["ȣ", "o"],
+  ["ⱺ", "O"], ["ᴏ", "o"], ["Ｏ", "O"], ["ｏ", "o"], ["Ṕ", "P"], ["ṕ", "p"], ["Ṗ", "P"], ["ṗ", "p"], ["Ᵽ", "P"],
+  ["ᵽ", "p"], ["Ƥ", "P"], ["ƥ", "p"], ["P̃", "P"], ["p̃", "p"], ["ᵱ", "p"], ["ᶈ", "p"], ["ᴘ", "P"], ["Ƿ", "P"],
+  ["ƿ", "p"], ["Ｐ", "P"], ["ｐ", "p"], ["Ɋ", "q"], ["ɋ", "q"], ["Ƣ", "Q"], ["ƣ", "q"], ["ʠ", "q"], ["Ｑ", "Q"],
+  ["ｑ", "q"], ["ꞯ", "Q"], ["Ŕ", "R"], ["ŕ", "r"], ["Ř", "R"], ["ř", "r"], ["Ṙ", "R"], ["ṙ", "r"], ["Ŗ", "R"],
+  ["ŗ", "r"], ["Ȑ", "R"], ["ȑ", "r"], ["Ȓ", "R"], ["ȓ", "r"], ["Ṛ", "R"], ["ṛ", "r"], ["Ṝ", "R"], ["ṝ", "r"],
+  ["Ṟ", "R"], ["ṟ", "r"], ["Ɍ", "R"], ["ɍ", "r"], ["Ɽ", "R"], ["ɽ", "r"], ["Ꝛ", "R"], ["ꝛ", "r"], ["ᵲ", "r"],
+  ["ᶉ", "r"], ["ɼ", "r"], ["ɾ", "r"], ["ᵳ", "r"], ["ʀ", "R"], ["Ｒ", "R"], ["ｒ", "r"], ["ɹ", "r"], ["ʁ", "R"],
+  ["ſ", "s"], ["ẞ", "S"], ["ß", "s"], ["Ś", "S"], ["ś", "s"], ["Ṥ", "S"], ["ṥ", "s"], ["Ŝ", "S"], ["ŝ", "s"],
+  ["Š", "S"], ["š", "s"], ["Ṧ", "S"], ["ṧ", "s"], ["Ṡ", "S"], ["ṡ", "s"], ["ẛ", "s"], ["Ş", "S"], ["ş", "s"],
+  ["Ṣ", "S"], ["ṣ", "s"], ["Ṩ", "S"], ["ṩ", "s"], ["Ș", "S"], ["ș", "s"], ["S̩", "S"], ["s̩", "s"], ["ᵴ", "s"],
+  ["ᶊ", "s"], ["Ʂ", "S"], ["ʂ", "s"], ["Ȿ", "S"], ["ȿ", "s"], ["ꜱ", "s"], ["Ʃ", "S"], ["ʃ", "s"], ["Ｓ", "S"],
+  ["ｓ", "s"], ["Ť", "T"], ["ť", "t"], ["Ṫ", "T"], ["ṫ", "t"], ["Ţ", "T"], ["ţ", "t"], ["Ṭ", "T"], ["ṭ", "t"],
+  ["Ț", "T"], ["ț", "t"], ["Ṱ", "T"], ["ṱ", "t"], ["Ṯ", "T"], ["ṯ", "t"], ["Ŧ", "T"], ["ŧ", "t"], ["Ⱦ", "T"],
+  ["ⱦ", "t"], ["Ƭ", "T"], ["ƭ", "t"], ["Ʈ", "T"], ["ʈ", "t"], ["T̈", "T"], ["ẗ", "t"], ["ᵵ", "t"], ["ƫ", "t"],
+  ["ȶ", "t"], ["ᴛ", "T"], ["Ｔ", "T"], ["ｔ", "t"], ["Ú", "U"], ["ú", "u"], ["Ù", "U"], ["ù", "u"], ["Ŭ", "U"],
+  ["ŭ", "u"], ["Û", "U"], ["û", "u"], ["Ǔ", "U"], ["ǔ", "u"], ["Ů", "U"], ["ů", "u"], ["Ü", "U"], ["ü", "u"],
+  ["Ǘ", "U"], ["ǘ", "u"], ["Ǜ", "U"], ["ǜ", "u"], ["Ǚ", "U"], ["ǚ", "u"], ["Ǖ", "U"], ["ǖ", "u"], ["Ű", "U"],
+  ["ű", "u"], ["Ũ", "U"], ["ũ", "u"], ["Ṹ", "U"], ["ṹ", "u"], ["Ų", "U"], ["ų", "u"], ["Ū", "U"], ["ū", "u"],
+  ["Ṻ", "U"], ["ṻ", "u"], ["Ủ", "U"], ["ủ", "u"], ["Ȕ", "U"], ["ȕ", "u"], ["Ȗ", "U"], ["ȗ", "u"], ["Ư", "U"],
+  ["ư", "u"], ["Ứ", "U"], ["ứ", "u"], ["Ừ", "U"], ["ừ", "u"], ["Ữ", "U"], ["ữ", "u"], ["Ử", "U"], ["ử", "u"],
+  ["Ự", "U"], ["ự", "u"], ["Ụ", "U"], ["ụ", "u"], ["Ṳ", "U"], ["ṳ", "u"], ["Ṷ", "U"], ["ṷ", "u"], ["Ṵ", "U"],
+  ["ṵ", "u"], ["Ʉ", "U"], ["ʉ", "u"], ["Ʊ", "U"], ["ʊ", "u"], ["Ȣ", "U"], ["ȣ", "u"], ["ᵾ", "U"], ["ᶙ", "u"],
+  ["ᴜ", "u"], ["Ｕ", "U"], ["ｕ", "u"], ["ɯ", "u"], ["Ṽ", "V"], ["ṽ", "v"], ["Ṿ", "V"], ["ṿ", "v"], ["Ʋ", "V"],
+  ["ʋ", "v"], ["ᶌ", "v"], ["ⱱ", "v"], ["ⱴ", "v"], ["ᴠ", "v"], ["Ʌ", "V"], ["ʌ", "v"], ["Ｖ", "V"], ["ｖ", "v"],
+  ["Ẃ", "W"], ["ẃ", "w"], ["Ẁ", "W"], ["ẁ", "w"], ["Ŵ", "W"], ["ŵ", "w"], ["Ẅ", "W"], ["ẅ", "w"], ["Ẇ", "W"],
+  ["ẇ", "w"], ["Ẉ", "W"], ["ẉ", "w"], ["W̊", "W"], ["ẘ", "w"], ["Ⱳ", "W"], ["ⱳ", "w"], ["ᴡ", "w"], ["Ｗ", "W"],
+  ["ｗ", "w"], ["ʷ", "w"], ["ʍ", "w"], ["w̃", "w"], ["Ẍ", "X"], ["ẍ", "x"], ["Ẋ", "X"], ["ẋ", "x"], ["ᶍ", "x"],
+  ["Ｘ", "X"], ["ｘ", "x"], ["Ý", "Y"], ["ý", "y"], ["Ỳ", "Y"], ["ỳ", "y"], ["Ŷ", "Y"], ["ŷ", "y"], ["ẙ", "y"],
+  ["Ÿ", "Y"], ["ÿ", "y"], ["Ỹ", "Y"], ["ỹ", "y"], ["Ẏ", "Y"], ["ẏ", "y"], ["Ȳ", "Y"], ["ȳ", "y"], ["Ỷ", "Y"],
+  ["ỷ", "y"], ["Ỵ", "Y"], ["ỵ", "y"], ["Ɏ", "Y"], ["ɏ", "y"], ["Ƴ", "Y"], ["ƴ", "y"], ["ʏ", "Y"], ["Ｙ", "Y"],
+  ["ｙ", "y"], ["Ź", "Z"], ["ź", "z"], ["Ẑ", "Z"], ["ẑ", "z"], ["Ž", "Z"], ["ž", "z"], ["Ż", "Z"], ["ż", "z"],
+  ["Ẓ", "Z"], ["ẓ", "z"], ["Ẕ", "Z"], ["ẕ", "z"], ["Ƶ", "Z"], ["ƶ", "z"], ["Ȥ", "Z"], ["ȥ", "z"], ["Ⱬ", "Z"],
+  ["ⱬ", "z"], ["ᵶ", "z"], ["ᶎ", "z"], ["ʐ", "z"], ["ʑ", "z"], ["ɀ", "z"], ["ᴢ", "z"], ["Ʒ", "Z"], ["ʒ", "z"],
+  ["Ǯ", "Z"], ["ǯ", "z"], ["Ƹ", "Z"], ["ƹ", "z"], ["Ｚ", "Z"], ["ｚ", "z"],
 ]);
 
 
-Str.normalize = ({inclAlpha}) => doc => {
+Str.Norm.equivalence = new Map([
+  ["ä", "ae"], ["ü", "ue"], ["ö", "oe"], ["ß", "ss"], ["Æ", "Ae"],
+  ["æ", "ae"], ["ᴭ", "Ae"], ["ᵆ", "ae"], ["Ǽ", "Ae"], ["ǽ", "ae"],
+  ["Ǣ", "Ae"], ["ǣ", "ae"], ["ᴁ", "Ae"], ["ᴂ", "ae"], ["ȸ", "db"],
+  ["Ǳ", "Dz"], ["ǲ", "Dz"], ["ǳ", "dz"], ["Ǆ", "Dz"], ["ǅ", "Dz"],
+  ["ǆ", "dz"], ["ﬀ", "ff"], ["ﬃ", "ffi"], ["ﬄ", "ffl"], ["ﬁ", "fi"],
+  ["ﬂ", "fl"], ["Ĳ", "Ij"], ["ĳ", "ij"], ["Ǉ", "Lj"], ["ǈ", "Lj"],
+  ["ǉ", "lj"], ["Ǌ", "Nj"], ["ǋ", "Nj"], ["ǌ", "nj"], ["Œ", "Oe"],
+  ["œ", "oe"], ["ȹ", "qp"], ["ᵫ", "ue"],
+]);
+
+
+Str.Norm.normalize = ({inclAlpha}) => doc => {
   let s = "";
 
   for (const c of doc) {
@@ -7145,9 +8240,11 @@ Str.normalize = ({inclAlpha}) => doc => {
       else if (c === "ʻ") s += "'";
       else if (c === "ˮ") s += "'";
       
-      else if (inclAlpha && Str.modifier.has(c))
-        s += Str.modifier.get(c);
-      
+      else if (inclAlpha) {
+        if (Str.Norm.modifier.has(c)) s += Str.Norm.modifier.get(c);
+        else if (Str.Norm.equivalence.has(c)) s += Str.Norm.equivalence.get(c);
+      }
+
       else s += c;
     }
 
@@ -7158,8 +8255,8 @@ Str.normalize = ({inclAlpha}) => doc => {
     // number
 
     else if (/\p{N}/v.test(c)) {
-      if (Str.fraction.has(c))
-        s += Str.fraction.get(c);
+      if (Str.Norm.fraction.has(c))
+        s += Str.Norm.fraction.get(c);
       
       else s += c;
     }
