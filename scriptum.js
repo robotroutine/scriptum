@@ -6834,6 +6834,69 @@ Str.Diff.Eval.deDE.mishearings = {
 };
 
 
+// compose to evaluations
+
+Str.Diff.Eval.comp = f => g => diff => {
+  if (!Array.isArray(diff)) diff = [{
+    $: "Str.Diff.Candidate",
+    $$: "Str.Diff.Candidate.None",
+    left: diff.left,
+    right: diff.right
+  }];
+
+  const xs = diff.flatMap(o => {
+    const descs = [], reasons = [];
+    let penalty = 0, offset = 0;
+    
+    if (o[$$] === "Str.Diff.Candidate.Some") {
+      descs.push(o.desc);
+      reasons.push(o.reason);
+      penalty = o.penalty;
+      offset = o.offset;
+    }
+
+    const xs = g(o);
+
+    return xs.map(p => {
+      descs.push(p.desc);
+      reasons.push(p.reason);
+      penalty += p.penalty;
+      offset = p.offset > offset ? p.offset : offset;
+      p.desc = descs.join("|");
+      p.reason = reasons.join("|");
+      p.penalty = penalty;
+      p.offset = offset;
+      return p;
+    });
+  });
+
+  return xs.flatMap(o => {
+    const descs = [o.desc], reasons = [o.reason];
+    let penalty = o.penalty, offset = o.offset;
+
+    const ys = f(o);
+
+    return ys.flatMap(p => {
+      descs.push(p.desc);
+      reasons.push(p.reason);
+      penalty += p.penalty;
+      offset = p.offset > offset ? p.offset : offset;
+      p.desc = descs.join("|");
+      p.reason = reasons.join("|");
+      p.penalty = penalty;
+      p.offset = offset;
+      return p;
+    });
+  });
+};
+
+
+Str.Diff.Eval.compn = (...fs) => {
+  if (fs.length > 2) throw new Err("at least two arguments expected");
+  else return fs.reduce((g, f) => Str.Diff.Eval.comp(f) (g));
+};
+
+
 Str.Diff.Eval.match11 = diff => {
   const go = (o, side, i) => {
     const mismatch = diff[side].mismatches[i],
@@ -6848,8 +6911,8 @@ Str.Diff.Eval.match11 = diff => {
         for (const constraint of o.constraints) switch (constraint) {
           case "tail": {
             if (mismatch.index === 0 || mismatch2.index === 0) return [{
-              $: "Str.Diff.Candidate",
-              $$: "Str.Diff.Candidate.None",
+              [$]: "Str.Diff.Candidate",
+              [$$]: "Str.Diff.Candidate.None",
               left: diff.left,
               right: diff.right
             }];
@@ -6877,12 +6940,12 @@ Str.Diff.Eval.match11 = diff => {
           : mismatch2.index - mismatch.index;
 
         xs.push({
-          $: "Str.Diff.Candidate",
-          $$: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Candidate",
+          [$$]: "Str.Diff.Candidate.Some",
           desc,
           reason: "mishearing",
           offset: mismatch.index - mismatch2.index,
-          penalty: 2,
+          penalty: 1,
           left: diff2.left,
           right: diff2.right,
         });
@@ -6927,12 +6990,12 @@ Str.Diff.Eval.matchFirst12 = diff => {
           : o.letters.join("/");
 
         return [{
-          $: "Str.Diff.Candidate",
-          $$: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Candidate",
+          [$$]: "Str.Diff.Candidate.Some",
           desc,
           reason: "mishearing",
           offset: 0, // cannot retrieve offset
-          penalty: 2,
+          penalty: 1,
           left: diff2.left,
           right: diff2.right,
         }];
@@ -6940,8 +7003,8 @@ Str.Diff.Eval.matchFirst12 = diff => {
     }
 
     return [{
-      $: "Str.Diff.Candidate",
-      $$: "Str.Diff.Candidate.None",
+      [$]: "Str.Diff.Candidate",
+      [$$]: "Str.Diff.Candidate.None",
       left: diff.left,
       right: diff.right
     }];
@@ -6970,8 +7033,8 @@ Str.Diff.Eval.matchSecond12 = diff => {
       for (const constraint of o.constraints) switch (constraint) {
         case "tail": {
           if (mismatch.index === 0) return [{
-            $: "Str.Diff.Candidate",
-            $$: "Str.Diff.Candidate.None",
+            [$]: "Str.Diff.Candidate",
+            [$$]: "Str.Diff.Candidate.None",
             left: diff.left,
             right: diff.right
           }];
@@ -6997,12 +7060,12 @@ Str.Diff.Eval.matchSecond12 = diff => {
           : o.letters.join("/");
 
         return [{
-          $: "Str.Diff.Candidate",
-          $$: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Candidate",
+          [$$]: "Str.Diff.Candidate.Some",
           desc,
           reason: "mishearing",
           offset: 0, // cannot retrieve offset
-          penalty: 2,
+          penalty: 1,
           left: diff2.left,
           right: diff2.right,
         }];
@@ -7010,8 +7073,8 @@ Str.Diff.Eval.matchSecond12 = diff => {
     }
 
     return [{
-      $: "Str.Diff.Candidate",
-      $$: "Str.Diff.Candidate.None",
+      [$]: "Str.Diff.Candidate",
+      [$$]: "Str.Diff.Candidate.None",
       left: diff.left,
       right: diff.right
     }];
@@ -7047,15 +7110,15 @@ Str.Diff.Eval.mismatch12 = diff => {
         for (const constraint of o.constraints) switch (constraint) {
           case "last": {
             if (diff[side].str.length - mismatch.index - 1 > 1) return [{
-              $: "Str.Diff.Candidate",
-              $$: "Str.Diff.Candidate.None",
+              [$]: "Str.Diff.Candidate",
+              [$$]: "Str.Diff.Candidate.None",
               left: diff.left,
               right: diff.right
             }];
 
             else if (diff[side2].str.length - mismatch2.index - 1 > 1) return [{
-              $: "Str.Diff.Candidate",
-              $$: "Str.Diff.Candidate.None",
+              [$]: "Str.Diff.Candidate",
+              [$$]: "Str.Diff.Candidate.None",
               left: diff.left,
               right: diff.right
             }];
@@ -7065,8 +7128,8 @@ Str.Diff.Eval.mismatch12 = diff => {
 
           case "noFlip": {
             if (side !== "right") return [{
-              $: "Str.Diff.Candidate",
-              $$: "Str.Diff.Candidate.None",
+              [$]: "Str.Diff.Candidate",
+              [$$]: "Str.Diff.Candidate.None",
               left: diff.left,
               right: diff.right
             }];
@@ -7076,8 +7139,8 @@ Str.Diff.Eval.mismatch12 = diff => {
 
           case "tail": {
             if (mismatch.index === 0 || mismatch2.index === 0) return [{
-              $: "Str.Diff.Candidate",
-              $$: "Str.Diff.Candidate.None",
+              [$]: "Str.Diff.Candidate",
+              [$$]: "Str.Diff.Candidate.None",
               left: diff.left,
               right: diff.right
             }];
@@ -7110,12 +7173,12 @@ Str.Diff.Eval.mismatch12 = diff => {
           : mismatch2.index - mismatch.index;
 
         xs.push({
-          $: "Str.Diff.Candidate",
-          $$: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Candidate",
+          [$$]: "Str.Diff.Candidate.Some",
           desc,
           reason: "mishearing",
           offset,
-          penalty: 2,
+          penalty: 1,
           left: diff2.left,
           right: diff2.right,
         });
@@ -7150,8 +7213,8 @@ Str.Diff.Eval.matchFirst22 = diff => {
       .find(p => p.index === mismatch.index - 1);
 
     if (!match) return [{
-      $: "Str.Diff.Candidate",
-      $$: "Str.Diff.Candidate.None",
+      [$]: "Str.Diff.Candidate",
+      [$$]: "Str.Diff.Candidate.None",
       left: diff.left,
       right: diff.right
     }];
@@ -7183,12 +7246,12 @@ Str.Diff.Eval.matchFirst22 = diff => {
             : mismatch2.index - mismatch.index;
 
           return [{
-            $: "Str.Diff.Candidate",
-            $$: "Str.Diff.Candidate.Some",
+            [$]: "Str.Diff.Candidate",
+            [$$]: "Str.Diff.Candidate.Some",
             desc,
             reason: "mishearing",
             offset,
-            penalty: 2,
+            penalty: 1,
             left: diff2.left,
             right: diff2.right,
           }];
@@ -7197,8 +7260,8 @@ Str.Diff.Eval.matchFirst22 = diff => {
     }
 
     return [{
-      $: "Str.Diff.Candidate",
-      $$: "Str.Diff.Candidate.None",
+      [$]: "Str.Diff.Candidate",
+      [$$]: "Str.Diff.Candidate.None",
       left: diff.left,
       right: diff.right
     }];
@@ -7229,8 +7292,8 @@ Str.Diff.Eval.matchSecond22 = diff => {
       .find(p => p.index === mismatch.index + 1);
 
     if (!match) return [{
-      $: "Str.Diff.Candidate",
-      $$: "Str.Diff.Candidate.None",
+      [$]: "Str.Diff.Candidate",
+      [$$]: "Str.Diff.Candidate.None",
       left: diff.left,
       right: diff.right
     }];
@@ -7262,12 +7325,12 @@ Str.Diff.Eval.matchSecond22 = diff => {
             : mismatch2.index - mismatch.index;
 
           return [{
-            $: "Str.Diff.Candidate",
-            $$: "Str.Diff.Candidate.Some",
+            [$]: "Str.Diff.Candidate",
+            [$$]: "Str.Diff.Candidate.Some",
             desc,
             reason: "mishearing",
             offset,
-            penalty: 2,
+            penalty: 1,
             left: diff2.left,
             right: diff2.right,
           }];
@@ -7276,8 +7339,8 @@ Str.Diff.Eval.matchSecond22 = diff => {
     }
 
     return [{
-      $: "Str.Diff.Candidate",
-      $$: "Str.Diff.Candidate.None",
+      [$]: "Str.Diff.Candidate",
+      [$$]: "Str.Diff.Candidate.None",
       left: diff.left,
       right: diff.right
     }];
@@ -7307,8 +7370,8 @@ Str.Diff.Eval.mismatch22 = diff => {
     const mismatch2 = diff[side].mismatches[i + 1];
 
     if (!mismatch2) return [{
-      $: "Str.Diff.Candidate",
-      $$: "Str.Diff.Candidate.None",
+      [$]: "Str.Diff.Candidate",
+      [$$]: "Str.Diff.Candidate.None",
       left: diff.left,
       right: diff.right
     }];
@@ -7343,12 +7406,12 @@ Str.Diff.Eval.mismatch22 = diff => {
           : mismatch3.index - mismatch.index;
 
         xs.push({
-          $: "Str.Diff.Candidate",
-          $$: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Candidate",
+          [$$]: "Str.Diff.Candidate.Some",
           desc,
           reason: "mishearing",
           offset,
-          penalty: 2,
+          penalty: 1,
           left: diff2.left,
           right: diff2.right,
         });
@@ -7412,12 +7475,12 @@ Str.Diff.Eval.mismatch13 = diff => {
           : mismatch2.index - mismatch.index;
 
         xs.push({
-          $: "Str.Diff.Candidate",
-          $$: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Candidate",
+          [$$]: "Str.Diff.Candidate.Some",
           desc,
           reason: "mishearing",
           offset,
-          penalty: 2,
+          penalty: 1,
           left: diff2.left,
           right: diff2.right,
         });
@@ -7460,8 +7523,8 @@ Str.Diff.Eval.misreading = diff => {
           })) (diff);
 
           candidates.push({
-            $: "Str.Diff.Candidate",
-            $$: "Str.Diff.Candidate.Some",
+            [$]: "Str.Diff.Candidate",
+            [$$]: "Str.Diff.Candidate.Some",
             desc: `${mismatch.char}/${mismatch2.char}`,
             reason: "misreading",
             offset: mismatch.index - mismatch2.index,
@@ -7510,8 +7573,8 @@ Str.Diff.Eval.transposition = diff => {
           : `${match2.char}/${mismatch2.char}`;
 
         candidates.push({
-          $: "Str.Diff.Candidate",
-          $$: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Candidate",
+          [$$]: "Str.Diff.Candidate.Some",
           desc,
           reason: "transposition",
           offset: mismatch.index - mismatch2.index + offset,
@@ -7541,8 +7604,8 @@ Str.Diff.Eval.repetition = diff => {
       }) (diff);
 
       candidates.push({
-        $: "Str.Diff.Candidate",
-        $$: "Str.Diff.Candidate.Some",
+        [$]: "Str.Diff.Candidate",
+        [$$]: "Str.Diff.Candidate.Some",
         desc: `${mismatch.char.repeat(2)}/${match2.char}`,
         reason: "repetition",
         offset: mismatch.index - match2.index - 1,
@@ -7564,8 +7627,8 @@ Str.Diff.Eval.repetition = diff => {
       }) (diff);
 
       candidates.push({
-        $: "Str.Diff.Candidate",
-        $$: "Str.Diff.Candidate.Some",
+        [$]: "Str.Diff.Candidate",
+        [$$]: "Str.Diff.Candidate.Some",
         desc: `${match2.char}/${mismatch.char.repeat(2)}`,
         reason: "repetition",
         offset: match2.index - mismatch.index + 1,
@@ -7598,8 +7661,8 @@ Str.Diff.Eval.modifier = diff => {
           })) (diff);
 
           candidates.push({
-            $: "Str.Diff.Candidate",
-            $$: "Str.Diff.Candidate.Some",
+            [$]: "Str.Diff.Candidate",
+            [$$]: "Str.Diff.Candidate.Some",
             desc: `${mismatch.char}/${mismatch2.char}`,
             reason: "modifier",
             offset: mismatch.index - mismatch2.index,
@@ -7623,8 +7686,8 @@ Str.Diff.Eval.modifier = diff => {
           })) (diff);
 
           candidates.push({
-            $: "Str.Diff.Candidate",
-            $$: "Str.Diff.Candidate.Some",
+            [$]: "Str.Diff.Candidate",
+            [$$]: "Str.Diff.Candidate.Some",
             desc: `${mismatch.char}/${mismatch2.char}`,
             reason: "modifier",
             offset: mismatch.index - mismatch2.index,
@@ -7667,8 +7730,8 @@ Str.Diff.Eval.equivalence = diff => {
                 })) (diff);
 
                 candidates.push({
-                  $: "Str.Diff.Candidate",
-                  $$: "Str.Diff.Candidate.Some",
+                  [$]: "Str.Diff.Candidate",
+                  [$$]: "Str.Diff.Candidate.Some",
                   desc: `${mismatch.char}/${s}`,
                   reason: "modifier",
                   offset: mismatch.index - mismatch2.index,
@@ -7696,8 +7759,8 @@ Str.Diff.Eval.equivalence = diff => {
                 })) (diff);
 
                 candidates.push({
-                  $: "Str.Diff.Candidate",
-                  $$: "Str.Diff.Candidate.Some",
+                  [$]: "Str.Diff.Candidate",
+                  [$$]: "Str.Diff.Candidate.Some",
                   desc: `${mismatch.char}/${s}`,
                   reason: "modifier",
                   offset: mismatch.index - mismatch2.index,
@@ -7728,8 +7791,8 @@ Str.Diff.Eval.equivalence = diff => {
                 })) (diff);
 
                 candidates.push({
-                  $: "Str.Diff.Candidate",
-                  $$: "Str.Diff.Candidate.Some",
+                  [$]: "Str.Diff.Candidate",
+                  [$$]: "Str.Diff.Candidate.Some",
                   desc: `${s}/${mismatch2.char}`,
                   reason: "modifier",
                   offset: mismatch.index - mismatch2.index,
@@ -7763,8 +7826,8 @@ Str.Diff.Eval.equivalence = diff => {
                 })) (diff);
 
                 candidates.push({
-                  $: "Str.Diff.Candidate",
-                  $$: "Str.Diff.Candidate.Some",
+                  [$]: "Str.Diff.Candidate",
+                  [$$]: "Str.Diff.Candidate.Some",
                   desc: `${s}/${mismatch2.char}`,
                   reason: "modifier",
                   offset: mismatch.index - mismatch2.index,
@@ -7795,8 +7858,8 @@ Str.Diff.Eval.hasAPrefix = diff => {
   let coincide = 0, slice = 0;
 
   if (s.length <= s2.length) return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.None",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.None",
     left: diff.left,
     right: diff.right
   }];
@@ -7807,8 +7870,8 @@ Str.Diff.Eval.hasAPrefix = diff => {
   }
 
   if (coincide === 0) return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.None",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.None",
     left: diff.left,
     right: diff.right
   }];
@@ -7828,8 +7891,8 @@ Str.Diff.Eval.hasAPrefix = diff => {
   const desc = `${diff.left.str.slice(0, coincide + 1)}/${diff.right.str.slice(0, coincide + 1)}`;
 
   return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.Some",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.Some",
     desc,
     reason: "hasAPrefix",
     offset: 0,
@@ -7847,8 +7910,8 @@ Str.Diff.Eval.hasASuffix = diff => {
   let coincide = 0, slice = 0;
 
   if (s.length <= s2.length) return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.None",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.None",
     left: diff.left,
     right: diff.right
   }];
@@ -7859,8 +7922,8 @@ Str.Diff.Eval.hasASuffix = diff => {
   }
 
   if (coincide === 0) return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.None",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.None",
     left: diff.left,
     right: diff.right
   }];
@@ -7880,8 +7943,8 @@ Str.Diff.Eval.hasASuffix = diff => {
   const desc = `${diff.left.str.slice(-coincide)}/${diff.right.str.slice(-coincide)}`;
 
   return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.Some",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.Some",
     desc,
     reason: "hasASuffix",
     offset: 0,
@@ -7899,8 +7962,8 @@ Str.Diff.Eval.isAPrefix = diff => {
   let coincide = 0, slice = 0;
 
   if (s.length >= s2.length) return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.None",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.None",
     left: diff.left,
     right: diff.right
   }];
@@ -7911,8 +7974,8 @@ Str.Diff.Eval.isAPrefix = diff => {
   }
 
   if (coincide === 0) return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.None",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.None",
     left: diff.left,
     right: diff.right
   }];
@@ -7932,8 +7995,8 @@ Str.Diff.Eval.isAPrefix = diff => {
   const desc = `${diff.left.str.slice(0, coincide + 1)}/${diff.right.str.slice(0, coincide + 1)}`;
 
   return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.Some",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.Some",
     desc,
     reason: "isAPrefix",
     offset: 0,
@@ -7951,8 +8014,8 @@ Str.Diff.Eval.isASuffix = diff => {
   let coincide = 0, slice = 0;
 
   if (s.length >= s2.length) return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.None",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.None",
     left: diff.left,
     right: diff.right
   }];
@@ -7963,8 +8026,8 @@ Str.Diff.Eval.isASuffix = diff => {
   }
 
   if (coincide === 0) return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.None",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.None",
     left: diff.left,
     right: diff.right
   }];
@@ -7984,8 +8047,8 @@ Str.Diff.Eval.isASuffix = diff => {
   const desc = `${diff.left.str.slice(-coincide)}/${diff.right.str.slice(-coincide)}`;
 
   return [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.Some",
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.Some",
     desc,
     reason: "isASuffix",
     offset: 0,
