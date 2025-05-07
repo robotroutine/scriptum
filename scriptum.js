@@ -6836,15 +6836,10 @@ Str.Diff.Eval.deDE.mishearings = {
 
 // compose to evaluations
 
-Str.Diff.Eval.comp = f => g => diff => {
-  if (!Array.isArray(diff)) diff = [{
-    $: "Str.Diff.Candidate",
-    $$: "Str.Diff.Candidate.None",
-    left: diff.left,
-    right: diff.right
-  }];
+Str.Diff.Eval.comp = f => g => diffs => {
+  if (!Array.isArray(diffs)) diffs = [diffs];
 
-  const xs = diff.flatMap(o => {
+  const xs = diffs.flatMap(o => {
     const descs = [], reasons = [];
     let penalty = 0, offset = 0;
     
@@ -6858,15 +6853,19 @@ Str.Diff.Eval.comp = f => g => diff => {
     const xs = g(o);
 
     return xs.map(p => {
-      descs.push(p.desc);
-      reasons.push(p.reason);
-      penalty += p.penalty;
-      offset = p.offset > offset ? p.offset : offset;
-      p.desc = descs.join("|");
-      p.reason = reasons.join("|");
-      p.penalty = penalty;
-      p.offset = offset;
-      return p;
+      if (p[$$] === "Str.Diff.Candidate.Some") {
+        descs.push(p.desc);
+        reasons.push(p.reason);
+        penalty += p.penalty;
+        offset = p.offset > offset ? p.offset : offset;
+        p.desc = descs.join("|");
+        p.reason = reasons.join("|");
+        p.penalty = penalty;
+        p.offset = offset;
+        return p;
+      }
+
+      else return p;
     });
   });
 
@@ -6877,23 +6876,69 @@ Str.Diff.Eval.comp = f => g => diff => {
     const ys = f(o);
 
     return ys.flatMap(p => {
-      descs.push(p.desc);
-      reasons.push(p.reason);
-      penalty += p.penalty;
-      offset = p.offset > offset ? p.offset : offset;
-      p.desc = descs.join("|");
-      p.reason = reasons.join("|");
-      p.penalty = penalty;
-      p.offset = offset;
-      return p;
+      if (p[$$] === "Str.Diff.Candidate.Some") {
+        descs.push(p.desc);
+        reasons.push(p.reason);
+        penalty += p.penalty;
+        offset = p.offset > offset ? p.offset : offset;
+        p.desc = descs.join("|");
+        p.reason = reasons.join("|");
+        p.penalty = penalty;
+        p.offset = offset;
+        return p;
+      }
+
+      else return p;
     });
   });
 };
 
 
 Str.Diff.Eval.compn = (...fs) => {
-  if (fs.length > 2) throw new Err("at least two arguments expected");
+  if (fs.length < 2) throw new Err("at least two arguments expected");
+  else return fs.reduce((f, g) => Str.Diff.Eval.comp(f) (g));
+};
+
+
+Str.Diff.Eval.pipen = (...fs) => {
+  if (fs.length < 2) throw new Err("at least two arguments expected");
   else return fs.reduce((g, f) => Str.Diff.Eval.comp(f) (g));
+};
+
+
+/* Penalize every remaining mismatch with the maximum penality. Combinator is
+meant to be used last in compositions. */
+
+Str.Diff.Eval.remaining = diff => {
+  const n = diff.left.mismatches.length,
+    n2 = diff.right.mismatches.length;
+
+  let penalty = 0;
+
+  if (n + n2 === 0) return [{
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.None",
+    desc: diff.desc,
+    reason: diff.reason,
+    offset: diff.offset,
+    penalty: diff.penalty,
+    left: diff.left,
+    right: diff.right,
+  }];
+
+  for (const mismatch of diff.left.mismatches) penalty += 10;
+  for (const mismatch of diff.right.mismatches) penalty += 10;
+
+  return [{
+    [$]: "Str.Diff.Candidate",
+    [$$]: "Str.Diff.Candidate.Some",
+    desc: `${n}/${n2}`,
+    reason: "remaining",
+    offset: 0,
+    penalty,
+    left: diff.left,
+    right: diff.right,
+  }];
 };
 
 
@@ -6913,6 +6958,10 @@ Str.Diff.Eval.match11 = diff => {
             if (mismatch.index === 0 || mismatch2.index === 0) return [{
               [$]: "Str.Diff.Candidate",
               [$$]: "Str.Diff.Candidate.None",
+              desc: diff.desc,
+              reason: diff.reason,
+              offset: diff.offset,
+              penalty: diff.penalty,
               left: diff.left,
               right: diff.right
             }];
@@ -7005,6 +7054,10 @@ Str.Diff.Eval.matchFirst12 = diff => {
     return [{
       [$]: "Str.Diff.Candidate",
       [$$]: "Str.Diff.Candidate.None",
+      desc: diff.desc,
+      reason: diff.reason,
+      offset: diff.offset,
+      penalty: diff.penalty,
       left: diff.left,
       right: diff.right
     }];
@@ -7035,6 +7088,10 @@ Str.Diff.Eval.matchSecond12 = diff => {
           if (mismatch.index === 0) return [{
             [$]: "Str.Diff.Candidate",
             [$$]: "Str.Diff.Candidate.None",
+            desc: diff.desc,
+            reason: diff.reason,
+            offset: diff.offset,
+            penalty: diff.penalty,
             left: diff.left,
             right: diff.right
           }];
@@ -7075,6 +7132,10 @@ Str.Diff.Eval.matchSecond12 = diff => {
     return [{
       [$]: "Str.Diff.Candidate",
       [$$]: "Str.Diff.Candidate.None",
+      desc: diff.desc,
+      reason: diff.reason,
+      offset: diff.offset,
+      penalty: diff.penalty,
       left: diff.left,
       right: diff.right
     }];
@@ -7112,6 +7173,10 @@ Str.Diff.Eval.mismatch12 = diff => {
             if (diff[side].str.length - mismatch.index - 1 > 1) return [{
               [$]: "Str.Diff.Candidate",
               [$$]: "Str.Diff.Candidate.None",
+              desc: diff.desc,
+              reason: diff.reason,
+              offset: diff.offset,
+              penalty: diff.penalty,
               left: diff.left,
               right: diff.right
             }];
@@ -7119,6 +7184,10 @@ Str.Diff.Eval.mismatch12 = diff => {
             else if (diff[side2].str.length - mismatch2.index - 1 > 1) return [{
               [$]: "Str.Diff.Candidate",
               [$$]: "Str.Diff.Candidate.None",
+              desc: diff.desc,
+              reason: diff.reason,
+              offset: diff.offset,
+              penalty: diff.penalty,
               left: diff.left,
               right: diff.right
             }];
@@ -7130,6 +7199,10 @@ Str.Diff.Eval.mismatch12 = diff => {
             if (side !== "right") return [{
               [$]: "Str.Diff.Candidate",
               [$$]: "Str.Diff.Candidate.None",
+              desc: diff.desc,
+              reason: diff.reason,
+              offset: diff.offset,
+              penalty: diff.penalty,
               left: diff.left,
               right: diff.right
             }];
@@ -7141,6 +7214,10 @@ Str.Diff.Eval.mismatch12 = diff => {
             if (mismatch.index === 0 || mismatch2.index === 0) return [{
               [$]: "Str.Diff.Candidate",
               [$$]: "Str.Diff.Candidate.None",
+              desc: diff.desc,
+              reason: diff.reason,
+              offset: diff.offset,
+              penalty: diff.penalty,
               left: diff.left,
               right: diff.right
             }];
@@ -7215,6 +7292,10 @@ Str.Diff.Eval.matchFirst22 = diff => {
     if (!match) return [{
       [$]: "Str.Diff.Candidate",
       [$$]: "Str.Diff.Candidate.None",
+      desc: diff.desc,
+      reason: diff.reason,
+      offset: diff.offset,
+      penalty: diff.penalty,
       left: diff.left,
       right: diff.right
     }];
@@ -7262,6 +7343,10 @@ Str.Diff.Eval.matchFirst22 = diff => {
     return [{
       [$]: "Str.Diff.Candidate",
       [$$]: "Str.Diff.Candidate.None",
+      desc: diff.desc,
+      reason: diff.reason,
+      offset: diff.offset,
+      penalty: diff.penalty,
       left: diff.left,
       right: diff.right
     }];
@@ -7294,6 +7379,10 @@ Str.Diff.Eval.matchSecond22 = diff => {
     if (!match) return [{
       [$]: "Str.Diff.Candidate",
       [$$]: "Str.Diff.Candidate.None",
+      desc: diff.desc,
+      reason: diff.reason,
+      offset: diff.offset,
+      penalty: diff.penalty,
       left: diff.left,
       right: diff.right
     }];
@@ -7341,6 +7430,10 @@ Str.Diff.Eval.matchSecond22 = diff => {
     return [{
       [$]: "Str.Diff.Candidate",
       [$$]: "Str.Diff.Candidate.None",
+      desc: diff.desc,
+      reason: diff.reason,
+      offset: diff.offset,
+      penalty: diff.penalty,
       left: diff.left,
       right: diff.right
     }];
@@ -7372,6 +7465,10 @@ Str.Diff.Eval.mismatch22 = diff => {
     if (!mismatch2) return [{
       [$]: "Str.Diff.Candidate",
       [$$]: "Str.Diff.Candidate.None",
+      desc: diff.desc,
+      reason: diff.reason,
+      offset: diff.offset,
+      penalty: diff.penalty,
       left: diff.left,
       right: diff.right
     }];
@@ -7860,6 +7957,10 @@ Str.Diff.Eval.hasAPrefix = diff => {
   if (s.length <= s2.length) return [{
     [$]: "Str.Diff.Candidate",
     [$$]: "Str.Diff.Candidate.None",
+    desc: diff.desc,
+    reason: diff.reason,
+    offset: diff.offset,
+    penalty: diff.penalty,
     left: diff.left,
     right: diff.right
   }];
@@ -7872,6 +7973,10 @@ Str.Diff.Eval.hasAPrefix = diff => {
   if (coincide === 0) return [{
     [$]: "Str.Diff.Candidate",
     [$$]: "Str.Diff.Candidate.None",
+    desc: diff.desc,
+    reason: diff.reason,
+    offset: diff.offset,
+    penalty: diff.penalty,
     left: diff.left,
     right: diff.right
   }];
@@ -7912,6 +8017,10 @@ Str.Diff.Eval.hasASuffix = diff => {
   if (s.length <= s2.length) return [{
     [$]: "Str.Diff.Candidate",
     [$$]: "Str.Diff.Candidate.None",
+    desc: diff.desc,
+    reason: diff.reason,
+    offset: diff.offset,
+    penalty: diff.penalty,
     left: diff.left,
     right: diff.right
   }];
@@ -7924,6 +8033,10 @@ Str.Diff.Eval.hasASuffix = diff => {
   if (coincide === 0) return [{
     [$]: "Str.Diff.Candidate",
     [$$]: "Str.Diff.Candidate.None",
+    desc: diff.desc,
+    reason: diff.reason,
+    offset: diff.offset,
+    penalty: diff.penalty,
     left: diff.left,
     right: diff.right
   }];
@@ -7964,6 +8077,10 @@ Str.Diff.Eval.isAPrefix = diff => {
   if (s.length >= s2.length) return [{
     [$]: "Str.Diff.Candidate",
     [$$]: "Str.Diff.Candidate.None",
+    desc: diff.desc,
+    reason: diff.reason,
+    offset: diff.offset,
+    penalty: diff.penalty,
     left: diff.left,
     right: diff.right
   }];
@@ -7976,6 +8093,10 @@ Str.Diff.Eval.isAPrefix = diff => {
   if (coincide === 0) return [{
     [$]: "Str.Diff.Candidate",
     [$$]: "Str.Diff.Candidate.None",
+    desc: diff.desc,
+    reason: diff.reason,
+    offset: diff.offset,
+    penalty: diff.penalty,
     left: diff.left,
     right: diff.right
   }];
@@ -8016,6 +8137,10 @@ Str.Diff.Eval.isASuffix = diff => {
   if (s.length >= s2.length) return [{
     [$]: "Str.Diff.Candidate",
     [$$]: "Str.Diff.Candidate.None",
+    desc: diff.desc,
+    reason: diff.reason,
+    offset: diff.offset,
+    penalty: diff.penalty,
     left: diff.left,
     right: diff.right
   }];
@@ -8028,6 +8153,10 @@ Str.Diff.Eval.isASuffix = diff => {
   if (coincide === 0) return [{
     [$]: "Str.Diff.Candidate",
     [$$]: "Str.Diff.Candidate.None",
+    desc: diff.desc,
+    reason: diff.reason,
+    offset: diff.offset,
+    penalty: diff.penalty,
     left: diff.left,
     right: diff.right
   }];
