@@ -162,7 +162,10 @@ Sign.retrieve = x => {
       }
 
       default: {
-        if (x?.[$]) return `${x[$]}{${Sign.obj(x)}}`;
+
+        // use constructor instead of tag
+
+        if (x?.[$$]) return `${x[$$]}{${Sign.obj(x)}}`;
         else return `${tag}{${Sign.obj(x)}}`;
       };
     }
@@ -1925,6 +1928,9 @@ A.partitionBy = f => g => xs => xs.reduce((acc, x) => {
 }, new Map());
 
 
+/* Starting from the beginning, split a string at the first position where the
+predicate is unmet. */
+
 A.span = p => xs => {
   const ys = [];
 
@@ -1936,6 +1942,8 @@ A.span = p => xs => {
   return [ys, xs.slice(ys.length)];
 };
 
+
+// split at each position where the binary predicate is unmet
 
 A.splitAt = p => xs => {
   const yss = [];
@@ -1955,6 +1963,29 @@ A.splitAt = p => xs => {
   if (ys.length > 0) yss.push(ys);
   return yss;
 };
+
+
+A.tuplewise = ({size, padding = null, overlap = false}) => xs => {
+  const ys = [];
+
+  for (let i = 0; i < xs.length; overlap ? i++ : i += size) {
+    if (i + size > xs.length) {
+      if (!overlap) {
+        const clipping = i + size - xs.length;
+
+        ys.push(xs.slice(i, i + size - clipping)
+          .concat(Array(clipping).fill(padding)));
+      }
+    }
+    
+    else ys.push(xs.slice(i, i + size));
+  }
+
+  return ys;
+};
+
+
+A.bigram = A.tuplewise({size: 2, overlap: true});
 
 
 //█████ Combinations, Subsets, Subsequences ███████████████████████████████████
@@ -6463,15 +6494,15 @@ Str.splitAscii = s => {
 };
 
 
-Str.splitChunk = ({size, pad = " ", overlap = false}) => s => {
+Str.splitChunk = ({size, padding = " ", overlap = false}) => s => {
   const xs = [];
 
   for (let i = 0; i === i; overlap ? i++ : i += size) {
     if (i >= s.length) break;
     
-    else if (i + size >= s.length) {
-      xs.push(s.slice(i, i + size).padEnd(size, pad));
-      break;
+    else if (i + size > s.length) {
+      if (!overlap)
+        xs.push(s.slice(i, i + size).padEnd(size, padding));
     }
     
     else xs.push(s.slice(i, i + size));
@@ -6517,6 +6548,118 @@ Yields "Happy Thanksgiving, Muad'dib!" */
 Str.template = f => o => f(o);
 
 
+//█████ Bigrams ███████████████████████████████████████████████████████████████
+
+
+// query similar words based on bigrams
+
+
+Str.Bigram = {};
+
+
+// Bigram :: Str
+// Word :: [Bigram]
+// Index :: Nat
+// [Word] => Corpus{words: [Word], lookup: Map<Str, Set<Index>>}
+Str.Bigram.createCorpus = (words) => {
+  const lookup = new Map();
+
+  words.forEach((word, i) => {
+    const metaBigrams = A.bigram(word);
+
+    metaBigrams.forEach(metaBigram => {
+      const k = JSON.stringify(metaBigram);
+      if (!lookup.has(k)) lookup.set(k, new Set());
+      lookup.get(k).add(i);
+    });
+  });
+
+  return {
+    [$]: "Corpus",
+    [$$]: "Corpus",
+    words,
+    lookup
+  };
+};
+
+
+// Bigram :: Str
+// Word :: [Bigram]
+// Corpus{words: [Word], lookup: Map<Str, Set<Index>>}
+// Corpus => Word => [{i: Index, score: Nat}]
+Str.Bigram.query = corpus => word => {
+  const queryMetas = A.bigram(word);
+
+  if (queryMetas.length === 0) return [];
+  
+  const candidates = new Set();
+
+  queryMetas.forEach(queryMeta => {
+    const k = JSON.stringify(queryMeta);
+
+    if (corpus.lookup.has(k))
+      corpus.lookup.get(k).forEach(i => candidates.add(i));
+  });
+
+  const results = [], qlen = queryMetas.length;
+
+  candidates.forEach(corpusIndex => {
+    const corpusMetas = A.bigram(corpus.words[corpusIndex]),
+      clen = corpusMetas.length;
+
+    const xs = Array(qlen + 1)
+      .fill(null)
+      .map(() => Array(clen + 1).fill(0));
+
+    for (let i = 1; i <= qlen; i++) {
+      for (let j = 1; j <= clen; j++) {
+        const queryMeta = queryMetas[i - 1],
+          corpusMeta = corpusMetas[j - 1];
+
+        if (queryMeta[0] === corpusMeta[0] && queryMeta[1] === corpusMeta[1])
+          xs[i] [j] = xs[i - 1] [j - 1] + 1;
+
+        else xs[i] [j] = 0;
+      }
+    }
+
+    // calculate score
+
+    let score = 0;
+
+    for (let i = 1; i <= qlen; i++) {
+      for (let j = 1; j <= clen; j++) {
+        if (xs[i] [j] > 0) {
+          const atQueryEnd = i === qlen,
+            atCorpusEnd = j === clen;
+          
+          let isMismatch = false;
+
+          if (!atQueryEnd && !atCorpusEnd) {
+            const queryMeta2 = queryMetas[i],
+              corpusMeta2 = corpusMetas[j];
+
+            if (queryMeta2[0] !== corpusMeta2[0]
+              || queryMeta2[1] !== corpusMeta2[1])
+                isMismatch = true;
+          }
+
+          if (atQueryEnd || atCorpusEnd || isMismatch) {
+            const runLen = xs[i] [j];
+            score += runLen * runLen;
+          }
+        }
+      }
+    }
+
+    if (score > 0) results.push({i: corpusIndex, score});
+  });
+
+  results.sort((o, p) => p.score - o.score);
+  return results;
+};
+
+
 //█████ Diffing ███████████████████████████████████████████████████████████████
 
 
@@ -6525,6 +6668,11 @@ Str.Diff = {};
 
 // retrieve the differences between two strings in a case-insensitive manner
 
+// Nat :: Num
+// IndexedChar :: {char: Str, index: Nat}
+// DiffSide :: {str: Str, matches: [IndexedChar], mismatches: [IndexedChar]}
+// Str.Diff{left: DiffSide, right: DiffSide}
+// Str => Str => (Str.Diff | [])
 Str.Diff.retrieve = l => r => {
   const findBest = (il, ir) => {
     if (il === l.length) return {length: 0, gaps: 0, sequence: []};
@@ -6598,6 +6746,10 @@ Str.Diff.retrieve = l => r => {
 };
 
 
+// Nat :: Num
+// Indices :: {index: Nat, indices: [[Nat, Nat]]}
+// Candidate :: {length: Num, gaps: Num, sequence: [Indices]}
+// (Candidate, Candidate) => Int
 Str.Diff.compareCandidates = (o, p) => {
   if (o.length !== p.length) return p.length - o.length;
   else if (o.gaps !== p.gaps) return o.gaps - p.gaps;
@@ -6605,6 +6757,9 @@ Str.Diff.compareCandidates = (o, p) => {
 };
 
 
+// Candidate :: {length: Num, gaps: Num, sequence: [Indices]}
+// DiffSide :: {str: Str, matches: [IndexedChar], mismatches: [IndexedChar]}
+// (Str, Candidate) => DiffSide
 Str.Diff.storeLeft = (l, right) => {
   const matches = [], mismatches = [];
 
@@ -6644,6 +6799,9 @@ Str.Diff.storeLeft = (l, right) => {
 };
 
 
+// Candidate :: {length: Num, gaps: Num, sequence: [Indices]}
+// DiffSide :: {str: Str, matches: [IndexedChar], mismatches: [IndexedChar]}
+// (Str, Candidate) => DiffSide
 Str.Diff.storeRight = (r, seq) => {
   const matches = [], mismatches = [];
 
@@ -6698,6 +6856,12 @@ Str.Diff.storeRight = (r, seq) => {
 
 
 // evaluate differences between two strings
+
+/*
+The Some- and None-constructors are
+identical. The purpose of the latter is merely to loop through the values of
+the previous evaluation provided the current evaluation has failed.
+*/
 
 
 Str.Diff.Eval = {};
@@ -6834,16 +6998,18 @@ Str.Diff.Eval.deDE.mishearings = {
 };
 
 
-// compose to evaluations
+// compose two evaluations
 
-Str.Diff.Eval.comp = f => g => diffs => {
-  if (!Array.isArray(diffs)) diffs = [diffs];
+//  EvalFun :: Str.Diff.Eval => [Str.Diff.Eval]
+// EvalFun => EvalFun => Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.comp = f => g => evals => {
+  if (!Array.isArray(evals)) evals = [evals];
 
-  const xs = diffs.flatMap(o => {
+  const xs = evals.flatMap(o => {
     const descs = [], reasons = [];
     let penalty = 0, offset = 0;
     
-    if (o[$$] === "Str.Diff.Candidate.Some") {
+    if (o[$$] === "Str.Diff.Eval.Some") {
       descs.push(o.desc);
       reasons.push(o.reason);
       penalty = o.penalty;
@@ -6853,7 +7019,7 @@ Str.Diff.Eval.comp = f => g => diffs => {
     const xs = g(o);
 
     return xs.map(p => {
-      if (p[$$] === "Str.Diff.Candidate.Some") {
+      if (p[$$] === "Str.Diff.Eval.Some") {
         descs.push(p.desc);
         reasons.push(p.reason);
         penalty += p.penalty;
@@ -6876,7 +7042,7 @@ Str.Diff.Eval.comp = f => g => diffs => {
     const ys = f(o);
 
     return ys.flatMap(p => {
-      if (p[$$] === "Str.Diff.Candidate.Some") {
+      if (p[$$] === "Str.Diff.Eval.Some") {
         descs.push(p.desc);
         reasons.push(p.reason);
         penalty += p.penalty;
@@ -6900,70 +7066,91 @@ Str.Diff.Eval.compn = (...fs) => {
 };
 
 
-Str.Diff.Eval.pipen = (...fs) => {
-  if (fs.length < 2) throw new Err("at least two arguments expected");
-  else return fs.reduce((g, f) => Str.Diff.Eval.comp(f) (g));
+/* Take a diff and wrap it into an empty eval. The combinator is meant to be
+used first in compositions of evaluations. */
+
+// Nat :: Num
+// IndexedChar :: {char: Str, index: Nat}
+// DiffSide :: {str: Str, matches: [IndexedChar], mismatches: [IndexedChar]}
+// Str.Diff{left: DiffSide, right: DiffSide}
+// Str.Diff.Eval.Some{desc: Str, reason: Str, offset: Nat, penalty: Nat, left: DiffSide, right: DiffSide}
+// Str.Diff.Eval.None{desc: Str, reason: Str, offset: Nat, penalty: Nat, left: DiffSide, right: DiffSide}
+// Str.Diff.Eval :: Str.Diff.Eval.Some | Str.Diff.Eval.None
+// Str.Diff => [Str.Diff.Eval]
+Str.Diff.Eval.initial = diff => {
+  return [{
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.None",
+    desc: "",
+    reason: "",
+    offset: 0,
+    penalty: 0,
+    left: diff.left,
+    right: diff.right,
+  }];
 };
 
 
-/* Penalize every remaining mismatch with the maximum penality. Combinator is
-meant to be used last in compositions. */
+/* Penalize every remaining mismatch with a higher penality. The combinator is
+meant to be used last in compositions of evaluations. */
 
-Str.Diff.Eval.remaining = diff => {
-  const n = diff.left.mismatches.length,
-    n2 = diff.right.mismatches.length;
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.remaining = _eval => {
+  const n = _eval.left.mismatches.length,
+    n2 = _eval.right.mismatches.length;
 
   let penalty = 0;
 
   if (n + n2 === 0) return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.None",
-    desc: diff.desc,
-    reason: diff.reason,
-    offset: diff.offset,
-    penalty: diff.penalty,
-    left: diff.left,
-    right: diff.right,
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.None",
+    desc: _eval.desc,
+    reason: _eval.reason,
+    offset: _eval.offset,
+    penalty: _eval.penalty,
+    left: _eval.left,
+    right: _eval.right,
   }];
 
-  for (const mismatch of diff.left.mismatches) penalty += 10;
-  for (const mismatch of diff.right.mismatches) penalty += 10;
+  for (const mismatch of _eval.left.mismatches) penalty += 10;
+  for (const mismatch of _eval.right.mismatches) penalty += 10;
 
   return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.Some",
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.Some",
     desc: `${n}/${n2}`,
     reason: "remaining",
     offset: 0,
     penalty,
-    left: diff.left,
-    right: diff.right,
+    left: _eval.left,
+    right: _eval.right,
   }];
 };
 
 
-Str.Diff.Eval.match11 = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.match11 = _eval => {
   const go = (o, side, i) => {
-    const mismatch = diff[side].mismatches[i],
+    const mismatch = _eval[side].mismatches[i],
       side2 = ({left: "right", right: "left"}) [side],
       xs = [];
 
     if (mismatch.char === o.letters[0]) {
-      const mismatches2 = diff[side2].mismatches
+      const mismatches2 = _eval[side2].mismatches
         .filter(p => p.char === o.letters[1]);
 
       for (const mismatch2 of mismatches2) {
         for (const constraint of o.constraints) switch (constraint) {
           case "tail": {
             if (mismatch.index === 0 || mismatch2.index === 0) return [{
-              [$]: "Str.Diff.Candidate",
-              [$$]: "Str.Diff.Candidate.None",
-              desc: diff.desc,
-              reason: diff.reason,
-              offset: diff.offset,
-              penalty: diff.penalty,
-              left: diff.left,
-              right: diff.right
+              [$]: "Str.Diff.Eval",
+              [$$]: "Str.Diff.Eval.None",
+              desc: _eval.desc,
+              reason: _eval.reason,
+              offset: _eval.offset,
+              penalty: _eval.penalty,
+              left: _eval.left,
+              right: _eval.right
             }];
 
             break;
@@ -6972,13 +7159,13 @@ Str.Diff.Eval.match11 = diff => {
           default: throw new Err(`unknown constraint "${constraint}"`);
         }
 
-        const diff2 = comp(O.update({
+        const eval2 = comp(O.update({
           path: [side, "mismatches"],
           f: ys => ys.filter(p => p.index !== mismatch.index)
         })) (O.update({
           path: [side2, "mismatches"],
           f: ys => ys.filter(p => p.index !== mismatch2.index)
-        })) (diff);
+        })) (_eval);
 
         const desc = side === "left"
           ? o.letters.join("/")
@@ -6989,14 +7176,14 @@ Str.Diff.Eval.match11 = diff => {
           : mismatch2.index - mismatch.index;
 
         xs.push({
-          [$]: "Str.Diff.Candidate",
-          [$$]: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Eval",
+          [$$]: "Str.Diff.Eval.Some",
           desc,
           reason: "mishearing",
           offset: mismatch.index - mismatch2.index,
           penalty: 1,
-          left: diff2.left,
-          right: diff2.right,
+          left: eval2.left,
+          right: eval2.right,
         });
       }
     }
@@ -7008,10 +7195,10 @@ Str.Diff.Eval.match11 = diff => {
     candidates = [];
 
   for (const o of os) {
-    for (let i = 0; i < diff.left.mismatches.length; i++)
+    for (let i = 0; i < _eval.left.mismatches.length; i++)
       candidates.push(...go(o, "left", i));
 
-    for (let i = 0; i < diff.right.mismatches.length; i++)
+    for (let i = 0; i < _eval.right.mismatches.length; i++)
       candidates.push(...go(o, "right", i));
   }
 
@@ -7019,47 +7206,48 @@ Str.Diff.Eval.match11 = diff => {
 };
 
 
-Str.Diff.Eval.matchFirst12 = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.matchFirst12 = _eval => {
   const go = (o, side, i) => {
-    const mismatch = diff[side].mismatches[i];
+    const mismatch = _eval[side].mismatches[i];
 
     if (mismatch.char === o.letters[0]) {
-      const match = diff[side].matches
+      const match = _eval[side].matches
         .find(p => p.index === mismatch.index + 1
           && p.char === o.letters[1] [1]);
 
       if (match) {
-        const diff2 = O.update({
+        const eval2 = O.update({
           path: [side, "mismatches"],
           f: ys => ys.filter(p => p.index !== mismatch.index)
-        }) (diff);
+        }) (_eval);
 
         const desc = side === "left"
           ? o.letters.toReversed().join("/")
           : o.letters.join("/");
 
         return [{
-          [$]: "Str.Diff.Candidate",
-          [$$]: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Eval",
+          [$$]: "Str.Diff.Eval.Some",
           desc,
           reason: "mishearing",
           offset: 0, // cannot retrieve offset
           penalty: 1,
-          left: diff2.left,
-          right: diff2.right,
+          left: eval2.left,
+          right: eval2.right,
         }];
       }
     }
 
     return [{
-      [$]: "Str.Diff.Candidate",
-      [$$]: "Str.Diff.Candidate.None",
-      desc: diff.desc,
-      reason: diff.reason,
-      offset: diff.offset,
-      penalty: diff.penalty,
-      left: diff.left,
-      right: diff.right
+      [$]: "Str.Diff.Eval",
+      [$$]: "Str.Diff.Eval.None",
+      desc: _eval.desc,
+      reason: _eval.reason,
+      offset: _eval.offset,
+      penalty: _eval.penalty,
+      left: _eval.left,
+      right: _eval.right
     }];
   };
 
@@ -7067,10 +7255,10 @@ Str.Diff.Eval.matchFirst12 = diff => {
     candidates = [];
 
   for (const o of os) {
-    for (let i = 0; i < diff.left.mismatches.length; i++)
+    for (let i = 0; i < _eval.left.mismatches.length; i++)
       candidates.push(...go(o, "left", i));
 
-    for (let i = 0; i < diff.right.mismatches.length; i++)
+    for (let i = 0; i < _eval.right.mismatches.length; i++)
       candidates.push(...go(o, "right", i));
   }
 
@@ -7078,22 +7266,23 @@ Str.Diff.Eval.matchFirst12 = diff => {
 };
 
 
-Str.Diff.Eval.matchSecond12 = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.matchSecond12 = _eval => {
   const go = (o, side, i) => {
-    const mismatch = diff[side].mismatches[i];
+    const mismatch = _eval[side].mismatches[i];
 
     if (mismatch.char === o.letters[0]) {
       for (const constraint of o.constraints) switch (constraint) {
         case "tail": {
           if (mismatch.index === 0) return [{
-            [$]: "Str.Diff.Candidate",
-            [$$]: "Str.Diff.Candidate.None",
-            desc: diff.desc,
-            reason: diff.reason,
-            offset: diff.offset,
-            penalty: diff.penalty,
-            left: diff.left,
-            right: diff.right
+            [$]: "Str.Diff.Eval",
+            [$$]: "Str.Diff.Eval.None",
+            desc: _eval.desc,
+            reason: _eval.reason,
+            offset: _eval.offset,
+            penalty: _eval.penalty,
+            left: _eval.left,
+            right: _eval.right
           }];
 
           break;
@@ -7102,42 +7291,42 @@ Str.Diff.Eval.matchSecond12 = diff => {
         default: throw new Err(`unknown constraint "${constraint}"`);
       }
 
-      const match = diff[side].matches
+      const match = _eval[side].matches
         .find(p => p.index === mismatch.index - 1
           && p.char === o.letters[1] [0]);
 
       if (match) {
-        const diff2 = O.update({
+        const eval2 = O.update({
           path: [side, "mismatches"],
           f: ys => ys.filter(p => p.index !== mismatch.index)
-        }) (diff);
+        }) (_eval);
 
         const desc = side === "left"
           ? o.letters.toReversed().join("/")
           : o.letters.join("/");
 
         return [{
-          [$]: "Str.Diff.Candidate",
-          [$$]: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Eval",
+          [$$]: "Str.Diff.Eval.Some",
           desc,
           reason: "mishearing",
           offset: 0, // cannot retrieve offset
           penalty: 1,
-          left: diff2.left,
-          right: diff2.right,
+          left: eval2.left,
+          right: eval2.right,
         }];
       }
     }
 
     return [{
-      [$]: "Str.Diff.Candidate",
-      [$$]: "Str.Diff.Candidate.None",
-      desc: diff.desc,
-      reason: diff.reason,
-      offset: diff.offset,
-      penalty: diff.penalty,
-      left: diff.left,
-      right: diff.right
+      [$]: "Str.Diff.Eval",
+      [$$]: "Str.Diff.Eval.None",
+      desc: _eval.desc,
+      reason: _eval.reason,
+      offset: _eval.offset,
+      penalty: _eval.penalty,
+      left: _eval.left,
+      right: _eval.right
     }];
   };
 
@@ -7145,10 +7334,10 @@ Str.Diff.Eval.matchSecond12 = diff => {
     candidates = [];
 
   for (const o of os) {
-    for (let i = 0; i < diff.left.mismatches.length; i++)
+    for (let i = 0; i < _eval.left.mismatches.length; i++)
       candidates.push(...go(o, "left", i));
 
-    for (let i = 0; i < diff.right.mismatches.length; i++)
+    for (let i = 0; i < _eval.right.mismatches.length; i++)
       candidates.push(...go(o, "right", i));
   }
 
@@ -7156,40 +7345,41 @@ Str.Diff.Eval.matchSecond12 = diff => {
 };
 
 
-Str.Diff.Eval.mismatch12 = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.mismatch12 = _eval => {
   const go = (o, side, i) => {
-    const mismatch = diff[side].mismatches[i],
+    const mismatch = _eval[side].mismatches[i],
       side2 = ({left: "right", right: "left"}) [side],
       xs = [];
 
     if (mismatch.char === o.letters[0]) {
-      const mismatches2 = diff[side2].mismatches
+      const mismatches2 = _eval[side2].mismatches
         .filter((p, i2) => p.char === o.letters[1] [0]
-          && diff[side2].mismatches[i2 + 1]?.char === o.letters[1] [1]);
+          && _eval[side2].mismatches[i2 + 1]?.char === o.letters[1] [1]);
 
       for (const mismatch2 of mismatches2) {
         for (const constraint of o.constraints) switch (constraint) {
           case "last": {
-            if (diff[side].str.length - mismatch.index - 1 > 1) return [{
-              [$]: "Str.Diff.Candidate",
-              [$$]: "Str.Diff.Candidate.None",
-              desc: diff.desc,
-              reason: diff.reason,
-              offset: diff.offset,
-              penalty: diff.penalty,
-              left: diff.left,
-              right: diff.right
+            if (_eval[side].str.length - mismatch.index - 1 > 1) return [{
+              [$]: "Str.Diff.Eval",
+              [$$]: "Str.Diff.Eval.None",
+              desc: _eval.desc,
+              reason: _eval.reason,
+              offset: _eval.offset,
+              penalty: _eval.penalty,
+              left: _eval.left,
+              right: _eval.right
             }];
 
-            else if (diff[side2].str.length - mismatch2.index - 1 > 1) return [{
-              [$]: "Str.Diff.Candidate",
-              [$$]: "Str.Diff.Candidate.None",
-              desc: diff.desc,
-              reason: diff.reason,
-              offset: diff.offset,
-              penalty: diff.penalty,
-              left: diff.left,
-              right: diff.right
+            else if (_eval[side2].str.length - mismatch2.index - 1 > 1) return [{
+              [$]: "Str.Diff.Eval",
+              [$$]: "Str.Diff.Eval.None",
+              desc: _eval.desc,
+              reason: _eval.reason,
+              offset: _eval.offset,
+              penalty: _eval.penalty,
+              left: _eval.left,
+              right: _eval.right
             }];
 
             break;
@@ -7197,14 +7387,14 @@ Str.Diff.Eval.mismatch12 = diff => {
 
           case "noFlip": {
             if (side !== "right") return [{
-              [$]: "Str.Diff.Candidate",
-              [$$]: "Str.Diff.Candidate.None",
-              desc: diff.desc,
-              reason: diff.reason,
-              offset: diff.offset,
-              penalty: diff.penalty,
-              left: diff.left,
-              right: diff.right
+              [$]: "Str.Diff.Eval",
+              [$$]: "Str.Diff.Eval.None",
+              desc: _eval.desc,
+              reason: _eval.reason,
+              offset: _eval.offset,
+              penalty: _eval.penalty,
+              left: _eval.left,
+              right: _eval.right
             }];
 
             break;
@@ -7212,14 +7402,14 @@ Str.Diff.Eval.mismatch12 = diff => {
 
           case "tail": {
             if (mismatch.index === 0 || mismatch2.index === 0) return [{
-              [$]: "Str.Diff.Candidate",
-              [$$]: "Str.Diff.Candidate.None",
-              desc: diff.desc,
-              reason: diff.reason,
-              offset: diff.offset,
-              penalty: diff.penalty,
-              left: diff.left,
-              right: diff.right
+              [$]: "Str.Diff.Eval",
+              [$$]: "Str.Diff.Eval.None",
+              desc: _eval.desc,
+              reason: _eval.reason,
+              offset: _eval.offset,
+              penalty: _eval.penalty,
+              left: _eval.left,
+              right: _eval.right
             }];
 
             break;
@@ -7228,10 +7418,10 @@ Str.Diff.Eval.mismatch12 = diff => {
           default: throw new Err(`unknown constraint "${constraint}"`);
         }
 
-        const mismatch3 = diff[side2].mismatches
+        const mismatch3 = _eval[side2].mismatches
           .find(p => p.index === mismatch2.index + 1);
 
-        const diff2 = comp(O.update({
+        const eval2 = comp(O.update({
           path: [side, "mismatches"],
           f: ys => ys.filter(p => p.index !== mismatch.index)
         })) (O.update({
@@ -7239,7 +7429,7 @@ Str.Diff.Eval.mismatch12 = diff => {
           f: ys => ys.filter(p =>
             p.index !== mismatch2.index
               && p.index !== mismatch3.index)
-        })) (diff);
+        })) (_eval);
 
         const desc = side === "left"
           ? o.letters.join("/")
@@ -7250,14 +7440,14 @@ Str.Diff.Eval.mismatch12 = diff => {
           : mismatch2.index - mismatch.index;
 
         xs.push({
-          [$]: "Str.Diff.Candidate",
-          [$$]: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Eval",
+          [$$]: "Str.Diff.Eval.Some",
           desc,
           reason: "mishearing",
           offset,
           penalty: 1,
-          left: diff2.left,
-          right: diff2.right,
+          left: eval2.left,
+          right: eval2.right,
         });
       }
     }
@@ -7269,10 +7459,10 @@ Str.Diff.Eval.mismatch12 = diff => {
     candidates = [];
 
   for (const o of os) {
-    for (let i = 0; i < diff.left.mismatches.length; i++)
+    for (let i = 0; i < _eval.left.mismatches.length; i++)
       candidates.push(...go(o, "left", i));
 
-    for (let i = 0; i < diff.right.mismatches.length; i++)
+    for (let i = 0; i < _eval.right.mismatches.length; i++)
       candidates.push(...go(o, "right", i));
   }
 
@@ -7280,43 +7470,44 @@ Str.Diff.Eval.mismatch12 = diff => {
 };
 
 
-Str.Diff.Eval.matchFirst22 = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.matchFirst22 = _eval => {
   const go = (o, side, i) => {
-    const mismatch = diff[side].mismatches[i],
+    const mismatch = _eval[side].mismatches[i],
       side2 = ({left: "right", right: "left"}) [side],
       xs = [];
 
-    const match = diff[side].matches
+    const match = _eval[side].matches
       .find(p => p.index === mismatch.index - 1);
 
     if (!match) return [{
-      [$]: "Str.Diff.Candidate",
-      [$$]: "Str.Diff.Candidate.None",
-      desc: diff.desc,
-      reason: diff.reason,
-      offset: diff.offset,
-      penalty: diff.penalty,
-      left: diff.left,
-      right: diff.right
+      [$]: "Str.Diff.Eval",
+      [$$]: "Str.Diff.Eval.None",
+      desc: _eval.desc,
+      reason: _eval.reason,
+      offset: _eval.offset,
+      penalty: _eval.penalty,
+      left: _eval.left,
+      right: _eval.right
     }];
 
     else if (match.char + mismatch.char === o.letters[0]) {
-      const mismatches2 = diff[side2].mismatches
+      const mismatches2 = _eval[side2].mismatches
         .filter(p => p.char === o.letters[1] [1]);
 
       for (const mismatch2 of mismatches2) {
-        const match2 = diff[side2].matches
+        const match2 = _eval[side2].matches
           .find(p => p.index === mismatch2.index - 1
             && p.char === o.letters[1] [0]);
 
         if (match2) {
-          const diff2 = comp(O.update({
+          const eval2 = comp(O.update({
             path: [side, "mismatches"],
             f: ys => ys.filter(p => p.index !== mismatch.index)
           })) (O.update({
             path: [side2, "mismatches"],
             f: ys => ys.filter(p => p.index !== mismatch2.index)
-          })) (diff);
+          })) (_eval);
 
           const desc = side === "left"
             ? o.letters.join("/")
@@ -7327,28 +7518,28 @@ Str.Diff.Eval.matchFirst22 = diff => {
             : mismatch2.index - mismatch.index;
 
           return [{
-            [$]: "Str.Diff.Candidate",
-            [$$]: "Str.Diff.Candidate.Some",
+            [$]: "Str.Diff.Eval",
+            [$$]: "Str.Diff.Eval.Some",
             desc,
             reason: "mishearing",
             offset,
             penalty: 1,
-            left: diff2.left,
-            right: diff2.right,
+            left: eval2.left,
+            right: eval2.right,
           }];
         }
       }
     }
 
     return [{
-      [$]: "Str.Diff.Candidate",
-      [$$]: "Str.Diff.Candidate.None",
-      desc: diff.desc,
-      reason: diff.reason,
-      offset: diff.offset,
-      penalty: diff.penalty,
-      left: diff.left,
-      right: diff.right
+      [$]: "Str.Diff.Eval",
+      [$$]: "Str.Diff.Eval.None",
+      desc: _eval.desc,
+      reason: _eval.reason,
+      offset: _eval.offset,
+      penalty: _eval.penalty,
+      left: _eval.left,
+      right: _eval.right
     }];
   };
 
@@ -7356,10 +7547,10 @@ Str.Diff.Eval.matchFirst22 = diff => {
     candidates = [];
 
   for (const o of os) {
-    for (let i = 0; i < diff.left.mismatches.length; i++)
+    for (let i = 0; i < _eval.left.mismatches.length; i++)
       candidates.push(...go(o, "left", i));
 
-    for (let i = 0; i < diff.right.mismatches.length; i++)
+    for (let i = 0; i < _eval.right.mismatches.length; i++)
       candidates.push(...go(o, "right", i));
   }
 
@@ -7367,43 +7558,44 @@ Str.Diff.Eval.matchFirst22 = diff => {
 };
 
 
-Str.Diff.Eval.matchSecond22 = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.matchSecond22 = _eval => {
   const go = (o, side, i) => {
-    const mismatch = diff[side].mismatches[i],
+    const mismatch = _eval[side].mismatches[i],
       side2 = ({left: "right", right: "left"}) [side],
       xs = [];
 
-    const match = diff[side].matches
+    const match = _eval[side].matches
       .find(p => p.index === mismatch.index + 1);
 
     if (!match) return [{
-      [$]: "Str.Diff.Candidate",
-      [$$]: "Str.Diff.Candidate.None",
-      desc: diff.desc,
-      reason: diff.reason,
-      offset: diff.offset,
-      penalty: diff.penalty,
-      left: diff.left,
-      right: diff.right
+      [$]: "Str.Diff.Eval",
+      [$$]: "Str.Diff.Eval.None",
+      desc: _eval.desc,
+      reason: _eval.reason,
+      offset: _eval.offset,
+      penalty: _eval.penalty,
+      left: _eval.left,
+      right: _eval.right
     }];
 
     else if (mismatch.char + match.char === o.letters[0]) {
-      const mismatches2 = diff[side2].mismatches
+      const mismatches2 = _eval[side2].mismatches
         .filter(p => p.char === o.letters[1] [0]);
 
       for (const mismatch2 of mismatches2) {
-        const match2 = diff[side2].matches
+        const match2 = _eval[side2].matches
           .find(p => p.index === mismatch2.index + 1
             && p.char === o.letters[1] [1]);
 
         if (match2) {
-          const diff2 = comp(O.update({
+          const eval2 = comp(O.update({
             path: [side, "mismatches"],
             f: ys => ys.filter(p => p.index !== mismatch.index)
           })) (O.update({
             path: [side2, "mismatches"],
             f: ys => ys.filter(p => p.index !== mismatch2.index)
-          })) (diff);
+          })) (_eval);
 
           const desc = side === "left"
             ? o.letters.join("/")
@@ -7414,28 +7606,28 @@ Str.Diff.Eval.matchSecond22 = diff => {
             : mismatch2.index - mismatch.index;
 
           return [{
-            [$]: "Str.Diff.Candidate",
-            [$$]: "Str.Diff.Candidate.Some",
+            [$]: "Str.Diff.Eval",
+            [$$]: "Str.Diff.Eval.Some",
             desc,
             reason: "mishearing",
             offset,
             penalty: 1,
-            left: diff2.left,
-            right: diff2.right,
+            left: eval2.left,
+            right: eval2.right,
           }];
         }
       }
     }
 
     return [{
-      [$]: "Str.Diff.Candidate",
-      [$$]: "Str.Diff.Candidate.None",
-      desc: diff.desc,
-      reason: diff.reason,
-      offset: diff.offset,
-      penalty: diff.penalty,
-      left: diff.left,
-      right: diff.right
+      [$]: "Str.Diff.Eval",
+      [$$]: "Str.Diff.Eval.None",
+      desc: _eval.desc,
+      reason: _eval.reason,
+      offset: _eval.offset,
+      penalty: _eval.penalty,
+      left: _eval.left,
+      right: _eval.right
     }];
   };
 
@@ -7443,10 +7635,10 @@ Str.Diff.Eval.matchSecond22 = diff => {
     candidates = [];
 
   for (const o of os) {
-    for (let i = 0; i < diff.left.mismatches.length; i++)
+    for (let i = 0; i < _eval.left.mismatches.length; i++)
       candidates.push(...go(o, "left", i));
 
-    for (let i = 0; i < diff.right.mismatches.length; i++)
+    for (let i = 0; i < _eval.right.mismatches.length; i++)
       candidates.push(...go(o, "right", i));
   }
 
@@ -7454,35 +7646,36 @@ Str.Diff.Eval.matchSecond22 = diff => {
 };
 
 
-Str.Diff.Eval.mismatch22 = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.mismatch22 = _eval => {
   const go = (o, side, i) => {
-    const mismatch = diff[side].mismatches[i],
+    const mismatch = _eval[side].mismatches[i],
       side2 = ({left: "right", right: "left"}) [side],
       xs = [];
 
-    const mismatch2 = diff[side].mismatches[i + 1];
+    const mismatch2 = _eval[side].mismatches[i + 1];
 
     if (!mismatch2) return [{
-      [$]: "Str.Diff.Candidate",
-      [$$]: "Str.Diff.Candidate.None",
-      desc: diff.desc,
-      reason: diff.reason,
-      offset: diff.offset,
-      penalty: diff.penalty,
-      left: diff.left,
-      right: diff.right
+      [$]: "Str.Diff.Eval",
+      [$$]: "Str.Diff.Eval.None",
+      desc: _eval.desc,
+      reason: _eval.reason,
+      offset: _eval.offset,
+      penalty: _eval.penalty,
+      left: _eval.left,
+      right: _eval.right
     }];
 
     else if (mismatch.char + mismatch2.char === o.letters[0]) {
-      const mismatches3 = diff[side2].mismatches
+      const mismatches3 = _eval[side2].mismatches
         .filter((p, i2) => p.char === o.letters[1] [0]
-          && diff[side2].mismatches[i2 + 1]?.char === o.letters[1] [1]);
+          && _eval[side2].mismatches[i2 + 1]?.char === o.letters[1] [1]);
 
       for (const mismatch3 of mismatches3) {
-        const mismatch4 = diff[side2].mismatches
+        const mismatch4 = _eval[side2].mismatches
           .find(p => p.index === mismatch3.index + 1);
 
-        const diff2 = comp(O.update({
+        const eval2 = comp(O.update({
           path: [side, "mismatches"],
           f: ys => ys.filter(p =>
             p.index !== mismatch.index
@@ -7492,7 +7685,7 @@ Str.Diff.Eval.mismatch22 = diff => {
           f: ys => ys.filter(p =>
             p.index !== mismatch3.index
               && p.index !== mismatch4.index)
-        })) (diff);
+        })) (_eval);
 
         const desc = side === "left"
           ? o.letters.join("/")
@@ -7503,14 +7696,14 @@ Str.Diff.Eval.mismatch22 = diff => {
           : mismatch3.index - mismatch.index;
 
         xs.push({
-          [$]: "Str.Diff.Candidate",
-          [$$]: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Eval",
+          [$$]: "Str.Diff.Eval.Some",
           desc,
           reason: "mishearing",
           offset,
           penalty: 1,
-          left: diff2.left,
-          right: diff2.right,
+          left: eval2.left,
+          right: eval2.right,
         });
       }
     }
@@ -7522,10 +7715,10 @@ Str.Diff.Eval.mismatch22 = diff => {
     candidates = [];
 
   for (const o of os) {
-    for (let i = 0; i < diff.left.mismatches.length; i++)
+    for (let i = 0; i < _eval.left.mismatches.length; i++)
       candidates.push(...go(o, "left", i));
 
-    for (let i = 0; i < diff.right.mismatches.length; i++)
+    for (let i = 0; i < _eval.right.mismatches.length; i++)
       candidates.push(...go(o, "right", i));
   }
 
@@ -7533,26 +7726,27 @@ Str.Diff.Eval.mismatch22 = diff => {
 };
 
 
-Str.Diff.Eval.mismatch13 = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.mismatch13 = _eval => {
   const go = (o, side, i) => {
-    const mismatch = diff[side].mismatches[i],
+    const mismatch = _eval[side].mismatches[i],
       side2 = ({left: "right", right: "left"}) [side],
       xs = [];
 
     if (mismatch.char === o.letters[0]) {
-      const mismatches2 = diff[side2].mismatches
+      const mismatches2 = _eval[side2].mismatches
         .filter((p, i2) => p.char === o.letters[1] [0]
-          && diff[side2].mismatches[i2 + 1]?.char === o.letters[1] [1]
-          && diff[side2].mismatches[i2 + 2]?.char === o.letters[1] [2]);
+          && _eval[side2].mismatches[i2 + 1]?.char === o.letters[1] [1]
+          && _eval[side2].mismatches[i2 + 2]?.char === o.letters[1] [2]);
 
       for (const mismatch2 of mismatches2) {
-        const mismatch3 = diff[side2].mismatches
+        const mismatch3 = _eval[side2].mismatches
           .find(p => p.index === mismatch2.index + 1);
 
-        const mismatch4 = diff[side2].mismatches
+        const mismatch4 = _eval[side2].mismatches
           .find(p => p.index === mismatch2.index + 2);
 
-        const diff2 = comp(O.update({
+        const eval2 = comp(O.update({
           path: [side, "mismatches"],
           f: ys => ys.filter(p => p.index !== mismatch.index)
         })) (O.update({
@@ -7561,7 +7755,7 @@ Str.Diff.Eval.mismatch13 = diff => {
             p.index !== mismatch2.index
               && p.index !== mismatch3.index
               && p.index !== mismatch4.index)
-        })) (diff);
+        })) (_eval);
 
         const desc = side === "left"
           ? o.letters.join("/")
@@ -7572,14 +7766,14 @@ Str.Diff.Eval.mismatch13 = diff => {
           : mismatch2.index - mismatch.index;
 
         xs.push({
-          [$]: "Str.Diff.Candidate",
-          [$$]: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Eval",
+          [$$]: "Str.Diff.Eval.Some",
           desc,
           reason: "mishearing",
           offset,
           penalty: 1,
-          left: diff2.left,
-          right: diff2.right,
+          left: eval2.left,
+          right: eval2.right,
         });
       }
     }
@@ -7591,10 +7785,10 @@ Str.Diff.Eval.mismatch13 = diff => {
     candidates = [];
 
   for (const o of os) {
-    for (let i = 0; i < diff.left.mismatches.length; i++)
+    for (let i = 0; i < _eval.left.mismatches.length; i++)
       candidates.push(...go(o, "left", i));
 
-    for (let i = 0; i < diff.right.mismatches.length; i++)
+    for (let i = 0; i < _eval.right.mismatches.length; i++)
       candidates.push(...go(o, "right", i));
   }
 
@@ -7602,32 +7796,33 @@ Str.Diff.Eval.mismatch13 = diff => {
 };
 
 
-Str.Diff.Eval.misreading = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.misreading = _eval => {
   const candidates = [];
 
-  for (const mismatch of diff.left.mismatches) {
+  for (const mismatch of _eval.left.mismatches) {
     if (Str.Diff.Eval.misreadings.has(mismatch.char)) {
       const xs = Str.Diff.Eval.misreadings.get(mismatch.char);
 
-      for (const mismatch2 of diff.right.mismatches) {
+      for (const mismatch2 of _eval.right.mismatches) {
         if (xs.includes(mismatch2.char)) {
-          const diff2 = comp(O.update({
+          const eval2 = comp(O.update({
             path: ["left", "mismatches"],
             f: ys => ys.filter(o => o.index !== mismatch.index)
           })) (O.update({
             path: ["right", "mismatches"],
             f: ys => ys.filter(o => o.index !== mismatch2.index)
-          })) (diff);
+          })) (_eval);
 
           candidates.push({
-            [$]: "Str.Diff.Candidate",
-            [$$]: "Str.Diff.Candidate.Some",
+            [$]: "Str.Diff.Eval",
+            [$$]: "Str.Diff.Eval.Some",
             desc: `${mismatch.char}/${mismatch2.char}`,
             reason: "misreading",
             offset: mismatch.index - mismatch2.index,
             penalty: 1,
-            left: diff2.left,
-            right: diff2.right,
+            left: eval2.left,
+            right: eval2.right,
           });
         }
       }
@@ -7638,31 +7833,32 @@ Str.Diff.Eval.misreading = diff => {
 };
 
 
-Str.Diff.Eval.transposition = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.transposition = _eval => {
   const candidates = [];
 
-  for (const mismatch of diff.left.mismatches) {
-    for (const mismatch2 of diff.right.mismatches) {
+  for (const mismatch of _eval.left.mismatches) {
+    for (const mismatch2 of _eval.right.mismatches) {
       if (mismatch.char === mismatch2.char) {
         let offset = 0;
 
-        if (diff.left.str[mismatch.index - 1] === diff.right.str[mismatch2.index + 1])
+        if (_eval.left.str[mismatch.index - 1] === _eval.right.str[mismatch2.index + 1])
           offset = -1;
 
-        else if (diff.left.str[mismatch.index + 1] === diff.right.str[mismatch2.index - 1])
+        else if (_eval.left.str[mismatch.index + 1] === _eval.right.str[mismatch2.index - 1])
           offset = 1;
 
         else continue;
 
-        const diff2 = comp(O.update({
+        const eval2 = comp(O.update({
           path: ["left", "mismatches"],
           f: ys => ys.filter(o => o.index !== mismatch.index)
         })) (O.update({
           path: ["right", "mismatches"],
           f: ys => ys.filter(o => o.index !== mismatch2.index)
-        })) (diff);
+        })) (_eval);
 
-        const match2 = diff.left.matches
+        const match2 = _eval.left.matches
           .find(o => o.index === mismatch.index + offset);
 
         const desc = offset < 0
@@ -7670,14 +7866,14 @@ Str.Diff.Eval.transposition = diff => {
           : `${match2.char}/${mismatch2.char}`;
 
         candidates.push({
-          [$]: "Str.Diff.Candidate",
-          [$$]: "Str.Diff.Candidate.Some",
+          [$]: "Str.Diff.Eval",
+          [$$]: "Str.Diff.Eval.Some",
           desc,
           reason: "transposition",
           offset: mismatch.index - mismatch2.index + offset,
           penalty: 1,
-          left: diff2.left,
-          right: diff2.right,
+          left: eval2.left,
+          right: eval2.right,
         });
       }
     }
@@ -7687,51 +7883,52 @@ Str.Diff.Eval.transposition = diff => {
 };
 
 
-Str.Diff.Eval.repetition = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.repetition = _eval => {
   const candidates = [];
 
-  for (const mismatch of diff.left.mismatches) {
-    const matches2 = diff.right.matches
+  for (const mismatch of _eval.left.mismatches) {
+    const matches2 = _eval.right.matches
       .filter(o => o.char === mismatch.char);
 
     for (const match2 of matches2) {
-      const diff2 = O.update({
+      const eval2 = O.update({
         path: ["left", "mismatches"],
         f: ys => ys.filter(o => o.index !== mismatch.index)
-      }) (diff);
+      }) (_eval);
 
       candidates.push({
-        [$]: "Str.Diff.Candidate",
-        [$$]: "Str.Diff.Candidate.Some",
+        [$]: "Str.Diff.Eval",
+        [$$]: "Str.Diff.Eval.Some",
         desc: `${mismatch.char.repeat(2)}/${match2.char}`,
         reason: "repetition",
         offset: mismatch.index - match2.index - 1,
         penalty: 1,
-        left: diff2.left,
-        right: diff2.right,
+        left: eval2.left,
+        right: eval2.right,
       });
     }
   }
 
-  for (const mismatch of diff.right.mismatches) {
-    const matches2 = diff.left.matches
+  for (const mismatch of _eval.right.mismatches) {
+    const matches2 = _eval.left.matches
       .filter(o => o.char === mismatch.char);
 
     for (const match2 of matches2) {
-      const diff2 = O.update({
+      const eval2 = O.update({
         path: ["right", "mismatches"],
         f: ys => ys.filter(o => o.index !== mismatch.index)
-      }) (diff);
+      }) (_eval);
 
       candidates.push({
-        [$]: "Str.Diff.Candidate",
-        [$$]: "Str.Diff.Candidate.Some",
+        [$]: "Str.Diff.Eval",
+        [$$]: "Str.Diff.Eval.Some",
         desc: `${match2.char}/${mismatch.char.repeat(2)}`,
         reason: "repetition",
         offset: match2.index - mismatch.index + 1,
         penalty: 1,
-        left: diff2.left,
-        right: diff2.right,
+        left: eval2.left,
+        right: eval2.right,
       });
     }
   }
@@ -7740,32 +7937,33 @@ Str.Diff.Eval.repetition = diff => {
 };
 
 
-Str.Diff.Eval.modifier = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.modifier = _eval => {
   const candidates = [];
 
-  for (const mismatch of diff.left.mismatches) {
-    for (const mismatch2 of diff.right.mismatches) {
+  for (const mismatch of _eval.left.mismatches) {
+    for (const mismatch2 of _eval.right.mismatches) {
       if (Str.Norm.modifier.has(mismatch.char)) {
         const c = Str.Norm.modifier.get(mismatch.char);
 
         if (mismatch2.char === c) {
-          const diff2 = comp(O.update({
+          const eval2 = comp(O.update({
             path: ["left", "mismatches"],
             f: ys => ys.filter(o => o.index !== mismatch.index)
           })) (O.update({
             path: ["right", "mismatches"],
             f: ys => ys.filter(o => o.index !== mismatch2.index)
-          })) (diff);
+          })) (_eval);
 
           candidates.push({
-            [$]: "Str.Diff.Candidate",
-            [$$]: "Str.Diff.Candidate.Some",
+            [$]: "Str.Diff.Eval",
+            [$$]: "Str.Diff.Eval.Some",
             desc: `${mismatch.char}/${mismatch2.char}`,
             reason: "modifier",
             offset: mismatch.index - mismatch2.index,
             penalty: 1,
-            left: diff2.left,
-            right: diff2.right,
+            left: eval2.left,
+            right: eval2.right,
           });
         }
       }
@@ -7774,23 +7972,23 @@ Str.Diff.Eval.modifier = diff => {
         const c = Str.Norm.modifier.get(mismatch2.char);
 
         if (mismatch.char === c) {
-          const diff2 = comp(O.update({
+          const eval2 = comp(O.update({
             path: ["left", "mismatches"],
             f: ys => ys.filter(o => o.index !== mismatch.index)
           })) (O.update({
             path: ["right", "mismatches"],
             f: ys => ys.filter(o => o.index !== mismatch2.index)
-          })) (diff);
+          })) (_eval);
 
           candidates.push({
-            [$]: "Str.Diff.Candidate",
-            [$$]: "Str.Diff.Candidate.Some",
+            [$]: "Str.Diff.Eval",
+            [$$]: "Str.Diff.Eval.Some",
             desc: `${mismatch.char}/${mismatch2.char}`,
             reason: "modifier",
             offset: mismatch.index - mismatch2.index,
             penalty: 1,
-            left: diff2.left,
-            right: diff2.right,
+            left: eval2.left,
+            right: eval2.right,
           });
         }
       }
@@ -7801,51 +7999,52 @@ Str.Diff.Eval.modifier = diff => {
 };
 
 
-Str.Diff.Eval.equivalence = diff => {
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.equivalence = _eval => {
   const candidates = [];
 
   for (const [k, v] of Str.Diff.Eval.equivalences) {
-    for (let i = 0; i < diff.left.mismatches.length; i++) {
-      const mismatch = diff.left.mismatches[i];
+    for (let i = 0; i < _eval.left.mismatches.length; i++) {
+      const mismatch = _eval.left.mismatches[i];
 
-      for (let j = 0; j < diff.right.mismatches.length; j++) {
-        const mismatch2 = diff.right.mismatches[j];
+      for (let j = 0; j < _eval.right.mismatches.length; j++) {
+        const mismatch2 = _eval.right.mismatches[j];
 
         if (k.length === 1) {
           if (mismatch.char === k) {
             if (v.length === 2) {
-              const s = mismatch2.char + diff.right.mismatches[j + 1]?.char;
+              const s = mismatch2.char + _eval.right.mismatches[j + 1]?.char;
 
               if (s === v) {
-                const diff2 = comp(O.update({
+                const eval2 = comp(O.update({
                   path: ["left", "mismatches"],
                   f: ys => ys.filter(o => o.index !== mismatch.index)
                 })) (O.update({
                   path: ["right", "mismatches"],
                   f: ys => ys.filter(o => o.index !== mismatch2.index
                     && o.index !== mismatch2.index + 1)
-                })) (diff);
+                })) (_eval);
 
                 candidates.push({
-                  [$]: "Str.Diff.Candidate",
-                  [$$]: "Str.Diff.Candidate.Some",
+                  [$]: "Str.Diff.Eval",
+                  [$$]: "Str.Diff.Eval.Some",
                   desc: `${mismatch.char}/${s}`,
                   reason: "modifier",
                   offset: mismatch.index - mismatch2.index,
                   penalty: 1,
-                  left: diff2.left,
-                  right: diff2.right,
+                  left: eval2.left,
+                  right: eval2.right,
                 });
               }
             }
 
             else if (v.length === 3) {
               const s = mismatch2.char
-                + diff.right.mismatches[j + 1]?.char
-                + diff.right.mismatches[j + 2]?.char;
+                + _eval.right.mismatches[j + 1]?.char
+                + _eval.right.mismatches[j + 2]?.char;
 
               if (s === v) {
-                const diff2 = comp(O.update({
+                const eval2 = comp(O.update({
                   path: ["left", "mismatches"],
                   f: ys => ys.filter(o => o.index !== mismatch.index)
                 })) (O.update({
@@ -7853,17 +8052,17 @@ Str.Diff.Eval.equivalence = diff => {
                   f: ys => ys.filter(o => o.index !== mismatch2.index
                     && o.index !== mismatch2.index + 1
                     && o.index !== mismatch2.index + 2)
-                })) (diff);
+                })) (_eval);
 
                 candidates.push({
-                  [$]: "Str.Diff.Candidate",
-                  [$$]: "Str.Diff.Candidate.Some",
+                  [$]: "Str.Diff.Eval",
+                  [$$]: "Str.Diff.Eval.Some",
                   desc: `${mismatch.char}/${s}`,
                   reason: "modifier",
                   offset: mismatch.index - mismatch2.index,
                   penalty: 1,
-                  left: diff2.left,
-                  right: diff2.right,
+                  left: eval2.left,
+                  right: eval2.right,
                 });
               }
             }
@@ -7873,29 +8072,29 @@ Str.Diff.Eval.equivalence = diff => {
         }
 
         else if (k.length === 2) {
-          const s = mismatch.char + diff.left.mismatches[i + 1]?.char;
+          const s = mismatch.char + _eval.left.mismatches[i + 1]?.char;
 
           if (s === k) {
             if (v.length === 1) {
               if (mismatch2.char === v) {
-                const diff2 = comp(O.update({
+                const eval2 = comp(O.update({
                   path: ["left", "mismatches"],
                   f: ys => ys.filter(o => o.index !== mismatch.index
                     && o.index !== mismatch.index + 1)
                 })) (O.update({
                   path: ["right", "mismatches"],
                   f: ys => ys.filter(o => o.index !== mismatch2.index)
-                })) (diff);
+                })) (_eval);
 
                 candidates.push({
-                  [$]: "Str.Diff.Candidate",
-                  [$$]: "Str.Diff.Candidate.Some",
+                  [$]: "Str.Diff.Eval",
+                  [$$]: "Str.Diff.Eval.Some",
                   desc: `${s}/${mismatch2.char}`,
                   reason: "modifier",
                   offset: mismatch.index - mismatch2.index,
                   penalty: 1,
-                  left: diff2.left,
-                  right: diff2.right,
+                  left: eval2.left,
+                  right: eval2.right,
                 });
               }
             }
@@ -7906,13 +8105,13 @@ Str.Diff.Eval.equivalence = diff => {
 
         else if (k.length === 3) {
           const s = mismatch.char
-            + diff.left.mismatches[i + 1]?.char
-            + diff.left.mismatches[i + 2]?.char;
+            + _eval.left.mismatches[i + 1]?.char
+            + _eval.left.mismatches[i + 2]?.char;
 
           if (s === k) {
             if (v.length === 1) {
               if (mismatch2.char === v) {
-                const diff2 = comp(O.update({
+                const eval2 = comp(O.update({
                   path: ["left", "mismatches"],
                   f: ys => ys.filter(o => o.index !== mismatch.index
                     && o.index !== mismatch.index + 1
@@ -7920,17 +8119,17 @@ Str.Diff.Eval.equivalence = diff => {
                 })) (O.update({
                   path: ["right", "mismatches"],
                   f: ys => ys.filter(o => o.index !== mismatch2.index)
-                })) (diff);
+                })) (_eval);
 
                 candidates.push({
-                  [$]: "Str.Diff.Candidate",
-                  [$$]: "Str.Diff.Candidate.Some",
+                  [$]: "Str.Diff.Eval",
+                  [$$]: "Str.Diff.Eval.Some",
                   desc: `${s}/${mismatch2.char}`,
                   reason: "modifier",
                   offset: mismatch.index - mismatch2.index,
                   penalty: 1,
-                  left: diff2.left,
-                  right: diff2.right,
+                  left: eval2.left,
+                  right: eval2.right,
                 });
               }
             }
@@ -7948,21 +8147,22 @@ Str.Diff.Eval.equivalence = diff => {
 };
 
 
-Str.Diff.Eval.hasAPrefix = diff => {
-  const s = diff.left.str,
-    s2 = diff.right.str;
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.hasAPrefix = _eval => {
+  const s = _eval.left.str,
+    s2 = _eval.right.str;
 
   let coincide = 0, slice = 0;
 
   if (s.length <= s2.length) return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.None",
-    desc: diff.desc,
-    reason: diff.reason,
-    offset: diff.offset,
-    penalty: diff.penalty,
-    left: diff.left,
-    right: diff.right
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.None",
+    desc: _eval.desc,
+    reason: _eval.reason,
+    offset: _eval.offset,
+    penalty: _eval.penalty,
+    left: _eval.left,
+    right: _eval.right
   }];
 
   for (let i = 0, i2 = 0; i < s.length - 1 && i2 < s2.length - 1; i++, i2++) {
@@ -7971,58 +8171,59 @@ Str.Diff.Eval.hasAPrefix = diff => {
   }
 
   if (coincide === 0) return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.None",
-    desc: diff.desc,
-    reason: diff.reason,
-    offset: diff.offset,
-    penalty: diff.penalty,
-    left: diff.left,
-    right: diff.right
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.None",
+    desc: _eval.desc,
+    reason: _eval.reason,
+    offset: _eval.offset,
+    penalty: _eval.penalty,
+    left: _eval.left,
+    right: _eval.right
   }];
 
-  for (let i = diff.left.mismatches.length - 1; i >= 0; i--) {
-    if (diff.left.mismatches[i].index - diff.left.mismatches[i - 1]?.index === 1)
+  for (let i = _eval.left.mismatches.length - 1; i >= 0; i--) {
+    if (_eval.left.mismatches[i].index - _eval.left.mismatches[i - 1]?.index === 1)
       slice++;
 
     else {slice++; break};
   }
 
-  const diff2 = O.update({
+  const eval2 = O.update({
     path: ["left", "mismatches"],
     f: ys => ys.slice(0, -slice)
-  }) (diff);
+  }) (_eval);
 
-  const desc = `${diff.left.str.slice(0, coincide + 1)}/${diff.right.str.slice(0, coincide + 1)}`;
+  const desc = `${_eval.left.str.slice(0, coincide + 1)}/${_eval.right.str.slice(0, coincide + 1)}`;
 
   return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.Some",
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.Some",
     desc,
     reason: "hasAPrefix",
     offset: 0,
     penalty: 1,
-    left: diff2.left,
-    right: diff2.right,
+    left: eval2.left,
+    right: eval2.right,
   }];
 };
 
 
-Str.Diff.Eval.hasASuffix = diff => {
-  const s = diff.left.str,
-    s2 = diff.right.str;
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.hasASuffix = _eval => {
+  const s = _eval.left.str,
+    s2 = _eval.right.str;
 
   let coincide = 0, slice = 0;
 
   if (s.length <= s2.length) return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.None",
-    desc: diff.desc,
-    reason: diff.reason,
-    offset: diff.offset,
-    penalty: diff.penalty,
-    left: diff.left,
-    right: diff.right
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.None",
+    desc: _eval.desc,
+    reason: _eval.reason,
+    offset: _eval.offset,
+    penalty: _eval.penalty,
+    left: _eval.left,
+    right: _eval.right
   }];
 
   for (let i = s.length - 1, i2 = s2.length - 1; i >= 0 && i2 >= 0; i--, i2--) {
@@ -8031,58 +8232,59 @@ Str.Diff.Eval.hasASuffix = diff => {
   }
 
   if (coincide === 0) return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.None",
-    desc: diff.desc,
-    reason: diff.reason,
-    offset: diff.offset,
-    penalty: diff.penalty,
-    left: diff.left,
-    right: diff.right
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.None",
+    desc: _eval.desc,
+    reason: _eval.reason,
+    offset: _eval.offset,
+    penalty: _eval.penalty,
+    left: _eval.left,
+    right: _eval.right
   }];
 
-  for (let i = 0; i < diff.left.mismatches.length; i++) {
-    if (diff.left.mismatches[i + 1]?.index - diff.left.mismatches[i].index === 1)
+  for (let i = 0; i < _eval.left.mismatches.length; i++) {
+    if (_eval.left.mismatches[i + 1]?.index - _eval.left.mismatches[i].index === 1)
       slice++;
 
     else {slice++; break};
   }
 
-  const diff2 = O.update({
+  const eval2 = O.update({
     path: ["left", "mismatches"],
     f: ys => ys.slice(slice)
-  }) (diff);
+  }) (_eval);
 
-  const desc = `${diff.left.str.slice(-coincide)}/${diff.right.str.slice(-coincide)}`;
+  const desc = `${_eval.left.str.slice(-coincide)}/${_eval.right.str.slice(-coincide)}`;
 
   return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.Some",
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.Some",
     desc,
     reason: "hasASuffix",
     offset: 0,
     penalty: 1,
-    left: diff2.left,
-    right: diff2.right,
+    left: eval2.left,
+    right: eval2.right,
   }];
 };
 
 
-Str.Diff.Eval.isAPrefix = diff => {
-  const s = diff.left.str,
-    s2 = diff.right.str;
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.isAPrefix = _eval => {
+  const s = _eval.left.str,
+    s2 = _eval.right.str;
 
   let coincide = 0, slice = 0;
 
   if (s.length >= s2.length) return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.None",
-    desc: diff.desc,
-    reason: diff.reason,
-    offset: diff.offset,
-    penalty: diff.penalty,
-    left: diff.left,
-    right: diff.right
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.None",
+    desc: _eval.desc,
+    reason: _eval.reason,
+    offset: _eval.offset,
+    penalty: _eval.penalty,
+    left: _eval.left,
+    right: _eval.right
   }];
 
   for (let i = 0, i2 = 0; i < s.length - 1 && i2 < s2.length - 1; i++, i2++) {
@@ -8091,58 +8293,59 @@ Str.Diff.Eval.isAPrefix = diff => {
   }
 
   if (coincide === 0) return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.None",
-    desc: diff.desc,
-    reason: diff.reason,
-    offset: diff.offset,
-    penalty: diff.penalty,
-    left: diff.left,
-    right: diff.right
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.None",
+    desc: _eval.desc,
+    reason: _eval.reason,
+    offset: _eval.offset,
+    penalty: _eval.penalty,
+    left: _eval.left,
+    right: _eval.right
   }];
 
-  for (let i = diff.right.mismatches.length - 1; i >= 0; i--) {
-    if (diff.right.mismatches[i].index - diff.right.mismatches[i - 1]?.index === 1)
+  for (let i = _eval.right.mismatches.length - 1; i >= 0; i--) {
+    if (_eval.right.mismatches[i].index - _eval.right.mismatches[i - 1]?.index === 1)
       slice++;
 
     else {slice++; break};
   }
 
-  const diff2 = O.update({
+  const eval2 = O.update({
     path: ["right", "mismatches"],
     f: ys => ys.slice(0, -slice)
-  }) (diff);
+  }) (_eval);
 
-  const desc = `${diff.left.str.slice(0, coincide + 1)}/${diff.right.str.slice(0, coincide + 1)}`;
+  const desc = `${_eval.left.str.slice(0, coincide + 1)}/${_eval.right.str.slice(0, coincide + 1)}`;
 
   return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.Some",
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.Some",
     desc,
     reason: "isAPrefix",
     offset: 0,
     penalty: 1,
-    left: diff2.left,
-    right: diff2.right,
+    left: eval2.left,
+    right: eval2.right,
   }];
 };
 
 
-Str.Diff.Eval.isASuffix = diff => {
-  const s = diff.left.str,
-    s2 = diff.right.str;
+// Str.Diff.Eval => [Str.Diff.Eval]
+Str.Diff.Eval.isASuffix = _eval => {
+  const s = _eval.left.str,
+    s2 = _eval.right.str;
 
   let coincide = 0, slice = 0;
 
   if (s.length >= s2.length) return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.None",
-    desc: diff.desc,
-    reason: diff.reason,
-    offset: diff.offset,
-    penalty: diff.penalty,
-    left: diff.left,
-    right: diff.right
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.None",
+    desc: _eval.desc,
+    reason: _eval.reason,
+    offset: _eval.offset,
+    penalty: _eval.penalty,
+    left: _eval.left,
+    right: _eval.right
   }];
 
   for (let i = s.length - 1, i2 = s2.length - 1; i >= 0 && i2 >= 0; i--, i2--) {
@@ -8151,130 +8354,40 @@ Str.Diff.Eval.isASuffix = diff => {
   }
 
   if (coincide === 0) return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.None",
-    desc: diff.desc,
-    reason: diff.reason,
-    offset: diff.offset,
-    penalty: diff.penalty,
-    left: diff.left,
-    right: diff.right
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.None",
+    desc: _eval.desc,
+    reason: _eval.reason,
+    offset: _eval.offset,
+    penalty: _eval.penalty,
+    left: _eval.left,
+    right: _eval.right
   }];
 
-  for (let i = 0; i < diff.right.mismatches.length; i++) {
-    if (diff.right.mismatches[i + 1]?.index - diff.right.mismatches[i].index === 1)
+  for (let i = 0; i < _eval.right.mismatches.length; i++) {
+    if (_eval.right.mismatches[i + 1]?.index - _eval.right.mismatches[i].index === 1)
       slice++;
 
     else {slice++; break};
   }
 
-  const diff2 = O.update({
+  const eval2 = O.update({
     path: ["right", "mismatches"],
     f: ys => ys.slice(slice)
-  }) (diff);
+  }) (_eval);
 
-  const desc = `${diff.left.str.slice(-coincide)}/${diff.right.str.slice(-coincide)}`;
+  const desc = `${_eval.left.str.slice(-coincide)}/${_eval.right.str.slice(-coincide)}`;
 
   return [{
-    [$]: "Str.Diff.Candidate",
-    [$$]: "Str.Diff.Candidate.Some",
+    [$]: "Str.Diff.Eval",
+    [$$]: "Str.Diff.Eval.Some",
     desc,
     reason: "isASuffix",
     offset: 0,
     penalty: 1,
-    left: diff2.left,
-    right: diff2.right,
+    left: eval2.left,
+    right: eval2.right,
   }];
-};
-
-
-//█████ Distance ██████████████████████████████████████████████████████████████
-
-
-Str.distance = a => b => {
-  const min = (d0, d1, d2, bx, ay) => {
-    return d0 < d1 || d2 < d1
-      ? d0 > d2
-        ? d2 + 1
-        : d0 + 1
-      : bx === ay
-        ? d1
-        : d1 + 1;
-  };
-
-  if (a === b) return 0;
-
-  if (a.length > b.length) {
-    var tmp = a;
-    a = b;
-    b = tmp;
-  }
-
-  let la = a.length, lb = b.length;
-
-  while (la > 0 && (a.charCodeAt(la - 1) === b.charCodeAt(lb - 1))) {
-    la--;
-    lb--;
-  }
-
-  let offset = 0;
-
-  while (offset < la && (a.charCodeAt(offset) === b.charCodeAt(offset))) {
-    offset++;
-  }
-
-  la -= offset;
-  lb -= offset;
-
-  if (la === 0 || lb < 3) return lb;
-
-  let x = 0, y;
-  let d0, d1, d2, d3;
-  let dd, dy, ay;
-  let bx0, bx1, bx2, bx3;
-  let vector = [];
-
-  for (y = 0; y < la; y++) {
-    vector.push(y + 1);
-    vector.push(a.charCodeAt(offset + y));
-  }
-
-  let len = vector.length - 1;
-
-  for (; x < lb - 3;) {
-    bx0 = b.charCodeAt(offset + (d0 = x));
-    bx1 = b.charCodeAt(offset + (d1 = x + 1));
-    bx2 = b.charCodeAt(offset + (d2 = x + 2));
-    bx3 = b.charCodeAt(offset + (d3 = x + 3));
-    dd = (x += 4);
-
-    for (y = 0; y < len; y += 2) {
-      dy = vector[y];
-      ay = vector[y + 1];
-      d0 = min(dy, d0, d1, bx0, ay);
-      d1 = min(d0, d1, d2, bx1, ay);
-      d2 = min(d1, d2, d3, bx2, ay);
-      dd = min(d2, d3, dd, bx3, ay);
-      vector[y] = dd;
-      d3 = d2;
-      d2 = d1;
-      d1 = d0;
-      d0 = dy;
-    }
-  }
-
-  for (; x < lb;) {
-    bx0 = b.charCodeAt(offset + (d0 = x));
-    dd = ++x;
-
-    for (y = 0; y < len; y += 2) {
-      dy = vector[y];
-      vector[y] = dd = min(dy, d0, dd, bx0, vector[y + 1]);
-      d0 = dy;
-    }
-  }
-
-  return dd;
 };
 
 
