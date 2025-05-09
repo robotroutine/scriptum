@@ -7,14 +7,9 @@
 
 # No-frills Natural Language Processing Library
 
-Focus: string handling, regular expressions, linear algebra
-
-Data Types: balanced BST, multimap, idempotent iterator, continuation type, transducer, etc.
-
-Style: functional programming
-
-Status: heavy work in progress...
-
-Author: Iven Marquardt
-
-scriptum is the foundation for other libraries around NLP and ML.
+* focus: string processing, regular expressions, linear algebra
+* style: functional programming
+* data structures: balanced BST (heap/priority queue), list (stack), realtime queue, deque
+* data types: multimap, idempotent iterator, difference list, continuations, transducer
+* status: heavy work in progress...
+* author: Iven Marquardt
