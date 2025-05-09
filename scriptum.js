@@ -1316,7 +1316,7 @@ Per data structure:
   • map: IJS Map/OrderedMap
   • set: IJS Set/OrderedSet
   • multimap: MultiMap
-  • queue: IJS List
+  • queue: IJS List, realtime queue (TODO)
   • stack: List, IJS Stack
   • deque: IJS List, Deque (TODO)
   • heap/priority queue: Tree
@@ -5177,8 +5177,6 @@ Rex.normalize = s => s
 Rex.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 
-
-
 //█████ Character Classes █████████████████████████████████████████████████████
 
 
@@ -5980,49 +5978,69 @@ Rex.consolidate = xs => {
 //█████ Matching ██████████████████████████████████████████████████████████████
 
 
-Rex.matchAll = rx => s => s.matchAll(rx);
-
-
 // strict variant
 
-Rex.matchAll_ = rx => s => Array.from(s.matchAll(rx));
+Rex.matchAll = rx => s => Array.from(s.matchAll(rx));
 
 
-Rex.matchAllWith = p => rx => s => Rex.matchAll(rx) (s).filter(p);
+Rex.matchAllWith = ({p, rx}) => s => Array.from(s.matchAll(rx)).filter(r => {
+  const [match, ...xs] = r,
+    o = r.groups,
+    i = r.index;
+
+  return p({match, xs, i, o, s});
+});
+
 
 
 Rex.matchFirst = rx => s => {
+  if (rx.flags.search("g") !== not_found)
+    throw new Err("unexpected global flag");
+
   const r = s.match(rx);
   if (r === null) return [];
   else return [r];
 };
 
 
-Rex.matchFirstWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(0, 1);
+Rex.matchFirstWith = ({p, rx}) => s => {
+  for (const r of s.matchAll(rx)) {
+    const [match, ...xs] = r,
+      o = r.groups,
+      i = r.index;
+
+    if (p({match, xs, i, o, s})) return [r];
+  }
+
+  return [];
+};
 
 
-Rex.matchLast = rx => s => Rex.matchAll(rx) (s).slice(-1);
+Rex.matchLast = rx => s => Array.from(s.matchAll(rx)).slice(-1);
 
 
-Rex.matchLastWith = p => rx => s => Rex.matchAllWith(p) (rx) (s).slice(-1);
+Rex.matchLastWith = ({p, rx}) => s =>
+  Rex.matchAllWith({p, rx}) (s).slice(-1);
 
 
-// considers negative indices like slice
+// considers negative indices like native slice does
 
-Rex.matchNth = (rx, i) => s => {
-  const xs = Rex.matchAll(rx) (s);
-  if (xs.length - 1 < i) return [];
-  else if (i >= 0) return xs.slice(i, i + 1);
+Rex.matchNth = ({i, rx}) => s => {
+  const xs = Array.from(s.matchAll(rx));
+  if (i - 1 >= xs.length) return [];
+  else if (i >= 0) return [xs[i - 1]];
   else return [xs.slice(i) [0]];
 };
 
 
-// considers negative indices like slice
+// considers negative indices like native slice does
 
-Rex.matchNthWith = p => (rx, i) => s => {
-  const xs = Rex.matchAllWith(rx) (s), o = xs[i];
-  if (xs.length - 1 < i) return [];
-  else if (i >= 0) return xs.slice(i, i + 1);
+Rex.matchNthWith = ({p, i, rx}) => s => {
+  const xs = Rex.matchAllWith({p, rx}) (s),
+    o = xs[i];
+
+  if (i - 1 >= xs.length) return [];
+  else if (i >= 0) return [xs[i - 1]];
   else return [xs.slice(i) [0]];
 };
 
@@ -6030,165 +6048,191 @@ Rex.matchNthWith = p => (rx, i) => s => {
 //█████ Replacing █████████████████████████████████████████████████████████████
 
 
-Rex.replaceAll = t => rx => s => s.replaceAll(rx, t);
+// Rex.replaceAll is redundant
 
 
-Rex.replaceAllWith = f => rx => s => {
-  return s.replaceAll(rx, (...args) => {
-    const groups = typeof args[args.length - 1] === "object"
-      ? args.pop() : {};
+// utilize a replacer
 
-    const s = args.shift(), matches = [];
-    let i;
+Rex.replaceAllWith = ({f, rx}) => s => {
+  const xs = Array.from(s.matchAll(rx));
 
-    while (true) {
-      const arg = args.shift();
-      
-      if (typeof arg === "number") {
-        i = arg;
-        break;
-      }
-      
-      else matches.push(arg);
-    }
-      
-    return f({s, i, matches, groups});
-  });
+  if (xs.length === 0) return s;
+
+  else for (let i = xs.length - 1; i >= 0; i--) {
+    const r = xs[i],
+      [match, ...ys] = r,
+      o = r.groups,
+      j = r.index;
+
+    const sub = f({match, xs: ys, i: j, o, s});
+    s = s.slice(0, j) + sub + s.slice(j + match.length);
+  }
+
+  return s;
 };
 
 
-Rex.replaceFirst = t => rx => s => {
-  if (rx.flags.search("g") !== NOT_FOUND)
+// more general version that allows to restrict the matches using a predicate
+
+Rex.replaceAllBy = ({p, f, rx}) => s => {
+  const xs = Rex.matchAllWith({p, rx}) (s);
+
+  if (xs.length === 0) return s;
+
+  for (let i = xs.length - 1; i >= 0; i--) {
+    const r = xs[i],
+      [match, ...ys] = r,
+      o = r.groups,
+      j = r.index;
+
+    const sub = f({match, xs: ys, i: j, o, s});
+    s = s.slice(0, j) + sub + s.slice(j + match.length);
+  }
+
+  return s;
+};
+
+
+// Rex.replaceFirst is redundant
+
+
+Rex.replaceFirstWith = ({f, rx}) => s => {
+  if (rx.flags.search("g") !== not_found)
     throw new Err("unexpected global flag");
 
-  return s.replace(rx, t);
+  const r = s.match(rx);
+
+  if (r === null) return s;
+
+  else {
+    const [match, ...xs] = r,
+      o = r.groups,
+      i = r.index;
+
+    const sub = f({match, xs, i, o, s});
+    return s.slice(0, i) + sub + s.slice(i + match.length);
+  }
 };
 
 
-Rex.replaceFirstWith = f => rx => s => {
-  if (rx.flags.search("g") !== NOT_FOUND)
-    throw new Err("unexpected global flag");
+Rex.replaceFirstBy = ({p, f, rx}) => s => {
+  for (const r of s.matchAll(rx)) {
+    const [match, ...xs] = r,
+      o = r.groups,
+      i = r.index;
 
-  return s.replace(rx, (...args) => {
-    const groups = typeof args[args.length - 1] === "object"
-      ? args.pop() : {};
-
-    const s = args.shift(), matches = [];
-    let i;
-
-    while (true) {
-      const arg = args.shift();
-      
-      if (typeof arg === "number") {
-        i = arg;
-        break;
-      }
-      
-      else matches.push(arg);
+    if (p({match, xs, i, o, s})) {
+      const sub = f({match, xs, i, o, s});
+      return s.slice(0, i) + sub + s.slice(i + match.length);
     }
-      
-    return f({s, i, matches, groups});
-  });
+  }
+
+  return s;
 };
 
 
-Rex.replaceLast = t => rx => s => {
-  if (rx.flags.search("g") === NOT_FOUND)
+Rex.replaceLast = ({sub, rx}) => s => {
+  if (rx.flags.search("g") === not_found)
     throw new Err("missing global flag");
 
-  const xs = s.match(rx);
+  const xs = Array.from(s.matchAll(rx));
 
   if (xs.length === 0) return s;
 
   else {
-    const match = xs[xs.length - 1],
-      i = match.index
-      len = match.length;
-    
-    return str.slice(0, i) + t + str.slice(i + len);
+    const match = xs[xs.length - 1], i = match.index;
+    return s.slice(0, i) + sub + s.slice(i + match.length);
   }
 };
 
 
-Rex.replaceLastWith = f => rx => s => {
-  if (rx.flags.search("g") === NOT_FOUND)
-    throw new Err("missing global flag");
-
-  const xs = s.match(rx);
+Rex.replaceLastWith = ({f, rx}) => s => {
+  const xs = Array.from(s.matchAll(rx));
 
   if (xs.length === 0) return s;
 
   else {
-    const match = xs[xs.length - 1],
-      matches = Array.from(match),
-      i = match.index
-      len = match.length;
+    const r = xs[xs.length - 1],
+      [match, ...ys] = r,
+      o = r.groups,
+      i = r.index;
 
-    return str.slice(0, i)
-      + f({s, i, matches, groups: match.groups})
-      + str.slice(i + len);
+    const sub = f({match, xs: ys, i, o, s});
+    return s.slice(0, i) + sub + s.slice(i + match.length);
   }
 };
 
 
-// considers negative indices like slice
+Rex.replaceLastBy = ({p, f, rx}) => s => {
+  const xs = Rex.matchAllWith({p, rx}) (s);
 
-Rex.replaceNth = t => (rx, i) => s => {
-  if (rx.flags.search("g") === NOT_FOUND)
-    throw new Err("missing global flag");
-
-  const xs = s.match(rx);
-
-  if (xs.length - 1 < i) return s;
-
-  else if (i >= 0) {
-    const match = xs[i - 1],
-      j = match.index
-      len = match.length;
-    
-    return str.slice(0, j) + t + str.slice(j + len);
-  }
+  if (xs.length === 0) return s;
 
   else {
-    const match = xs[xs.length + i],
-      j = match.index
-      len = match.length;
-    
-    return str.slice(0, j) + t + str.slice(j + len);
+    const r = xs[xs.length - 1],
+      [match, ...ys] = r,
+      o = r.groups,
+      i = r.index;
+
+    const sub = f({match, xs: ys, i, o, s});
+    return s.slice(0, i) + sub + s.slice(i + match.length);
   }
 };
 
 
-// considers negative indices like slice
+// considers negative indices like native slice does
 
-Rex.replaceNthWith = f => (rx, i) => s => {
-  if (rx.flags.search("g") === NOT_FOUND)
+Rex.replaceNth = ({i, sub, rx}) => s => {
+  if (rx.flags.search("g") === not_found)
     throw new Err("missing global flag");
 
-  const xs = s.match(rx);
+  const xs = Array.from(s.matchAll(rx));
 
-  if (xs.length - 1 < i) return s;
-
-  else if (i >= 0) {
-    const match = xs[i],
-      matches = Array.from(match),
-      j = match.index
-      len = match.length;
-    
-    return str.slice(0, j)
-      + f({s, i: j, matches, groups: match.groups})
-      + str.slice(j + len);
-  }
+  if (i - 1 >= xs.length) return s;
 
   else {
-    const match = xs[xs.length + i],
-      matches = Array.from(match),
-      j = match.index
-      len = match.length;
-    
-    return str.slice(0, j)
-      + f({s, i: j, matches, groups: match.groups})
-      + str.slice(j + len);
+    const match = i < 0 ? xs.slice(i) [0] : xs[i - 1],
+      i2 = match.index;
+
+    return s.slice(0, i2) + sub + s.slice(i2 + match.length);
+  }
+};
+
+
+// considers negative indices like native slice does
+
+Rex.replaceNthWith = ({i, f, rx}) => s => {
+  const xs = Array.from(s.matchAll(rx));
+
+  if (i - 1 >= xs.length) return s;
+
+  else {
+    const r = i < 0 ? xs.slice(i) [0] : xs[i - 1],
+      [match, ...ys] = r,
+      o = r.groups,
+      i2 = r.index;
+
+    const sub = f({match, xs: ys, i: i2, o, s});
+    return s.slice(0, i2) + sub + s.slice(i2 + match.length);
+  }
+};
+
+
+// considers negative indices like native slice does
+
+Rex.replaceNthBy = ({i, f, rx}) => s => {
+  const xs = Rex.matchAllWith({p, rx}) (s);
+
+  if (i - 1 >= xs.length) return s;
+
+  else {
+    const r = i < 0 ? xs.slice(i) [0] : xs[i - 1],
+      [match, ...ys] = r,
+      o = r.groups,
+      i2 = r.index;
+
+    const sub = f({match, xs: ys, i: i2, o, s});
+    return s.slice(0, i2) + sub + s.slice(i2 + match.length);
   }
 };
 
@@ -6201,16 +6245,16 @@ Rex.searchAll = rx => s =>
 
 
 Rex.searchAllWith = p => rx => s =>
-  Rex.matchAll(rx) (s).filter(p).map(ix => ix.index);
+  Rex.matchAllWith({p, rx}) (s).map(ix => ix.index);
 
 
 Rex.searchFirst = rx => s => {
-  if (rx.flags.search("g") !== NOT_FOUND)
+  if (rx.flags.search("g") !== not_found)
     throw new Err("unexpected global flag");
 
   const i = s.search(rx);
 
-  if (i === NOT_FOUND) return []
+  if (i === not_found) return []
   else return [i];
 };
 
@@ -6265,7 +6309,11 @@ Rex.searchNthWith = p => (rx, i) => s => {
 };
 
 
-// slice a region of a string
+//█████ Slicing ███████████████████████████████████████████████████████████████
+
+
+/* slice a region of a string using a single search function that yields several
+matches. The first and last match then define the bounds. */
 
 Rex.slice = search => {
   const is = search(s);
@@ -6274,7 +6322,7 @@ Rex.slice = search => {
 };
 
 
-// slice the left side of a string in a composable manner
+// define the left bound of a string in a composable manner
 
 Rex.sliceFrom = search => s => {
   const is = search(s);
@@ -6283,7 +6331,7 @@ Rex.sliceFrom = search => s => {
 };
 
 
-// slice the right side of a string in a composable manner
+// define the right bound of a string in a composable manner
 
 Rex.sliceTo = search => s => {
   const is = search(s);
