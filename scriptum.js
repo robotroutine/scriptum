@@ -5601,14 +5601,40 @@ Rex.classes.latin1.curr = {
 //█████ Splitting █████████████████████████████████████████████████████████████
 
 
-/* Split a string based on certain transitions of character classes defined by
-regular expressions in the following form:
+// split a string at the specified indices
+
+Rex.splitSearch = is => s => is.reduce((acc, i, j) => {
+  if (j === 0) acc.push(s.slice(0, i));
+  else if (j === is.length - 1) acc.push(s.slice(is[j - 1], i), s.slice(i));
+  else acc.push(s.slice(is[j - 1], i));
+  return acc;
+}, []);
+
+
+// split a string at the specified matches excluding the matches
+
+Rex.splitMatch = os => s => os.reduce((acc, o, i) => {
+  if (i === 0) acc.push(s.slice(0, o.index));
+  
+  else if (i === os.length - 1) {
+    acc.push(s.slice(
+      os[i - 1].index + os[i - 1] [0].length, o.index),
+      s.slice(o.index + os[i - 1] [0].length));
+  }
+  
+  else acc.push(s.slice(os[i - 1].index + os[i - 1] [0].length, o.index));
+  return acc;
+}, []);
+
+
+/* Split a string depending on character class transitions defined by regular
+expressions in the following form:
 
   (?<=charClass)(?!charClass)|(?<!charClass)(?=charClass)
 
-There are lots of suitable predefined character classes defined in this section.
-If you need more granular control, use one of the splitting combinators from the
-string section. */
+There are lots of suitable predefined character classes defined within this
+namespace. If you need more granular control, use one of the combinators with
+splitting semantics from the string namespace. */
 
 Rex.splitAt = flags => (...rs) => s => s.split(
   new RegExp(rs.map(rx => rx.source).join("|"), flags));
