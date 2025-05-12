@@ -7192,7 +7192,7 @@ export const Str = {}; // namespace
 /* Split at character transitions:
   Str.splitChars("abbccc") // yields ["a", "bb", "ccc"] */
 
-Str.splitChars = s => {
+Str.splitCharTrans = s => {
   return s.split("").reduce((acc, c) => {
     const i = acc.length - 1;
     
@@ -7255,7 +7255,59 @@ Str.countSubstr = t => s => {
 };
 
 
+Str.stripAlphaNum = s => s.replaceAll(/[\p{L}\p{N}]/gv, "");
+
+
+Str.stripAllButAlphaNum = s => s.replaceAll(/[^\p{L}\p{N}]/gv, "");
+
+
+Str.stripAllButNum = s => s.replaceAll(/[^\p{N}]/gv, "");
+
+
 Str.catWith = s => (...xs) => xs.join(s);
+
+
+// try to truncate a string without breaking its tokens
+
+Str.trunc = maxLen => s => {
+  if (maxLen >= s.length) return s;
+  else if (s[maxLen] === " ") return s.slice(0, maxLen);
+
+  else {
+    const is = Rex.searchAll(/ /g) (s);
+
+    for (let j = 0; j < is.length; j++)
+      if (is[j] > maxLen) return s.slice(0, is[j - 1]);
+  }
+
+  return s.slice(0, maxLen);
+};
+
+
+/* Try to truncate a strings without breaking its tokens while both parts meet
+the max length consrtaint. */
+
+Str.trunc2 = maxLen => s => {debugger;
+  if (maxLen >= s.length) return [s, ""];
+  else if (maxLen * 2 <= s.length) return [s.slice(0, maxLen), s.slice(maxLen)];
+
+  else {
+    const is = Rex.searchAll(/ /g) (s);
+
+    for (let j = 0; j < is.length; j++) {
+      if (is[j] > maxLen) {
+        if (s.length - is[j - 1] - 1 <= maxLen) return [
+          s.slice(0, is[j - 1]),
+          s.slice(is[j - 1] + 1)
+        ];
+
+        else break;
+      }
+    }
+  }
+
+  return [s.slice(0, maxLen), s.slice(maxLen)];
+};
 
 
 Str.cat = Str.catWith("");
@@ -9251,7 +9303,7 @@ Str.Norm.equivalence = new Map([
 ]);
 
 
-Str.Norm.normalize = ({inclAlpha}) => doc => {
+Str.Norm.latinise = ({inclAlpha}) => doc => {
   let s = "";
 
   for (const c of doc) {
