@@ -495,6 +495,9 @@ export const id = x => x;
 export const comp = f => g => x => f(g(x));
 
 
+export const comp2 = f => g => x => y => f(g(x) (y));
+
+
 export const pipe = g => f => x => f(g(x));
 
 
@@ -507,10 +510,13 @@ export const pipen = (...fs) => fs.reduce((acc, f) => pipe(f) (acc), id);
 export const lift = f => g => x => y => f(g(x)) (g(y));
 
 
-export const liftl = f => g => x => y => f(g(x) (y));
+export const liftl = f => g => x => f(g(x)) (x);
 
 
-export const liftr = f => g => x => y => f(x) (g(y));
+export const liftr = f => g => x => f(x) (g(x));
+
+
+export const join = f => x => f(x) (x);
 
 
 export const constl = x => y => x;
@@ -5686,33 +5692,101 @@ Rex.classes.latin1.curr = {
 };
 
 
+//█████ Searching █████████████████████████████████████████████████████████████
+
+
+Rex.searchAll = rx => s =>
+  Array.from(s.matchAll(rx)).map(ix => ix.index);
+
+
+Rex.searchAllWith = p => rx => s =>
+  Rex.matchAllWith({p, rx}) (s).map(ix => ix.index);
+
+
+Rex.searchFirst = rx => s => {
+  if (rx.flags.search("g") !== not_found)
+    throw new Err("unexpected global flag");
+
+  const i = s.search(rx);
+
+  if (i === not_found) return []
+  else return [i];
+};
+
+
+Rex.searchFirstWith = p => rx => s => {
+  for (const ix of s.matchAll(rx))
+    if (p(ix)) return [ix.index];
+
+  return [];
+};
+
+
+Rex.searchLast = rx => s => {
+  const xs = s.matchAll(rx);
+  if (xs.length === 0) return [];
+  else return [xs[xs.length - 1]];
+};
+
+
+Rex.searchLastWith = p => rx => s => {
+  const xs = Rex.matchAllWith({p, rx}) (s);
+  if (xs.length === 0) return [];
+  else return [xs[xs.length - 1]];
+};
+
+
+Rex.searchNth = (rx, i) => s => {
+  const xs = s.matchAll(rx);
+  if (i - 1 >= xs.length) return [];
+  else return [xs[i - 1]];
+};
+
+
+Rex.searchNthWith = p => (rx, i) => s => {
+  const xs = Rex.matchAllWith({p, rx}) (s);
+  if (i - 1 >= xs.length) return [];
+  else return [xs[i - 1]];
+};
+
+
 //█████ Splitting █████████████████████████████████████████████████████████████
 
 
-// split a string at the specified indices
+/* Split a string at the specified indices. If the supplied argument is an array
+of indices, the separator itself is included in the result. If it is an array of
+matches, the separator is excluded. */
 
-Rex.splitSearch = is => s => is.reduce((acc, i, j) => {
-  if (j === 0) acc.push(s.slice(0, i));
-  else if (j === is.length - 1) acc.push(s.slice(is[j - 1], i), s.slice(i));
-  else acc.push(s.slice(is[j - 1], i));
-  return acc;
-}, []);
-
-
-// split a string at the specified matches excluding the matches
-
-Rex.splitMatch = os => s => os.reduce((acc, o, i) => {
-  if (i === 0) acc.push(s.slice(0, o.index));
-  
-  else if (i === os.length - 1) {
-    acc.push(s.slice(
-      os[i - 1].index + os[i - 1] [0].length, o.index),
-      s.slice(o.index + os[i - 1] [0].length));
+Rex.split = xs => s => {
+  if (typeof xs[0] === "number") {
+    return xs.reduce((acc, i, j) => {
+      if (j === 0) acc.push(s.slice(0, i));
+      else if (j === xs.length - 1) acc.push(s.slice(xs[j - 1], i), s.slice(i));
+      else acc.push(s.slice(xs[j - 1], i));
+      return acc;
+    }, []);
   }
-  
-  else acc.push(s.slice(os[i - 1].index + os[i - 1] [0].length, o.index));
-  return acc;
-}, []);
+
+  else {
+    return xs.reduce((acc, o, i) => {
+      if (i === 0) acc.push(s.slice(0, o.index));
+      
+      else if (i === xs.length - 1) {
+        acc.push(s.slice(
+          xs[i - 1].index + xs[i - 1] [0].length, o.index),
+          s.slice(o.index + xs[i - 1] [0].length));
+      }
+      
+      else acc.push(s.slice(xs[i - 1].index + xs[i - 1] [0].length, o.index));
+      return acc;
+    }, []);
+  }
+};
+
+
+// split a string at dynamically specified indices or matches
+
+Rex.splitWith = f => s => Rex.split(f(s)) (s);
 
 
 /* Split a string depending on character class transitions defined by regular
@@ -5724,34 +5798,34 @@ There are lots of suitable predefined character classes defined within this
 namespace. If you need more granular control, use one of the combinators with
 splitting semantics from the string namespace. */
 
-Rex.splitAt = flags => (...rs) => s => s.split(
+Rex.splitTrans = flags => (...rs) => s => s.split(
   new RegExp(rs.map(rx => rx.source).join("|"), flags));
 
 
-Rex.splitAtLetter = Rex.splitAt("v") (Rex.classes.letter.split);
+Rex.splitLetterTrans = Rex.splitTrans("v") (Rex.classes.letter.split);
 
 
-Rex.splitAtCasing = Rex.splitAt("v")
+Rex.splitCasingTrans = Rex.splitTrans("v")
   (Rex.classes.ucl.split, Rex.classes.lcl.split);
 
 
 // unicode number class
 
-Rex.splitAtNum = Rex.splitAt("v") (Rex.classes.num.split);
+Rex.splitNumTrans = Rex.splitTrans("v") (Rex.classes.num.split);
 
 
 // only ascii digits
 
-Rex.splitAtDig = Rex.splitAt("v") (Rex.classes.digit.split);
+Rex.splitDigTrans = Rex.splitTrans("v") (Rex.classes.digit.split);
 
 
-Rex.splitAtAlnum = Rex.splitAt("v") (Rex.classes.alnum.split);
+Rex.splitAlnumTrans = Rex.splitTrans("v") (Rex.classes.alnum.split);
 
 
-Rex.splitAtAldig = Rex.splitAt("v") (Rex.classes.aldig.split);
+Rex.splitAldigTrans = Rex.splitTrans("v") (Rex.classes.aldig.split);
 
 
-Rex.splitAtNonAlnum = Rex.splitAt("v") (
+Rex.splitNonAlnumTrans = Rex.splitTrans("v") (
   Rex.classes.punct.split,
   Rex.classes.sym.split,
   Rex.classes.space.split,
@@ -5760,7 +5834,7 @@ Rex.splitAtNonAlnum = Rex.splitAt("v") (
 
 // split into the smallest possible tokens
 
-Rex.splitAtToken = Rex.splitAt("v") (
+Rex.splitGeneralTrans = Rex.splitTrans("v") (
   Rex.classes.num.split,
   Rex.classes.punct.split,
   Rex.classes.sym.split,
@@ -6028,64 +6102,6 @@ Rex.replaceNthBy = ({i, f, rx}) => s => {
     const sub = f({match, xs: ys, i: i2, o, s});
     return s.slice(0, i2) + sub + s.slice(i2 + match.length);
   }
-};
-
-
-//█████ Searching █████████████████████████████████████████████████████████████
-
-
-Rex.searchAll = rx => s =>
-  Array.from(s.matchAll(rx)).map(ix => ix.index);
-
-
-Rex.searchAllWith = p => rx => s =>
-  Rex.matchAllWith({p, rx}) (s).map(ix => ix.index);
-
-
-Rex.searchFirst = rx => s => {
-  if (rx.flags.search("g") !== not_found)
-    throw new Err("unexpected global flag");
-
-  const i = s.search(rx);
-
-  if (i === not_found) return []
-  else return [i];
-};
-
-
-Rex.searchFirstWith = p => rx => s => {
-  for (const ix of s.matchAll(rx))
-    if (p(ix)) return [ix.index];
-
-  return [];
-};
-
-
-Rex.searchLast = rx => s => {
-  const xs = s.matchAll(rx);
-  if (xs.length === 0) return [];
-  else return [xs[xs.length - 1]];
-};
-
-
-Rex.searchLastWith = p => rx => s => {
-  const xs = Rex.matchAllWith({p, rx}) (s);
-  if (xs.length === 0) return [];
-  else return [xs[xs.length - 1]];
-};
-
-
-Rex.searchNth = (rx, i) => s => {
-  const xs = s.matchAll(rx);
-  if (i - 1 >= xs.length) return [];
-  else return [xs[i - 1]];
-};
-
-
-Rex.searchNthWith = p => (rx, i) => s => {
-  const xs = Rex.matchAllWith({p, rx}) (s);
-  if (i - 1 >= xs.length) return [];
-  else return [xs[i - 1]];
 };
 
 
@@ -7381,7 +7397,7 @@ Str.splitChunk = ({size, padding = " ", overlap = false}) => s => {
 /* Split at character transitions:
   Str.splitChars("abbccc") // yields ["a", "bb", "ccc"] */
 
-Str.splitCharTrans = s => {
+Str.splitTrans = s => {
   return s.split("").reduce((acc, c) => {
     const i = acc.length - 1;
     
@@ -9016,6 +9032,109 @@ Str.Diff.Eval.equivalence = _eval => {
   }];
 
   else return candidates;
+};
+
+
+// stringify and accumulate all consecutive matches/mismatches
+
+Str.Diff.Eval.stringify = _eval => {
+  const o = {
+    left: {
+      str: _eval.left.str,
+      matches: [],
+      mismatches: []
+    },
+
+    right: {
+      str: _eval.right.str,
+      matches: [],
+      mismatches: []
+    }
+  };
+
+  let index, sub;
+
+  if (_eval.left.matches.length) {
+    index = _eval.left.matches[0].index;
+    sub = _eval.left.matches[0].char;
+
+    for (let i = 0; i < _eval.left.matches.length; i++) {
+      const prev = _eval.left.matches[i],
+        next = _eval.left.matches[i + 1] || null;
+
+      if (next === null) o.left.matches.push({index, sub});
+
+      else if (next.index - prev.index === 1) sub += next.char;
+
+      else {
+        o.left.matches.push({index, sub});
+        index = next.index;
+        sub = next.char;
+      }
+    }
+  }
+
+  if (_eval.right.matches.length) {
+    index = _eval.right.matches[0].index;
+    sub = _eval.right.matches[0].char;
+
+    for (let i = 0; i < _eval.right.matches.length; i++) {
+      const prev = _eval.right.matches[i],
+        next = _eval.right.matches[i + 1] || null;
+
+      if (next === null) o.right.matches.push({index, sub});
+
+      else if (next.index - prev.index === 1) sub += next.char;
+
+      else {
+        o.right.matches.push({index, sub});
+        index = next.index;
+        sub = next.char;
+      }
+    }
+  }
+
+  if (_eval.left.mismatches.length) {
+    index = _eval.left.mismatches[0].index;
+    sub = _eval.left.mismatches[0].char;
+
+    for (let i = 0; i < _eval.left.mismatches.length; i++) {
+      const prev = _eval.left.mismatches[i],
+        next = _eval.left.mismatches[i + 1] || null;
+
+      if (next === null) o.left.mismatches.push({index, sub});
+
+      else if (next.index - prev.index === 1) sub += next.char;
+
+      else {
+        o.left.mismatches.push({index, sub});
+        index = next.index;
+        sub = next.char;
+      }
+    }
+  }
+
+  if (_eval.right.mismatches.length) {
+    index = _eval.right.mismatches[0].index;
+    sub = _eval.right.mismatches[0].char;
+
+    for (let i = 0; i < _eval.right.mismatches.length; i++) {
+      const prev = _eval.right.mismatches[i],
+        next = _eval.right.mismatches[i + 1] || null;
+
+      if (next === null) o.right.mismatches.push({index, sub});
+
+      else if (next.index - prev.index === 1) sub += next.char;
+
+      else {
+        o.right.mismatches.push({index, sub});
+        index = next.index;
+        sub = next.char;
+      }
+    }
+  }
+
+  return o;
 };
 
 
