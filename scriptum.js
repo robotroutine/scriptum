@@ -7167,14 +7167,14 @@ _Set.deDE = {};
 
 Object.defineProperty(_Set, "currencies", {
   get() {
-    const m = new Set([
+    const s = new Set([
       "€", "$", "¥", "£", "₩", "₹", "₽", "₺", "¢", "¤",
       "EUR", "USD", "CNY", "JPY", "GBP", "INR", "RUB", "TRY", "CHF"
     ]);
 
     delete this.months;
-    this.months = m;
-    return m;
+    this.months = s;
+    return s;
   },
 
   configurable: true
@@ -7185,13 +7185,13 @@ Object.defineProperty(_Set, "currencies", {
 
 Object.defineProperty(_Set.deDE, "inflPrefixes", {
   get() {
-    const m = new Map([
+    const s = new Set([
       "ge", // verbal
     ])
 
     delete this.inflPrefixes;
-    this.inflPrefixes = m;
-    return m;
+    this.inflPrefixes = s;
+    return s;
   },
 
   configurable: true
@@ -7200,15 +7200,32 @@ Object.defineProperty(_Set.deDE, "inflPrefixes", {
 
 // nominal joint elements
 
-Object.defineProperty(_Set.deDE, "jointElem", {
+Object.defineProperty(_Set.deDE, "jointElems", {
   get() {
-    const m = new Map([
+    const s = new Set([
       "e", "n", "s", "en", "er", "es", "ens", // nominal
     ]);
 
-    delete this.jointElem;
-    this.jointElem = m;
-    return m;
+    delete this.jointElems;
+    this.jointElems = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// nominal disjoint elements
+
+Object.defineProperty(_Set.deDE, "disjointElems", {
+  get() {
+    const s = new Set([
+      "e", // nominal
+    ]);
+
+    delete this.disjointElems;
+    this.disjointElems = s;
+    return s;
   },
 
   configurable: true
@@ -7219,7 +7236,7 @@ Object.defineProperty(_Set.deDE, "jointElem", {
 
 Object.defineProperty(_Set.deDE, "inflSuffixes", {
   get() {
-    const m = new Map([
+    const s = new Set([
       "e", // nominal
       "n", // nominal
       "s", // nominal
@@ -7262,8 +7279,8 @@ Object.defineProperty(_Set.deDE, "inflSuffixes", {
     ]);
 
     delete this.inflSuffixes;
-    this.inflSuffixes = m;
-    return m;
+    this.inflSuffixes = s;
+    return s;
   },
 
   configurable: true
@@ -7392,6 +7409,9 @@ Str.splitChunk = ({size, padding = " ", overlap = false}) => s => {
 
   return xs;
 };
+
+
+Str.bigram = Str.splitChunk({size: 2, overlap: true});
 
 
 /* Split at character transitions:
@@ -7533,12 +7553,20 @@ Str.Bigram.query = ({corpus, threshold = 0.25}) => word => {
       }
     }
 
-    if (score / word.length >= threshold) results.push({i: corpusIndex, score});
+    if (score / word.length >= threshold) results.push({index: corpusIndex, score});
   });
 
   results.sort((o, p) => p.score - o.score);
   return results;
 };
+
+
+Str.Bigram.reduce = word => {
+  let s = "";
+  for (const bigram of word) s += bigram[0];
+  s += word[word.length - 1] [1];
+  return s;
+}
 
 
 //█████ Diffing ███████████████████████████████████████████████████████████████
@@ -7730,6 +7758,110 @@ Str.Diff.storeRight = (r, seq) => {
   }
 
   return {str: r, matches, mismatches};
+};
+
+
+/* Stringify and accumulate all consecutive matches/mismatches. Can be used
+with both `Str.Diff` and `Str.Diff.Eval` types. */
+
+Str.Diff.stringify = o => {
+  const p = {
+    left: {
+      str: o.left.str,
+      matches: [],
+      mismatches: []
+    },
+
+    right: {
+      str: o.right.str,
+      matches: [],
+      mismatches: []
+    }
+  };
+
+  let index, sub;
+
+  if (o.left.matches.length) {
+    index = o.left.matches[0].index;
+    sub = o.left.matches[0].char;
+
+    for (let i = 0; i < o.left.matches.length; i++) {
+      const prev = o.left.matches[i],
+        next = o.left.matches[i + 1] || null;
+
+      if (next === null) p.left.matches.push({index, sub});
+
+      else if (next.index - prev.index === 1) sub += next.char;
+
+      else {
+        p.left.matches.push({index, sub});
+        index = next.index;
+        sub = next.char;
+      }
+    }
+  }
+
+  if (o.right.matches.length) {
+    index = o.right.matches[0].index;
+    sub = o.right.matches[0].char;
+
+    for (let i = 0; i < o.right.matches.length; i++) {
+      const prev = o.right.matches[i],
+        next = o.right.matches[i + 1] || null;
+
+      if (next === null) p.right.matches.push({index, sub});
+
+      else if (next.index - prev.index === 1) sub += next.char;
+
+      else {
+        p.right.matches.push({index, sub});
+        index = next.index;
+        sub = next.char;
+      }
+    }
+  }
+
+  if (o.left.mismatches.length) {
+    index = o.left.mismatches[0].index;
+    sub = o.left.mismatches[0].char;
+
+    for (let i = 0; i < o.left.mismatches.length; i++) {
+      const prev = o.left.mismatches[i],
+        next = o.left.mismatches[i + 1] || null;
+
+      if (next === null) p.left.mismatches.push({index, sub});
+
+      else if (next.index - prev.index === 1) sub += next.char;
+
+      else {
+        p.left.mismatches.push({index, sub});
+        index = next.index;
+        sub = next.char;
+      }
+    }
+  }
+
+  if (o.right.mismatches.length) {
+    index = o.right.mismatches[0].index;
+    sub = o.right.mismatches[0].char;
+
+    for (let i = 0; i < o.right.mismatches.length; i++) {
+      const prev = o.right.mismatches[i],
+        next = o.right.mismatches[i + 1] || null;
+
+      if (next === null) p.right.mismatches.push({index, sub});
+
+      else if (next.index - prev.index === 1) sub += next.char;
+
+      else {
+        p.right.mismatches.push({index, sub});
+        index = next.index;
+        sub = next.char;
+      }
+    }
+  }
+
+  return p;
 };
 
 
@@ -9032,109 +9164,6 @@ Str.Diff.Eval.equivalence = _eval => {
   }];
 
   else return candidates;
-};
-
-
-// stringify and accumulate all consecutive matches/mismatches
-
-Str.Diff.Eval.stringify = _eval => {
-  const o = {
-    left: {
-      str: _eval.left.str,
-      matches: [],
-      mismatches: []
-    },
-
-    right: {
-      str: _eval.right.str,
-      matches: [],
-      mismatches: []
-    }
-  };
-
-  let index, sub;
-
-  if (_eval.left.matches.length) {
-    index = _eval.left.matches[0].index;
-    sub = _eval.left.matches[0].char;
-
-    for (let i = 0; i < _eval.left.matches.length; i++) {
-      const prev = _eval.left.matches[i],
-        next = _eval.left.matches[i + 1] || null;
-
-      if (next === null) o.left.matches.push({index, sub});
-
-      else if (next.index - prev.index === 1) sub += next.char;
-
-      else {
-        o.left.matches.push({index, sub});
-        index = next.index;
-        sub = next.char;
-      }
-    }
-  }
-
-  if (_eval.right.matches.length) {
-    index = _eval.right.matches[0].index;
-    sub = _eval.right.matches[0].char;
-
-    for (let i = 0; i < _eval.right.matches.length; i++) {
-      const prev = _eval.right.matches[i],
-        next = _eval.right.matches[i + 1] || null;
-
-      if (next === null) o.right.matches.push({index, sub});
-
-      else if (next.index - prev.index === 1) sub += next.char;
-
-      else {
-        o.right.matches.push({index, sub});
-        index = next.index;
-        sub = next.char;
-      }
-    }
-  }
-
-  if (_eval.left.mismatches.length) {
-    index = _eval.left.mismatches[0].index;
-    sub = _eval.left.mismatches[0].char;
-
-    for (let i = 0; i < _eval.left.mismatches.length; i++) {
-      const prev = _eval.left.mismatches[i],
-        next = _eval.left.mismatches[i + 1] || null;
-
-      if (next === null) o.left.mismatches.push({index, sub});
-
-      else if (next.index - prev.index === 1) sub += next.char;
-
-      else {
-        o.left.mismatches.push({index, sub});
-        index = next.index;
-        sub = next.char;
-      }
-    }
-  }
-
-  if (_eval.right.mismatches.length) {
-    index = _eval.right.mismatches[0].index;
-    sub = _eval.right.mismatches[0].char;
-
-    for (let i = 0; i < _eval.right.mismatches.length; i++) {
-      const prev = _eval.right.mismatches[i],
-        next = _eval.right.mismatches[i + 1] || null;
-
-      if (next === null) o.right.mismatches.push({index, sub});
-
-      else if (next.index - prev.index === 1) sub += next.char;
-
-      else {
-        o.right.mismatches.push({index, sub});
-        index = next.index;
-        sub = next.char;
-      }
-    }
-  }
-
-  return o;
 };
 
 
