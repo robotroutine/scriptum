@@ -2011,6 +2011,9 @@ A.tuplewise = ({size, padding = null, overlap = false}) => xs => {
 A.bigram = A.tuplewise({size: 2, overlap: true});
 
 
+A.trigram = A.tuplewise({size: 3, overlap: true});
+
+
 //█████ Combinations, Subsets, Subsequences ███████████████████████████████████
 
 
@@ -4127,6 +4130,96 @@ export const _Map = {}; // namespace
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+████████████████████████████████████ DATA █████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+_Map.deDE = {};
+
+
+// deviates from Javascript's index
+
+Object.defineProperty(_Map.deDE, "months", {
+  get() {
+    const m = new Map([
+      [1, "Januar"], [2, "Februar"], [3, "März"], [4, "April"], [5, "Mai"],
+      [6, "Juni"], [7, "Juli"], [8, "August"], [9, "September"], [10, "Oktober"],
+      [11, "November"], [12, "Dezember"],
+      
+      [1, "Jan"], [2, "Feb"], [3, "Mär"], [4, "Apr"], [5, "Mai"],
+      [6, "Jun"], [7, "Jul"], [8, "Aug"], [9, "Sep"], [9, "Sept"],
+      [10, "Okt"], [11, "Nov"], [12, "Dez"],
+    ]);
+
+    delete this.months;
+    this.months = m;
+    return m;
+  },
+
+  configurable: true
+});
+
+
+// deviates from Javascript's index
+
+Object.defineProperty(_Map.deDE, "monthsRev", {
+  get() {
+    const m = new Map([
+      ["Januar", 1], ["Februar", 2], ["März", 3], ["April", 4], ["Mai", 5],
+      ["Juni", 6], ["Juli", 7], ["August", 8], ["September", 9], ["Oktober", 10],
+      ["November", 11], ["Dezember", 12],
+      
+      ["Jan", 1], ["Feb", 2], ["Mär", 3], ["Apr", 4], ["Mai", 5],
+      ["Jun", 6], ["Jul", 7], ["Aug", 8], ["Sep", 9], ["Sept", 9],
+      ["Okt", 10], ["Nov", 11], ["Dez", 12],
+    ]);
+
+    delete this.months;
+    this.months = m;
+    return m;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Map.deDE, "weekdays", {
+  get() {
+    const m = new Map([
+      [1, "Montag"], [2, "Dienstag"], [3, "Mittwoch"], [4, "Donnerstag"],
+      [5, "Freitag"], [6, "Samstag"], [7, "Sonntag"],
+
+      [1, "Mo"], [2, "Di"], [3, "Mi"], [4, "Do"], [5, "Fr"], [6, "Sa"], [0, "So"],
+    ]);
+
+    delete this.months;
+    this.months = m;
+    return m;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Map.deDE, "weekdaysRev", {
+  get() {
+    const m = new Map([
+      ["Montag", 1], ["Dienstag", 2], ["Mittwoch", 3], ["Donnerstag", 4],
+      ["Freitag", 5], ["Samstag", 6], ["Sonntag", 0],
+
+      ["Mo", 1], ["Di", 2], ["Mi", 3], ["Do", 4], ["Fr", 5], ["Sa", 6], ["So", 0],
+    ]);
+
+    delete this.months;
+    this.months = m;
+    return m;
+  },
+
+  configurable: true
+});
+
+
+/*█████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████ COMBINATORS █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
@@ -4241,94 +4334,6 @@ _Map.interconvert = f => m => new Map(f(Array.from(m)));
 
 
 _Map.interconvertBy = f => g => m => new Map(f(Array.from(m).map(g)));
-
-
-//█████ Common Maps ███████████████████████████████████████████████████████████
-
-
-_Map.deDE = {};
-
-
-// deviates from Javascript's index
-
-Object.defineProperty(_Map.deDE, "months", {
-  get() {
-    const m = new Map([
-      [1, "Januar"], [2, "Februar"], [3, "März"], [4, "April"], [5, "Mai"],
-      [6, "Juni"], [7, "Juli"], [8, "August"], [9, "September"], [10, "Oktober"],
-      [11, "November"], [12, "Dezember"],
-      
-      [1, "Jan"], [2, "Feb"], [3, "Mär"], [4, "Apr"], [5, "Mai"],
-      [6, "Jun"], [7, "Jul"], [8, "Aug"], [9, "Sep"], [9, "Sept"],
-      [10, "Okt"], [11, "Nov"], [12, "Dez"],
-    ]);
-
-    delete this.months;
-    this.months = m;
-    return m;
-  },
-
-  configurable: true
-});
-
-
-// deviates from Javascript's index
-
-Object.defineProperty(_Map.deDE, "monthsRev", {
-  get() {
-    const m = new Map([
-      ["Januar", 1], ["Februar", 2], ["März", 3], ["April", 4], ["Mai", 5],
-      ["Juni", 6], ["Juli", 7], ["August", 8], ["September", 9], ["Oktober", 10],
-      ["November", 11], ["Dezember", 12],
-      
-      ["Jan", 1], ["Feb", 2], ["Mär", 3], ["Apr", 4], ["Mai", 5],
-      ["Jun", 6], ["Jul", 7], ["Aug", 8], ["Sep", 9], ["Sept", 9],
-      ["Okt", 10], ["Nov", 11], ["Dez", 12],
-    ]);
-
-    delete this.months;
-    this.months = m;
-    return m;
-  },
-
-  configurable: true
-});
-
-
-Object.defineProperty(_Map.deDE, "weekdays", {
-  get() {
-    const m = new Map([
-      [1, "Montag"], [2, "Dienstag"], [3, "Mittwoch"], [4, "Donnerstag"],
-      [5, "Freitag"], [6, "Samstag"], [7, "Sonntag"],
-
-      [1, "Mo"], [2, "Di"], [3, "Mi"], [4, "Do"], [5, "Fr"], [6, "Sa"], [0, "So"],
-    ]);
-
-    delete this.months;
-    this.months = m;
-    return m;
-  },
-
-  configurable: true
-});
-
-
-Object.defineProperty(_Map.deDE, "weekdaysRev", {
-  get() {
-    const m = new Map([
-      ["Montag", 1], ["Dienstag", 2], ["Mittwoch", 3], ["Donnerstag", 4],
-      ["Freitag", 5], ["Samstag", 6], ["Sonntag", 0],
-
-      ["Mo", 1], ["Di", 2], ["Mi", 3], ["Do", 4], ["Fr", 5], ["Sa", 6], ["So", 0],
-    ]);
-
-    delete this.months;
-    this.months = m;
-    return m;
-  },
-
-  configurable: true
-});
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -5319,157 +5324,92 @@ Rex.classes = {};
 
 
 Rex.classes.alnum = {
-  rex: /[\p{L}\p{N}]/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "[\\p{L}\\p{N}]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.aldig = {
-  rex: /[\p{L}\d]/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "[\\p{L}\\d]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.letter = {
-  rex: /\p{L}/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "\\p{L}",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // upper-case letter
 
 Rex.classes.ucl = {
-  rex: /\p{Lu}/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "\\p{Lu}",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // lower-case letter
 
 Rex.classes.lcl = {
-  rex: /\p{Ll}/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "\\p{Ll}",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
     
 
 Rex.classes.num = {
-  rex: /\p{N}/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "\\p{N}",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.digit = {
-  rex: /\d/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "\\d",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // punctuation
 
 Rex.classes.punct = {
-  rex: /\p{P}/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "\\p{P}",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // space
 
 Rex.classes.space = {
-  rex: /\p{Z}/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "\\p{Z}",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // symbol
 
 Rex.classes.sym = {
-  rex: /\p{S}/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "\\p{S}",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // currency
 
 Rex.classes.curr = {
-  rex: /\p{Sc}/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "\\p{Sc}",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.ctrl = {
-  rex: /\p{C}/v,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "\\p{C}",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.crnl = {
-  rex: /\r?\n/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
-    return this.split;
-  },
+  s: "\\r?\\n",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
@@ -5480,107 +5420,62 @@ Rex.classes.ascii = {};
 
 
 Rex.classes.ascii.aldig = {
-  rex: /[[A-Za-z\d]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "[A-Za-z\\d]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.ascii.letter = {
-  rex: /[A-Za-z]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "[A-Za-z]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.ascii.ucl = {
-  rex: /[A-Z]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "[A-Z]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.ascii.lcl = {
-  rex: /[a-z]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "[a-z]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // vowels
 
 Rex.classes.ascii.vowels = {
-  rex: /[AEUIOaeuio]/,
-  
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
-    return this.split;
-  },
+  s: "[AEUIOaeuio]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // upper-case vowels
 
 Rex.classes.ascii.ucv = {
-  rex: /[AEUIO]/,
-  
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
-    return this.split;
-  },
+  s: "[AEUIO]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // lower-case vowels
 
 Rex.classes.ascii.lcv = {
-  rex: /[aeuio]/,
-  
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
-    return this.split;
-  },
+  s: "[aeuio]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.ascii.punct = {
-  rex: /[!"#$%&'()*+,-./:;<=>?@\[\]\\^_`{|}~]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
-    return this.split;
-  },
+  s: "[!\"#$%&'()*+,-./:;<=>?@\\[\\]\\\\^_`{|}~]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.ascii.ctrl = {
-  rex: /[\0\a\b\t\v\f\r\n\cZ]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
-    return this.split;
-  },
+  s: "[\\0\\a\\b\\t\\v\\f\\r\\n\\cZ]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
@@ -5591,118 +5486,68 @@ Rex.classes.latin1 = {};
 
 
 Rex.classes.ascii.alnum = {
-  rex: /[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\d²³¹¼½¾]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\\d²³¹¼½¾]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.ascii.aldig = {
-  rex: /[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\d]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "v");
-    return this.split;
-  },
+  s: "[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\\d]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.latin1.letter = {
-  rex: /[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
-    return this.split;
-  },
+  s: "[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.latin1.ucl = {
-  rex: /[A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞ]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
-    return this.split;
-  },
+  s: "[A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞ]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.latin1.lcl = {
-  rex: /[a-zßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
-    return this.split;
-  },
+  s: "[a-zßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // vowels
 
 Rex.classes.latin1.vowels = {
-  rex: /[AEUIOÁÀĂÂÅÄÃĀÐÉÈÊĚËĖĘÍÌÎÏĮĪÓÒÔÖŐÕØŌÚÙŬÛŮÜŰŨŲŪaeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]/,
-  
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
-    return this.split;
-  },
+  s: "[AEUIOÁÀĂÂÅÄÃĀÐÉÈÊĚËĖĘÍÌÎÏĮĪÓÒÔÖŐÕØŌÚÙŬÛŮÜŰŨŲŪaeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // upper-case vowels
 
 Rex.classes.latin1.ucv = {
-  rex: /[AEUIOÁÀĂÂÅÄÃĀÐÉÈÊĚËĖĘÍÌÎÏĮĪÓÒÔÖŐÕØŌÚÙŬÛŮÜŰŨŲŪ]/,
-  
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
-    return this.split;
-  },
+  s: "[AEUIOÁÀĂÂÅÄÃĀÐÉÈÊĚËĖĘÍÌÎÏĮĪÓÒÔÖŐÕØŌÚÙŬÛŮÜŰŨŲŪ]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 // lower-case vowels
 
 Rex.classes.latin1.lcv = {
-  rex: /[aeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]/,
-  
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "i");
-    return this.split;
-  },
+  s: "[aeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
 Rex.classes.latin1.punct = {
-  rex: /[!"#$%&'()*+,-./:;<=>?@\[\]\\^_`{|}~€‚„…†‡ˆ‰‹‘’“”•–­—˜™›¡¢£¤¥¦§¨©ª«¬®¯°±²³´µ¶·¸¹º»¼½¾¿]/,
-
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
-    return this.split;
-  },
+  s: "[!\"#$%&'()*+,-./:;<=>?@\\[\\]\\\\^_`{|}~€‚„…†‡ˆ‰‹‘’“”•–­—˜™›¡¢£¤¥¦§¨©ª«¬®¯°±²³´µ¶·¸¹º»¼½¾¿]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
-  
-Rex.classes.latin1.curr = {
-  rex: /[¤$€£¥¢]/,
 
-  get split() {
-    delete this.split;
-    this.split = new RegExp(`(?<=${this.rex.source})(?!${this.rex.source})|(?<!${this.rex.source})(?=${this.rex.source})`, "");
-    return this.split;
-  },
+Rex.classes.latin1.curr = {
+  s: "[¤$€£¥¢]",
+  get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
@@ -5812,49 +5657,60 @@ There are lots of suitable predefined character classes defined within this
 namespace. If you need more granular control, use one of the combinators with
 splitting semantics from the string namespace. */
 
-Rex.splitTrans = flags => (...rs) => s => s.split(
-  new RegExp(rs.map(rx => rx.source).join("|"), flags));
+Rex.splitTrans = flags => (...xs) => s => s.split(
+  new RegExp(xs.join("|"), flags));
 
 
-Rex.splitLetterTrans = Rex.splitTrans("v") (Rex.classes.letter.split);
+Rex.splitLetterTrans = Rex.splitTrans("v") (Rex.classes.letter.sep);
 
 
 Rex.splitCasingTrans = Rex.splitTrans("v")
-  (Rex.classes.ucl.split, Rex.classes.lcl.split);
+  (Rex.classes.ucl.sep, Rex.classes.lcl.sep);
 
 
 // unicode number class
 
-Rex.splitNumTrans = Rex.splitTrans("v") (Rex.classes.num.split);
+Rex.splitNumTrans = Rex.splitTrans("v") (Rex.classes.num.sep);
 
 
 // only ascii digits
 
-Rex.splitDigTrans = Rex.splitTrans("v") (Rex.classes.digit.split);
+Rex.splitDigTrans = Rex.splitTrans("v") (Rex.classes.digit.sep);
 
 
-Rex.splitAlnumTrans = Rex.splitTrans("v") (Rex.classes.alnum.split);
+Rex.splitAlnumTrans = Rex.splitTrans("v") (Rex.classes.alnum.sep);
 
 
-Rex.splitAldigTrans = Rex.splitTrans("v") (Rex.classes.aldig.split);
+Rex.splitAldigTrans = Rex.splitTrans("v") (Rex.classes.aldig.sep);
 
 
 Rex.splitNonAlnumTrans = Rex.splitTrans("v") (
-  Rex.classes.punct.split,
-  Rex.classes.sym.split,
-  Rex.classes.space.split,
-  Rex.classes.crnl.split);
+  Rex.classes.punct.sep,
+  Rex.classes.sym.sep,
+  Rex.classes.space.sep,
+  Rex.classes.crnl.sep);
 
 
-// split into the smallest possible tokens
+// split almost all
 
-Rex.splitGeneralTrans = Rex.splitTrans("v") (
-  Rex.classes.num.split,
-  Rex.classes.punct.split,
-  Rex.classes.sym.split,
-  Rex.classes.space.split,
-  Rex.classes.crnl.split,
-  /(?<=\p{Ll})(?=\p{Lu})/v); // "fooBar" -> "foo Bar"
+Rex.splitAlmostAllTrans = Rex.splitTrans("v") (
+  Rex.classes.num.sep,
+  Rex.classes.punct.sep,
+  Rex.classes.sym.sep,
+  Rex.classes.space.sep,
+  Rex.classes.crnl.sep,
+  "(?<=\\p{Ll})(?=\\p{Lu})"); // "fooBar" -> ["foo", "Bar"]
+
+
+// split all
+
+Rex.splitAllTrans = Rex.splitTrans("v") (
+  Rex.classes.num.sep,
+  Rex.classes.punct.sep,
+  Rex.classes.sym.sep,
+  Rex.classes.space.sep,
+  Rex.classes.crnl.sep,
+  "(?<=\\p{Ll})(?=\\p{Lu})|(?<=\\p{Lu})(?=\\p{Ll})"); // "fooBar" -> ["foo", "B", "ar"]
 
 
 //█████ Matching ██████████████████████████████████████████████████████████████
@@ -7080,104 +6936,8 @@ export const _Set = {}; // namespace
 
 
 /*█████████████████████████████████████████████████████████████████████████████
-█████████████████████████████████ COMBINATORS █████████████████████████████████
+████████████████████████████████████ DATA █████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
-
-
-_Set.entries = s => s[Symbol.iterator] ();
-
-
-_Set.clone = s => new Set(s);
-
-
-_Set.addn = xs => s => xs.forEach(x => s.add(x));
-
-
-//█████ Set Operations ████████████████████████████████████████████████████████
-
-
-_Set.intersect = s => t => {
-  const st = new Set();
-  for (const x of s) t.has(x) ? st.add(x) : null;
-  return st;
-};
-
-
-_Set.union = s => t => {
-  const st = new Set(s);
-  t.forEach(x => st.add(x));
-  return st;
-};
-
-
-_Set.diff = s => t => {
-  const l = new Set(), r = new Set();
-  for (const x of s) !t.has(x) ? l.add(x) : null;
-  for (const x of t) !s.has(x) ? r.add(x) : null;
-  r.forEach(x => l.add(x));
-  return l;
-};
-
-
-_Set.diffl = s => t => {
-  const l = new Set();
-  for (const x of s) !t.has(x) ? l.add(x) : null;
-  return l;
-};
-
-
-//█████ Conversion ████████████████████████████████████████████████████████████
-
-
-_Set.fromAit = comp(Cont.fromPromise) (async function (ix) {
-  const s = new Set();
-  for await (const k of ix) s.add(k);
-  return s;
-});
-
-
-_Set.fromAitKeys = comp(Cont.fromPromise) (async function (ix) {
-  const s = new Set();
-  for await (const [k,] of ix) s.add(k);
-  return s;
-});
-
-
-_Set.fromAitValues = comp(Cont.fromPromise) (async function (ix) {
-  const s = new Set();
-  for await (const [, v] of ix) s.add(v);
-  return s;
-});
-
-
-_Set.fromIt = ix => {
-  const s = new Set();
-  for (const k of ix) s.add(k);
-  return s;
-};
-
-
-_Set.fromItKeys = ix => {
-  const s = new Set();
-  for (const [k,] of ix) s.add(k);
-  return s;
-};
-
-
-_Set.fromItValues = ix => {
-  const s = new Set();
-  for (const [, v] of ix) s.add(v);
-  return s;
-};
-
-
-_Set.interconvert = f => s => new Set(f(Array.from(s)));
-
-
-_Set.interconvertBy = f => g => s => new Set(f(Array.from(s).map(g)));
-
-
-//█████ Common Sets ███████████████████████████████████████████████████████████
 
 
 _Set.deDE = {};
@@ -7308,6 +7068,104 @@ Object.defineProperty(_Set.deDE, "inflSuffixes", {
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+_Set.entries = s => s[Symbol.iterator] ();
+
+
+_Set.clone = s => new Set(s);
+
+
+_Set.addn = xs => s => xs.forEach(x => s.add(x));
+
+
+//█████ Set Operations ████████████████████████████████████████████████████████
+
+
+_Set.intersect = s => t => {
+  const st = new Set();
+  for (const x of s) t.has(x) ? st.add(x) : null;
+  return st;
+};
+
+
+_Set.union = s => t => {
+  const st = new Set(s);
+  t.forEach(x => st.add(x));
+  return st;
+};
+
+
+_Set.diff = s => t => {
+  const l = new Set(), r = new Set();
+  for (const x of s) !t.has(x) ? l.add(x) : null;
+  for (const x of t) !s.has(x) ? r.add(x) : null;
+  r.forEach(x => l.add(x));
+  return l;
+};
+
+
+_Set.diffl = s => t => {
+  const l = new Set();
+  for (const x of s) !t.has(x) ? l.add(x) : null;
+  return l;
+};
+
+
+//█████ Conversion ████████████████████████████████████████████████████████████
+
+
+_Set.fromAit = comp(Cont.fromPromise) (async function (ix) {
+  const s = new Set();
+  for await (const k of ix) s.add(k);
+  return s;
+});
+
+
+_Set.fromAitKeys = comp(Cont.fromPromise) (async function (ix) {
+  const s = new Set();
+  for await (const [k,] of ix) s.add(k);
+  return s;
+});
+
+
+_Set.fromAitValues = comp(Cont.fromPromise) (async function (ix) {
+  const s = new Set();
+  for await (const [, v] of ix) s.add(v);
+  return s;
+});
+
+
+_Set.fromIt = ix => {
+  const s = new Set();
+  for (const k of ix) s.add(k);
+  return s;
+};
+
+
+_Set.fromItKeys = ix => {
+  const s = new Set();
+  for (const [k,] of ix) s.add(k);
+  return s;
+};
+
+
+_Set.fromItValues = ix => {
+  const s = new Set();
+  for (const [, v] of ix) s.add(v);
+  return s;
+};
+
+
+_Set.interconvert = f => s => new Set(f(Array.from(s)));
+
+
+_Set.interconvertBy = f => g => s => new Set(f(Array.from(s).map(g)));
+
+
+/*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████ STRING ████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
@@ -7318,12 +7176,40 @@ export const Str = {}; // namespace
 
 
 /*█████████████████████████████████████████████████████████████████████████████
+████████████████████████████████████ DATA █████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+Str.deDE = {};
+
+
+Str.deDE.vowelConsonantRatio = 0.666666667;
+
+
+Str.deDE.avgWordLen = 5.5;
+
+
+Str.deDE.commonConsonantPairs = new Set([
+  "st", "sp", "ch", "pf", "ck", "ts"]);
+
+
+/*█████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████ COMBINATORS █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-Str.countChars = s => s.split("").reduce((acc, c) =>
-  _Map.inc(c) (acc), new Map());
+Str.countChar = c => s => {
+  let n = 0;
+  for (const c2 of s) if (c === c2 ) n++;
+  return n;
+};
+
+
+Str.countChars = s => {
+  const m = new Map();
+  for (const c of s) _Map.inc(c) (acc);
+  return m;
+};
 
 
 Str.countSubstr = t => s => {
@@ -7432,6 +7318,9 @@ Str.splitChunk = ({size, padding = " ", overlap = false}) => s => {
 
 
 Str.bigram = Str.splitChunk({size: 2, overlap: true});
+
+
+Str.trigram = Str.splitChunk({size: 3, overlap: true});
 
 
 /* Split at character transitions:
@@ -10322,7 +10211,8 @@ export const Val = {};
 Val.True = ({
   [$]: "Val",
   [$$]: "Val.True",
-  valid: true
+  valid: true,
+  confidence: 1
 });
 
 
@@ -10330,8 +10220,37 @@ Val.False = reason => ({
   [$]: "Val",
   [$$]: "Val.False",
   valid: false,
+  confidence: 0,
   reason
 });
+
+
+/* Confidence is encoded by a decimal value between any negative number and the
+smallest fraction less than one. A negative number represents a likely false
+validation wheras a positive one represents a likely true validation. */
+
+Val.Maybe = confidence => {
+  if (confidence < 0) {
+    return {
+      [$]: "Val",
+      [$$]: "Val.Maybe",
+      valid: false,
+      confidence
+    };
+  }
+
+  else if (confidence >= 1) {
+    console.warn("too much confidence");
+    confidence = 0.9999999999999999;
+  }
+
+  return {
+    [$]: "Val",
+    [$$]: "Val.Maybe",
+    valid: true,
+    confidence
+  };
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -10454,9 +10373,9 @@ Val.ascii = s => {
     "^(?:",
     "[a-z0-9]",
     "|",
-    Rex.classes.ascii.punct.rex.source,
+    Rex.classes.ascii.punct.s,
     "|",
-    Rex.classes.ascii.ctrl.rex.source,
+    Rex.classes.ascii.ctrl.s,
     ")+$"), "i").test(s))
       return Val.True;
 
@@ -10485,13 +10404,13 @@ Val.asciiUcl = s => {
 Val.latin1 = s => {
   if (new RegExp(Str.cat(
     "^(?:",
-    Rex.classes.latin1.letter.rex.source,
+    Rex.classes.latin1.letter.s,
     "|",
     "\\d",
     "|",
-    Rex.classes.latin1.punct.rex.source,
+    Rex.classes.latin1.punct.s,
     "|",
-    Rex.classes.ascii.ctrl.rex.source,
+    Rex.classes.ascii.ctrl.s,
     ")+$"), "i").test(s))
       return Val.True;
 
@@ -10500,7 +10419,7 @@ Val.latin1 = s => {
 
 
 Val.latin1Letters = s => {
-  if (new RegExp(`^${Rex.classes.latin1.letter.rex.source}+$`, "iv").test(s))
+  if (new RegExp(`^${Rex.classes.latin1.letter.s}+$`, "iv").test(s))
     return Val.True;
 
   else return Val.False("latin1 letter(s) expected");
@@ -10508,7 +10427,7 @@ Val.latin1Letters = s => {
 
 
 Val.latin1LcL = s => {
-  if (new RegExp(`^${Rex.classes.latin1.lcl.rex.source}+$`, "v").test(s))
+  if (new RegExp(`^${Rex.classes.latin1.lcl.s}+$`, "v").test(s))
     return Val.True;
 
   else return Val.False("latin1 lower-case letter(s) expected");
@@ -10516,7 +10435,7 @@ Val.latin1LcL = s => {
 
 
 Val.latin1Ucl = s => {
-  if (new RegExp(`^${Rex.classes.latin1.ucl.rex.source}+$`, "v").test(s))
+  if (new RegExp(`^${Rex.classes.latin1.ucl.s}+$`, "v").test(s))
     return Val.True;
 
   else return Val.False("latin1 upper-case letter(s) expected");
@@ -10617,6 +10536,61 @@ Val.street = s => {
 Val.email = s => {
   if (/^[\p{L}\d\-.@_']+$/.test(s)) return Val.True;
   else return Val.False("digit character(s) expected");
+};
+
+
+/* Take a map of well-known abbreviations, the word and its right context and
+determine whether the word is an abbreviation. Considers the following aspects:
+
+  * Do several non-consecutive periods occur?
+  * Is the word in all-caps?
+  * Do several capital letters occur?
+  * Does no vowel occur?
+  * Is the vowel-consonant-ratio lower than in general?
+  * Are there trigram triplets without a vowel?
+  * Is the word shorter than in general? */
+
+Val.abbr = ({wkas, locale, context = ""}) => word => {
+  if (wkas.has(word)) return Val.True;
+
+  else {
+    const score = 0,
+      singlePeriods = Rex.count(/(?<!\.)\.(?!\.)/g) (word),
+      periods = Str.countChar(".") (word),
+      caps = Rex.count(/\p{Lu}/gv) (word);
+
+    // number of solitary vowels
+
+    const vowels = Rex.count(RegExp(
+      `${Rex.classes.latin1.vowels.s}+`, "g")) (word);
+
+    if (singlePeriods > 1) return Val.Maybe(1);
+    else if (caps === word.length) return Val.Maybe(1);
+    else if (vowels === 0) return Val.Maybe(1);
+    else if (singlePeriods === 0 && periods > 0) return Val.False("ellipsis");
+    else if (context && /^ +\p{Ll}/v.test(context)) return Val.Maybe(1);
+    else if (context && /^ *,/.test(context)) return Val.Maybe(1);
+
+    else {
+      const vowelRatio = vowels / (word.length - vowels - periods),
+        vowelDist = Str[locale].vowelConsonantRatio - vowelRatio,
+        capsDist = (caps ? caps - 1 : 0) * 0.2;
+
+      const noVowelTriplets = Str.trigram(word.replace(/\./g, ""))
+        .filter(s => !new RegExp(Rex.classes.latin1.vowels.s, "g").test(s))
+        .filter(s => !Str[locale].commonConsonantPairs.has(s[0] + s[1])
+          && !Str[locale].commonConsonantPairs.has(s[1] + s[2])).length * 0.1;
+
+      const finalVowel = new RegExp(Rex.classes.latin1.vowels.s, "g")
+        .test(word[word.length - 1])
+          ? 0 : 0.1;
+
+      const lenDiff = Alg.scaledTanh(0.33)
+        (Str[locale].avgWordLen - (word.length - periods));
+
+      return Val.Maybe(capsDist + vowelDist + noVowelTriplets + finalVowel + lenDiff);
+    }
+  }
 };
 
 
@@ -10899,69 +10873,30 @@ ignore:
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-Alg.dotProduct = (xs, ys) => {
-  if (xs.length !== ys.length) throw new Err("diverging dimensions");
+/* Yield an inverse s-shaped graph for x in the domain from -1 to 1 with the
+origin of 0, where a scaling factor below 1 increases the slope and above 1
+decreases it. */
 
-  let n = 0;
-  for (let i = 0; i < xs.length; i++) n += xs[i] * ys[i];
-  return n;
-};
-
-
-Alg.cosine = (xs, ys) => {
-  if (xs.length !== ys.length) throw new Err("diverging dimensions");
-  else if (xs.length === 0) return 0;
-
-  let n = 0, n2 = 0, n3 = 0;
-
-  for (let i = 0; i < xs.length; i++) {
-    n += xs[i] * ys[i];
-    n2 += xs[i] * xs[i];
-    n3 += ys[i] * ys[i];
-  }
-  
-  return n / (Math.sqrt(n2) * Math.sqrt(n3));
-};
-
-
-Alg.euclidean = (xs, ys) => {
-  if (xs.length !== ys.length) throw new Err("diverging dimensions");
-  else if (xs.length === 0) return 0;
-
-  let n = 0;
-
-  for (let i = 0; i < xs.length; i++) {
-    const diff = xs[i] - ys[i];
-    n += diff * diff;
+Alg.scaledLogitLike = scale => x => {
+  if (x <= -1 || x >= 1) {
+    if (x === 1) return scale * Infinity;
+    else if (x === -1) return A * -Infinity;
+    else return NaN;
   }
 
-  return Math.sqrt(n);
-};
+  else return scale * Math.log((1 + x) / (1 - x));
+}
 
 
-Alg.euclidean2 = (xs, ys) => {
-  if (xs.length !== ys.length) throw new Err("diverging dimensions");
-  else if (xs.length === 0) return 0;
+/* Yield an s-shaped graph with the origin of 0, where a scaling factor below 1
+decreases the slope and above 1 increases it. */
 
-  let n = 0;
-
-  for (let i = 0; i < xs.length; i++) {
-    const diff = xs[i] - ys[i];
-    n += diff * diff;
-  }
-
-  return n;
-};
+Alg.scaledTanh = scale => x => Math.tanh((scale * x) / 2);
 
 
-Alg.manhattan = (xs, ys) => {
-  if (xs.length !== ys.length) throw new Err("same length expected");
-  else if (xs.length === 0) return 0;
+// calculate the exponent for a given base and result x
 
-  let n = 0;
-  for (let i = 0; i < xs.length; i++) n += Math.abs(xs[i] - ys[i]);
-  return n;
-};
+Alg.logx = base => x => Math.log(x) / Math.log(base);
 
 
 //█████ Fractions █████████████████████████████████████████████████████████████
@@ -11071,6 +11006,74 @@ Alg.avgFracs = (o, p) => {
     d = sum.d * 2;
 
   return Alg.simplifyFrac(n, d);
+};
+
+
+//█████ Vectors ███████████████████████████████████████████████████████████████
+
+
+Alg.dotProduct = (xs, ys) => {
+  if (xs.length !== ys.length) throw new Err("diverging dimensions");
+
+  let n = 0;
+  for (let i = 0; i < xs.length; i++) n += xs[i] * ys[i];
+  return n;
+};
+
+
+Alg.cosine = (xs, ys) => {
+  if (xs.length !== ys.length) throw new Err("diverging dimensions");
+  else if (xs.length === 0) return 0;
+
+  let n = 0, n2 = 0, n3 = 0;
+
+  for (let i = 0; i < xs.length; i++) {
+    n += xs[i] * ys[i];
+    n2 += xs[i] * xs[i];
+    n3 += ys[i] * ys[i];
+  }
+  
+  return n / (Math.sqrt(n2) * Math.sqrt(n3));
+};
+
+
+Alg.euclidean = (xs, ys) => {
+  if (xs.length !== ys.length) throw new Err("diverging dimensions");
+  else if (xs.length === 0) return 0;
+
+  let n = 0;
+
+  for (let i = 0; i < xs.length; i++) {
+    const diff = xs[i] - ys[i];
+    n += diff * diff;
+  }
+
+  return Math.sqrt(n);
+};
+
+
+Alg.euclidean2 = (xs, ys) => {
+  if (xs.length !== ys.length) throw new Err("diverging dimensions");
+  else if (xs.length === 0) return 0;
+
+  let n = 0;
+
+  for (let i = 0; i < xs.length; i++) {
+    const diff = xs[i] - ys[i];
+    n += diff * diff;
+  }
+
+  return n;
+};
+
+
+Alg.manhattan = (xs, ys) => {
+  if (xs.length !== ys.length) throw new Err("same length expected");
+  else if (xs.length === 0) return 0;
+
+  let n = 0;
+  for (let i = 0; i < xs.length; i++) n += Math.abs(xs[i] - ys[i]);
+  return n;
 };
 
 
