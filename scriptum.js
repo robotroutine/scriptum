@@ -7012,54 +7012,124 @@ Object.defineProperty(_Set.deDE, "disjointElems", {
 });
 
 
-// inflection suffixes
+// nominal inflection suffixes
 
-Object.defineProperty(_Set.deDE, "inflSuffixes", {
+Object.defineProperty(_Set.deDE, "nomInflSuff", {
   get() {
     const s = new Set([
-      "e", // nominal
-      "n", // nominal
-      "s", // nominal
-      "en", // nominal
-      "er", // nominal
-      "ern", // nominal
-      "e", // verbal
-      "t", // verbal
-      "en", // verbal
-      "et", // verbal
-      "st", // verbal
-      "te", // verbal
-      "end", // verbal
-      "eln", // verbal
-      "ern", // verbal
-      "est", // verbal
-      "ten", // verbal
-      "tet", // verbal
-      "test", // verbal
-      "e", // adjectival
-      "er", // adjectival
-      "es", // adjectival
-      "em", // adjectival
-      "en", // adjectival
-      "ere", // adjectival
-      "ste", // adjectival
-      "ßte", // adjectival
-      "erer", // adjectival
-      "eres", // adjectival
-      "erem", // adjectival
-      "eren", // adjectival
-      "ster", // adjectival
-      "ßter", // adjectival
-      "stes", // adjectival
-      "ßtes", // adjectival
-      "stem", // adjectival
-      "ßtem", // adjectival
-      "sten", // adjectival
-      "ßten", // adjectival
+      "e",
+      "n",
+      "s",
+      "en",
+      "er",
+      "ern",
     ]);
 
-    delete this.inflSuffixes;
-    this.inflSuffixes = s;
+    delete this.nomInflSuff;
+    this.nomInflSuff = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// verbal inflection suffixes
+
+Object.defineProperty(_Set.deDE, "verbInflSuff", {
+  get() {
+    const s = new Set([
+      "e",
+      "t",
+      "en",
+      "et",
+      "st",
+      "te",
+      "end",
+      "eln",
+      "ern",
+      "est",
+      "ten",
+      "tet",
+      "test",
+    ]);
+
+    delete this.verbInflSuff;
+    this.verbInflSuff = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// adjectival inflection (+comparative/superlative) suffixes
+
+Object.defineProperty(_Set.deDE, "adjInflSuff", {
+  get() {
+    const s = new Set([
+      "e",
+      "er",
+      "es",
+      "em",
+      "en",
+      "ere",
+      "ste",
+      "ßte",
+      "erer",
+      "eres",
+      "erem",
+      "eren",
+      "ster",
+      "ßter",
+      "stes",
+      "ßtes",
+      "stem",
+      "ßtem",
+      "sten",
+      "ßten",
+    ]);
+
+    delete this.adjInflSuff;
+    this.adjInflSuff = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Set.deDE, "copulaVerbs", {
+  get() {
+    const s = new Set([
+      "anhören",
+      "bewähren",
+      "bleiben",
+      "darstellen",
+      "enden",
+      "entwickeln",
+      "erscheinen",
+      "erweisen",
+      "fühlen",
+      "gelten",
+      "herausstellen",
+      "klingen",
+      "kommen",
+      "qualifizieren",
+      "riechen",
+      "scheinen",
+      "schmecken",
+      "sehen",
+      "sein",
+      "verstehen",
+      "wandeln",
+      "werden",
+      "wirken",
+      "zeigen",
+    ]);
+
+    delete this.copulaVerbs;
+    this.copulaVerbs = s;
     return s;
   },
 
@@ -10539,8 +10609,9 @@ Val.email = s => {
 };
 
 
-/* Take a map of well-known abbreviations, the word and its right context and
-determine whether the word is an abbreviation. Considers the following aspects:
+/* Take a map of well-known abbreviations, the word and its optional right
+context and determine whether the word is an abbreviation. Considers the
+following aspects:
 
   * Do several non-consecutive periods occur?
   * Is the word in all-caps?
@@ -10548,10 +10619,12 @@ determine whether the word is an abbreviation. Considers the following aspects:
   * Does no vowel occur?
   * Is the vowel-consonant-ratio lower than in general?
   * Are there trigram triplets without a vowel?
+  * Does the context begins with a comma?
+  * Does the next word in the context is lower case?
   * Is the word shorter than in general? */
 
-Val.abbr = ({wkas, locale, context = ""}) => word => {
-  if (wkas.has(word)) return Val.True;
+Val.abbr = ({wkws, locale, context = ""}) => word => {
+  if (wkws.has(word)) return Val.True;
 
   else {
     const score = 0,
