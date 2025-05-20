@@ -5255,11 +5255,13 @@ Rex.extract = o => s =>
 
 /* Replace the following characters:
 
-  * redundant newlines or spaces
+  * redundant carriage returns or spaces
+  * redundant newlines at the beginning/end
   * all control chars but newline
   * all special spaces like NBSP */
 
 Rex.normalize = s => s
+  .replaceAll(/^\r?\n|\r?\n$/g, "")
   .replaceAll(/\r?\n/g, "<nl/>")
   .replaceAll(/[\p{C}\p{Z}]/gv, " ")
   .replaceAll(/ {2,}/g, " ")
@@ -6961,16 +6963,16 @@ Object.defineProperty(_Set, "currencies", {
 });
 
 
-// inflection prefixes
+// conjugation prefixes (verbal)
 
-Object.defineProperty(_Set.deDE, "inflPrefixes", {
+Object.defineProperty(_Set.deDE, "conjPrefixes", {
   get() {
     const s = new Set([
-      "ge", // verbal
+      "ge",
     ])
 
-    delete this.inflPrefixes;
-    this.inflPrefixes = s;
+    delete this.conjPrefixes;
+    this.conjPrefixes = s;
     return s;
   },
 
@@ -6978,65 +6980,9 @@ Object.defineProperty(_Set.deDE, "inflPrefixes", {
 });
 
 
-// nominal joint elements
+// conjugation suffixes (verbal)
 
-Object.defineProperty(_Set.deDE, "jointElems", {
-  get() {
-    const s = new Set([
-      "e", "n", "s", "en", "er", "es", "ens", // nominal
-    ]);
-
-    delete this.jointElems;
-    this.jointElems = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// nominal disjoint elements
-
-Object.defineProperty(_Set.deDE, "disjointElems", {
-  get() {
-    const s = new Set([
-      "e", // nominal
-    ]);
-
-    delete this.disjointElems;
-    this.disjointElems = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// nominal inflection suffixes
-
-Object.defineProperty(_Set.deDE, "nomInflSuff", {
-  get() {
-    const s = new Set([
-      "e",
-      "n",
-      "s",
-      "en",
-      "er",
-      "ern",
-    ]);
-
-    delete this.nomInflSuff;
-    this.nomInflSuff = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// verbal inflection suffixes
-
-Object.defineProperty(_Set.deDE, "verbInflSuff", {
+Object.defineProperty(_Set.deDE, "conjSuffixes", {
   get() {
     const s = new Set([
       "e",
@@ -7054,8 +7000,8 @@ Object.defineProperty(_Set.deDE, "verbInflSuff", {
       "test",
     ]);
 
-    delete this.verbInflSuff;
-    this.verbInflSuff = s;
+    delete this.conjSuffixes;
+    this.conjSuffixes = s;
     return s;
   },
 
@@ -7063,9 +7009,9 @@ Object.defineProperty(_Set.deDE, "verbInflSuff", {
 });
 
 
-// adjectival inflection (+comparative/superlative) suffixes
+// declination suffixes (adjectival)
 
-Object.defineProperty(_Set.deDE, "adjInflSuff", {
+Object.defineProperty(_Set.deDE, "declSuffAdj", {
   get() {
     const s = new Set([
       "e",
@@ -7073,6 +7019,23 @@ Object.defineProperty(_Set.deDE, "adjInflSuff", {
       "es",
       "em",
       "en",
+    ]);
+
+    delete this.declSuffAdj;
+    this.declSuffAdj = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// comparation suffixes (adjectival)
+
+Object.defineProperty(_Set.deDE, "compSuffAdj", {
+  get() {
+    const s = new Set([
+      "er",
       "ere",
       "ste",
       "ßte",
@@ -7090,14 +7053,84 @@ Object.defineProperty(_Set.deDE, "adjInflSuff", {
       "ßten",
     ]);
 
-    delete this.adjInflSuff;
-    this.adjInflSuff = s;
+    delete this.declSuffAdj;
+    this.declSuffAdj = s;
     return s;
   },
 
   configurable: true
 });
 
+
+// declination suffixes (pronominal)
+
+Object.defineProperty(_Set.deDE, "declSuffPro", {
+  get() {
+    const s = new Set([
+      "e", "m", "n", "r", "s", "em", "en", "er", "es",
+    ]);
+
+    delete this.declSuffPro;
+    this.declSuffPro = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// declination suffixes (nominal)
+
+Object.defineProperty(_Set.deDE, "declSuffNom", {
+  get() {
+    const s = new Set([
+      "e", "n", "s", "en", "er", "ern",
+    ]);
+
+    delete this.declSuffNom;
+    this.declSuffNom = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// interfixes (nominal)
+
+Object.defineProperty(_Set.deDE, "interfixes", {
+  get() {
+    const s = new Set([
+      "e", "n", "s", "en", "er", "es", "ens",
+    ]);
+
+    delete this.interfixes;
+    this.interfixes = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// conjugation/declination elisions (removal) of letters
+
+Object.defineProperty(_Set.deDE, "inflElisions", {
+  get() {
+    const s = new Set([
+      "e", "en",
+    ]);
+
+    delete this.inflElisions;
+    this.inflElisions = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// copula verbs
 
 Object.defineProperty(_Set.deDE, "copulaVerbs", {
   get() {
@@ -7130,6 +7163,153 @@ Object.defineProperty(_Set.deDE, "copulaVerbs", {
 
     delete this.copulaVerbs;
     this.copulaVerbs = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// separable prefixes (verbal)
+
+Object.defineProperty(_Set.deDE, "sepPrefixes", {
+  get() {
+    const s = new Set([
+      "ab",
+      "an",
+      "auf",
+      "aus",
+      "auseinander",
+      "bei",
+      "beisammen",
+      "bloß",
+      "brach",
+      "da",
+      "davor",
+      "dabei",
+      "dafür",
+      "dagegen",
+      "daher",
+      "dahin",
+      "dahinter",
+      "danach",
+      "daneben",
+      "daran",
+      "darauf",
+      "daraus",
+      "darein",
+      "darin",
+      "darüber",
+      "darunter",
+      "dran",
+      "drauf",
+      "draus",
+      "drein",
+      "drin",
+      "drüber",
+      "drunter",
+      "davor",
+      "dazu",
+      "dazwischen",
+      "durch",
+      "ein",
+      "empor",
+      "entgegen",
+      "entlang",
+      "entzwei",
+      "fehl",
+      "fern",
+      "fest",
+      "fort",
+      "frei",
+      "gegen",
+      "gegenüber",
+      "gerade",
+      "gut",
+      "heim",
+      "her",
+      "herab",
+      "heran",
+      "herauf",
+      "heraus",
+      "herbei",
+      "herein",
+      "hernieder",
+      "herüber",
+      "herum",
+      "herunter",
+      "hervor",
+      "herzu",
+      "hin",
+      "hinab",
+      "hinan",
+      "hinauf",
+      "hinaus",
+      "hinein",
+      "hintan",
+      "hintenüber",
+      "hinter",
+      "hinüber",
+      "hinunter",
+      "hinweg",
+      "hinzu",
+      "hoch",
+      "inne",
+      "kaputt",
+      "klar",
+      "klein",
+      "kund",
+      "kurz",
+      "lahm",
+      "lang",
+      "leer",
+      "lieb",
+      "los",
+      "mit",
+      "nach",
+      "nahe",
+      "nieder",
+      "offen",
+      "preis",
+      "quer",
+      "rad",
+      "ran",
+      "rauf",
+      "raus",
+      "rein",
+      "richtig",
+      "rüber",
+      "rum",
+      "runter",
+      "statt",
+      "staub",
+      "teil",
+      "tot",
+      "über",
+      "um",
+      "unter",
+      "vor",
+      "voran",
+      "voraus",
+      "vorbei",
+      "vorher",
+      "vorlieb",
+      "vorweg",
+      "wahr",
+      "weg",
+      "weiter",
+      "wett",
+      "wieder",
+      "zu",
+      "zurecht",
+      "zurück",
+      "zusammen",
+      "zuvor",
+      "zuwider",
+    ]);
+
+    delete this.sepPrefixes;
+    this.sepPrefixes = s;
     return s;
   },
 
@@ -7259,8 +7439,12 @@ Str.deDE.vowelConsonantRatio = 0.666666667;
 Str.deDE.avgWordLen = 5.5;
 
 
-Str.deDE.commonConsonantPairs = new Set([
-  "st", "sp", "ch", "pf", "ck", "ts"]);
+Str.deDE.toInfinitive = "zu";
+
+
+// compound noun elision (removal) of letters
+
+Str.deDE.compNounElision = "e";
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -7292,6 +7476,39 @@ Str.countSubstr = t => s => {
   }
 
   return n;
+};
+
+
+Str.replaceChar = (c, sub) => s => {
+  let t = "";
+  
+  for (const c2 of s) {
+    if (c !== c2) t += c2;
+    else t += sub;
+  }
+  
+  return t;
+};
+
+
+Str.replaceSub = (sub, sub2) => s => {
+  let t = "", i, j = 0;
+
+  while (true) {
+    i = s.indexOf(sub, j)
+
+    if (i === not_found) break;
+    
+    else {
+      t += s.substring(j, i);
+      t += sub2;
+      j = i + sub.length;
+    }
+  }
+
+  if (j < s.length) t += s.substring(j);
+
+  return t;
 };
 
 
@@ -9118,7 +9335,7 @@ Str.Decomp = reify(strDecomp => {
         // check joint element on the left
 
         if (mismatchLeft.index + mismatchLeft.sub.length === sub.length
-          && _Set[locale].jointElems.has(mismatchLeft.sub))
+          && _Set[locale].interfixes.has(mismatchLeft.sub))
             score += 10 * mismatchLeft.sub.length;
       }
 
@@ -9128,7 +9345,7 @@ Str.Decomp = reify(strDecomp => {
         // check disjoint element on the right
 
         if (mismatchRight.index + mismatchRight.sub.length === sub.length
-          && _Set[locale].disjointElems.has(mismatchRight.sub))
+          && Str[locale].compNounElision.has(mismatchRight.sub))
             score += 10 * mismatchRight.sub.length;
       }
 
@@ -10609,59 +10826,156 @@ Val.email = s => {
 };
 
 
-/* Take a map of well-known abbreviations, the word and its optional right
-context and determine whether the word is an abbreviation. Considers the
-following aspects:
+/* Words may include the follwing character:
+  * lower-case letters
+  * upper-case letters only at the beginning and after a special char
+  * the following special chars: -.'& (but not consecutive)
+  * digits only at the beginning and only separated by hyphen */
 
-  * Do several non-consecutive periods occur?
-  * Is the word in all-caps?
-  * Do several capital letters occur?
-  * Does no vowel occur?
-  * Is the vowel-consonant-ratio lower than in general?
-  * Are there trigram triplets without a vowel?
-  * Does the context begins with a comma?
-  * Does the next word in the context is lower case?
-  * Is the word shorter than in general? */
+Val.isWord = s => {
+  let mode = "", offset = 0;
 
-Val.abbr = ({wkws, locale, context = ""}) => word => {
-  if (wkws.has(word)) return Val.True;
+  if (/\d/.test(s[0])) {
+    offset++;
+
+    for (let i = 1; i < s.length; i++) {
+      if (!/\d/.test(s[i])) {
+        if (s[i] === "."
+          || s[i] === "'"
+          || s[i] === "&")
+            return false;
+
+        else break;
+      }
+
+      else if (i + 1 === s.length) return false;
+      else offset++;
+    }
+  }
+
+  if (offset > 0 && s[offset] !== "-") return false;
+
+  if (s[offset] === "-") {
+    offset++;
+
+    if (s[offset] === "-"
+      || s[offset] === "."
+      || s[offset] === "'"
+      || s[offset] === "&")
+        return false;
+
+    else offset++;
+  }
+
+  if (/\p{L}/.test(s[offset])) {
+    for (let i = offset + 1; i < s.length; i++) {
+      if (/\p{Ll}/.test(s[i])) mode = "";
+      
+      else if (/\p{Lu}/.test(s[i])) {
+        if (mode === "") return false;
+        else mode = "";
+      }
+      
+      else if (/\d/.test(s[i])) return false;
+      
+      else if (s[i] === "-"
+        || s[i] === "."
+        || s[i] === "'"
+        || s[i] === "&") {
+          if (mode !== "") return false;
+          else mode = s[i];
+          continue;
+      }
+
+      else return false;
+    }
+  }
+
+  else return false;
+};
+
+
+/* Take a locale, a dictionary of well-known words, a set of abbreviations,
+the right context of the word in question the word itself and determine, if it
+is an abbreviation. */
+
+Val.abbr = ({locale, dict, abbrs, context}) => word => {
+  const word2 = Str.replaceChar(".", "") (word);
+
+  // check whether word is a well-known abbreviation
+
+  if (abbrs.has(word2)) return Val.True;
+
+  // check whether word is a normal word
+
+  else if (dict.has(word2.toLowerCase())) return Val.False("normal word");
 
   else {
     const score = 0,
       singlePeriods = Rex.count(/(?<!\.)\.(?!\.)/g) (word),
-      periods = Str.countChar(".") (word),
-      caps = Rex.count(/\p{Lu}/gv) (word);
+      totalPeriods = Str.countChar(".") (word),
+      caps = Rex.count(/(?<!^)\p{Lu}/gv) (word2),
+      firstCap = /^\p{Lu}/.test(word2),
+      vowels = Rex.count(RegExp(`${Rex.classes.latin1.vowels.s}+`, "g")) (word2);
 
-    // number of solitary vowels
+    // filter ellipsis
 
-    const vowels = Rex.count(RegExp(
-      `${Rex.classes.latin1.vowels.s}+`, "g")) (word);
+    if (singlePeriods === 0 && totalPeriods > 0) return Val.False("ellipsis");
 
-    if (singlePeriods > 1) return Val.Maybe(1);
-    else if (caps === word.length) return Val.Maybe(1);
+    // several single periods whithin a term
+
+    else if (singlePeriods > 1) return Val.Maybe(1);
+
+    // acronym
+
+    else if (caps === word2.length) return Val.Maybe(1);
+    
+    // no vowels
+
     else if (vowels === 0) return Val.Maybe(1);
-    else if (singlePeriods === 0 && periods > 0) return Val.False("ellipsis");
-    else if (context && /^ +\p{Ll}/v.test(context)) return Val.Maybe(1);
+
+    // context (followed by comma)
+
     else if (context && /^ *,/.test(context)) return Val.Maybe(1);
 
+    // context (followed by lower-case word)
+
+    else if (context && /^ +\p{Ll}/v.test(context)) return Val.Maybe(1);
+
     else {
-      const vowelRatio = vowels / (word.length - vowels - periods),
-        vowelDist = Str[locale].vowelConsonantRatio - vowelRatio,
-        capsDist = (caps ? caps - 1 : 0) * 0.2;
+      const vowelRatio = vowels / (word2.length - vowels),
 
-      const noVowelTriplets = Str.trigram(word.replace(/\./g, ""))
+        // score derived from deviation against default vowel-consonant ratio
+
+        vowelRatioScore = (Str[locale].vowelConsonantRatio - vowelRatio) / 2,
+
+        // score derived from upper-case letters not at the beginning
+
+        capScore = caps * 0.3 * (firstCap ? 1 : 1.5);
+
+      // score derived from number of consonant triplets
+
+      const consonantTripletScore = Str.trigram(word2)
         .filter(s => !new RegExp(Rex.classes.latin1.vowels.s, "g").test(s))
-        .filter(s => !Str[locale].commonConsonantPairs.has(s[0] + s[1])
-          && !Str[locale].commonConsonantPairs.has(s[1] + s[2])).length * 0.1;
+        .length * 0.1;
 
-      const finalVowel = new RegExp(Rex.classes.latin1.vowels.s, "g")
-        .test(word[word.length - 1])
+      // score derived from last letter being a consonant
+
+      const finalConsonantScore = new RegExp(Rex.classes.latin1.vowels.s, "g")
+        .test(word2[word2.length - 1])
           ? 0 : 0.1;
 
-      const lenDiff = Alg.scaledTanh(0.33)
-        (Str[locale].avgWordLen - (word.length - periods));
+      // score derived from the default word length
 
-      return Val.Maybe(capsDist + vowelDist + noVowelTriplets + finalVowel + lenDiff);
+      const lenScore = Alg.scaledTanh(0.2)
+        (Str[locale].avgWordLen - (word2.length - totalPeriods));
+
+      return Val.Maybe(
+        capScore
+        + vowelRatioScore
+        + consonantTripletScore
+        + finalConsonantScore
+        + lenScore);
     }
   }
 };
