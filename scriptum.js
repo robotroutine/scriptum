@@ -2911,8 +2911,8 @@ D.fromStr = (locale, century = 20) => s => {
   let xs;
 
   switch (locale) {
-    case "iso": xs = Rex.iso.dates; break;
-    case "de-DE": xs = Rex.i18n.deDE.dates; break;
+    case "iso": xs = R.iso.dates; break;
+    case "de-DE": xs = R.i18n.deDE.dates; break;
     default: throw new Err(`unknown locale "${locale}"`);
   }
 
@@ -2946,7 +2946,7 @@ D.fromStr = (locale, century = 20) => s => {
 // parse the time string and add it to the date object
 
 D.fromTimeStr = d => s => {
-  for (const rx of Rex.iso.times) {
+  for (const rx of R.iso.times) {
     if (rx.test(s)) {
       const o = s.match(rx),
         h = Number(o.groups.h),
@@ -4219,6 +4219,45 @@ Object.defineProperty(_Map.deDE, "weekdaysRev", {
 });
 
 
+// letter alterations during inflection
+
+Object.defineProperty(_Map.deDE, "letterAlter", {
+  get() {
+    const m = new Map([
+      ["ä", "a"],
+      ["ö", "o"],
+      ["ü", "u"],
+    ]);
+
+    delete this.letterAlter;
+    this.letterAlter = m;
+    return m;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Map.deDE, "letterAlterNoun", {
+  get() {
+    const m = new Map([
+      ["ä", "a"],
+      ["ö", "o"],
+      ["ü", "u"],
+      ["Ä", "A"],
+      ["Ö", "O"],
+      ["Ü", "U"],
+    ]);
+
+    delete this.letterAlterNoun;
+    this.letterAlterNoun = m;
+    return m;
+  },
+
+  configurable: true
+});
+
+
 /*█████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████ COMBINATORS █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -4945,8 +4984,8 @@ Num.fromStr = ({locale, strict = true}) => s => {
   let xs;
 
   switch (locale) {
-    case "iso": xs = Rex.iso.nums; break;
-    case "de-DE": xs = Rex.i18n.deDE.nums; break;
+    case "iso": xs = R.iso.nums; break;
+    case "de-DE": xs = R.i18n.deDE.nums; break;
     default: throw new Err(`unknown locale "${locale}"`);
   }
 
@@ -5225,7 +5264,34 @@ each other. Accumulate all necessary subpatterns and feed them to a downstream
 function along with the original string to take the context into account. */
 
 
-export const Rex = {};
+export const R = {};
+
+
+// TODO: replace RegExp
+
+
+R.new = RegExp;
+
+
+R.g = rx => RegExp(rx, "g");
+
+
+R.i = rx => RegExp(rx, "i");
+
+
+R.v = rx => RegExp(rx, "v");
+
+
+R.gi = rx => RegExp(rx, "gi");
+
+
+R.gv = rx => RegExp(rx, "gv");
+
+
+R.iv = rx => RegExp(rx, "iv");
+
+
+R.giv = rx => RegExp(rx, "giv");
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -5235,22 +5301,22 @@ export const Rex = {};
 
 // count more complex substring patterns
 
-Rex.count = rx => s => Array.from(s.matchAll(rx)).length;
+R.count = rx => s => Array.from(s.matchAll(rx)).length;
 
 
 // remove repetitive characters
 
-Rex.dedupe = s => s.replaceAll(/(.)\1{1,}/g, "$1");
+R.dedupe = s => s.replaceAll(/(.)\1{1,}/g, "$1");
 
 
-Rex.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+R.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 
 /* Take an object with properties holding regular expressions and apply each
 to the provided string. Store each match under the respective property. */
 
-Rex.extract = o => s =>
-  O.fromIt(It.map(([k, rx]) => [k, Rex.matchFirst(rx) (s)]) (O.entries(o)));
+R.extract = o => s =>
+  O.fromIt(It.map(([k, rx]) => [k, R.matchFirst(rx) (s)]) (O.entries(o)));
 
 
 /* Replace the following characters:
@@ -5260,7 +5326,7 @@ Rex.extract = o => s =>
   * all control chars but newline
   * all special spaces like NBSP */
 
-Rex.normalize = s => s
+R.normalize = s => s
   .replaceAll(/^\r?\n|\r?\n$/g, "")
   .replaceAll(/\r?\n/g, "<nl/>")
   .replaceAll(/[\p{C}\p{Z}]/gv, " ")
@@ -5274,7 +5340,7 @@ Rex.normalize = s => s
 //█████ Common Patterns ███████████████████████████████████████████████████████
 
 
-Rex.iso = {
+R.iso = {
   dates: [
     /^(?<y>\d\d)-(?<m>\d\d)-(?<d>\d\d)$/, // 24-12-01
     /^(?<y>\d{4})-(?<m>\d\d)-(?<d>\d\d)$/, // 2024-12-01
@@ -5298,7 +5364,7 @@ Rex.iso = {
 };
 
 
-Rex.i18n = {
+R.i18n = {
   deDE: {
     dates: [
       /^(?<d>\d\d)(?<m>\d\d)(?<y>\d\d)$/, // 011224
@@ -5322,22 +5388,22 @@ Rex.i18n = {
 //█████ Major Classes █████████████████████████████████████████████████████████
 
 
-Rex.classes = {};
+R.classes = {};
 
 
-Rex.classes.alnum = {
+R.classes.alnum = {
   s: "[\\p{L}\\p{N}]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.aldig = {
+R.classes.aldig = {
   s: "[\\p{L}\\d]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.letter = {
+R.classes.letter = {
   s: "\\p{L}",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5345,7 +5411,7 @@ Rex.classes.letter = {
 
 // upper-case letter
 
-Rex.classes.ucl = {
+R.classes.ucl = {
   s: "\\p{Lu}",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5353,19 +5419,19 @@ Rex.classes.ucl = {
 
 // lower-case letter
 
-Rex.classes.lcl = {
+R.classes.lcl = {
   s: "\\p{Ll}",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
     
 
-Rex.classes.num = {
+R.classes.num = {
   s: "\\p{N}",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.digit = {
+R.classes.digit = {
   s: "\\d",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5373,7 +5439,7 @@ Rex.classes.digit = {
 
 // punctuation
 
-Rex.classes.punct = {
+R.classes.punct = {
   s: "\\p{P}",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5381,7 +5447,7 @@ Rex.classes.punct = {
 
 // space
 
-Rex.classes.space = {
+R.classes.space = {
   s: "\\p{Z}",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5389,7 +5455,7 @@ Rex.classes.space = {
 
 // symbol
 
-Rex.classes.sym = {
+R.classes.sym = {
   s: "\\p{S}",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5397,19 +5463,19 @@ Rex.classes.sym = {
 
 // currency
 
-Rex.classes.curr = {
+R.classes.curr = {
   s: "\\p{Sc}",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.ctrl = {
+R.classes.ctrl = {
   s: "\\p{C}",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.crnl = {
+R.classes.crnl = {
   s: "\\r?\\n",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5418,28 +5484,28 @@ Rex.classes.crnl = {
 // ASCII
 
 
-Rex.classes.ascii = {};
+R.classes.ascii = {};
 
 
-Rex.classes.ascii.aldig = {
+R.classes.ascii.aldig = {
   s: "[A-Za-z\\d]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.ascii.letter = {
+R.classes.ascii.letter = {
   s: "[A-Za-z]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.ascii.ucl = {
+R.classes.ascii.ucl = {
   s: "[A-Z]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.ascii.lcl = {
+R.classes.ascii.lcl = {
   s: "[a-z]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5447,7 +5513,7 @@ Rex.classes.ascii.lcl = {
 
 // vowels
 
-Rex.classes.ascii.vowels = {
+R.classes.ascii.vowels = {
   s: "[AEUIOaeuio]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5455,7 +5521,7 @@ Rex.classes.ascii.vowels = {
 
 // upper-case vowels
 
-Rex.classes.ascii.ucv = {
+R.classes.ascii.ucv = {
   s: "[AEUIO]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5463,19 +5529,19 @@ Rex.classes.ascii.ucv = {
 
 // lower-case vowels
 
-Rex.classes.ascii.lcv = {
+R.classes.ascii.lcv = {
   s: "[aeuio]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.ascii.punct = {
+R.classes.ascii.punct = {
   s: "[!\"#$%&'()*+,-./:;<=>?@\\[\\]\\\\^_`{|}~]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.ascii.ctrl = {
+R.classes.ascii.ctrl = {
   s: "[\\0\\a\\b\\t\\v\\f\\r\\n\\cZ]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5484,34 +5550,34 @@ Rex.classes.ascii.ctrl = {
 // Latin1 (ISO-8859-1)
 
 
-Rex.classes.latin1 = {};
+R.classes.latin1 = {};
 
 
-Rex.classes.ascii.alnum = {
+R.classes.ascii.alnum = {
   s: "[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\\d²³¹¼½¾]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.ascii.aldig = {
+R.classes.ascii.aldig = {
   s: "[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\\d]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.latin1.letter = {
+R.classes.latin1.letter = {
   s: "[A-Za-zÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.latin1.ucl = {
+R.classes.latin1.ucl = {
   s: "[A-ZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖØÙÚÛÜÝÞ]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.latin1.lcl = {
+R.classes.latin1.lcl = {
   s: "[a-zßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5519,7 +5585,7 @@ Rex.classes.latin1.lcl = {
 
 // vowels
 
-Rex.classes.latin1.vowels = {
+R.classes.latin1.vowels = {
   s: "[AEUIOÁÀĂÂÅÄÃĀÐÉÈÊĚËĖĘÍÌÎÏĮĪÓÒÔÖŐÕØŌÚÙŬÛŮÜŰŨŲŪaeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5527,7 +5593,7 @@ Rex.classes.latin1.vowels = {
 
 // upper-case vowels
 
-Rex.classes.latin1.ucv = {
+R.classes.latin1.ucv = {
   s: "[AEUIOÁÀĂÂÅÄÃĀÐÉÈÊĚËĖĘÍÌÎÏĮĪÓÒÔÖŐÕØŌÚÙŬÛŮÜŰŨŲŪ]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5535,19 +5601,19 @@ Rex.classes.latin1.ucv = {
 
 // lower-case vowels
 
-Rex.classes.latin1.lcv = {
+R.classes.latin1.lcv = {
   s: "[aeuioáàăâåäãāðéèêěëėęíìîïįīóòôöőõøōúùŭûůüűũųū]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.latin1.punct = {
+R.classes.latin1.punct = {
   s: "[!\"#$%&'()*+,-./:;<=>?@\\[\\]\\\\^_`{|}~€‚„…†‡ˆ‰‹‘’“”•–­—˜™›¡¢£¤¥¦§¨©ª«¬®¯°±²³´µ¶·¸¹º»¼½¾¿]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
 
 
-Rex.classes.latin1.curr = {
+R.classes.latin1.curr = {
   s: "[¤$€£¥¢]",
   get sep() {return `(?<=${this.s})(?!${this.s})|(?<!${this.s})(?=${this.s})`}
 };
@@ -5556,15 +5622,15 @@ Rex.classes.latin1.curr = {
 //█████ Searching █████████████████████████████████████████████████████████████
 
 
-Rex.searchAll = rx => s =>
+R.searchAll = rx => s =>
   Array.from(s.matchAll(rx)).map(ix => ix.index);
 
 
-Rex.searchAllWith = p => rx => s =>
-  Rex.matchAllWith({p, rx}) (s).map(ix => ix.index);
+R.searchAllWith = p => rx => s =>
+  R.matchAllWith({p, rx}) (s).map(ix => ix.index);
 
 
-Rex.searchFirst = rx => s => {
+R.searchFirst = rx => s => {
   if (rx.flags.search("g") !== not_found)
     throw new Err("unexpected global flag");
 
@@ -5575,7 +5641,7 @@ Rex.searchFirst = rx => s => {
 };
 
 
-Rex.searchFirstWith = p => rx => s => {
+R.searchFirstWith = p => rx => s => {
   for (const ix of s.matchAll(rx))
     if (p(ix)) return [ix.index];
 
@@ -5583,29 +5649,29 @@ Rex.searchFirstWith = p => rx => s => {
 };
 
 
-Rex.searchLast = rx => s => {
+R.searchLast = rx => s => {
   const xs = s.matchAll(rx);
   if (xs.length === 0) return [];
   else return [xs[xs.length - 1]];
 };
 
 
-Rex.searchLastWith = p => rx => s => {
-  const xs = Rex.matchAllWith({p, rx}) (s);
+R.searchLastWith = p => rx => s => {
+  const xs = R.matchAllWith({p, rx}) (s);
   if (xs.length === 0) return [];
   else return [xs[xs.length - 1]];
 };
 
 
-Rex.searchNth = (rx, i) => s => {
+R.searchNth = (rx, i) => s => {
   const xs = s.matchAll(rx);
   if (i - 1 >= xs.length) return [];
   else return [xs[i - 1]];
 };
 
 
-Rex.searchNthWith = p => (rx, i) => s => {
-  const xs = Rex.matchAllWith({p, rx}) (s);
+R.searchNthWith = p => (rx, i) => s => {
+  const xs = R.matchAllWith({p, rx}) (s);
   if (i - 1 >= xs.length) return [];
   else return [xs[i - 1]];
 };
@@ -5615,39 +5681,91 @@ Rex.searchNthWith = p => (rx, i) => s => {
 
 
 /* Split a string at the specified indices. If the supplied argument is an array
-of indices, the separator itself is included in the result. If it is an array of
-matches, the separator is excluded. */
+of matches, the separators themselves are excluded from the result. If it is an
+array of indices, no substrings are removed during splitting. */
 
-Rex.split = xs => s => {
+R.split = xs => s => {
   if (typeof xs[0] === "number") {
-    return xs.reduce((acc, i, j) => {
-      if (j === 0) acc.push(s.slice(0, i));
-      else if (j === xs.length - 1) acc.push(s.slice(xs[j - 1], i), s.slice(i));
-      else acc.push(s.slice(xs[j - 1], i));
-      return acc;
-    }, []);
+    return xs.reduce(({acc, offset}, i) => {
+      if (offset === 0) {
+        acc.push(s.slice(0, i));
+        offset = i;
+        acc.push(s.slice(i));
+      }
+      
+      else {
+        const last = acc.pop();
+        acc.push(last.slice(0, i - offset));
+        offset = i;
+        acc.push(s.slice(i));
+      }
+      
+      return {acc, offset};
+    }, {acc: [], offset: 0}).acc;
   }
 
   else {
-    return xs.reduce((acc, o, i) => {
-      if (i === 0) acc.push(s.slice(0, o.index));
-      
-      else if (i === xs.length - 1) {
-        acc.push(s.slice(
-          xs[i - 1].index + xs[i - 1] [0].length, o.index),
-          s.slice(o.index + xs[i - 1] [0].length));
+    return xs.reduce(({acc, offset}, o) => {
+      if (offset === 0) {
+        acc.push(s.slice(0, o.index));
+        offset = o.index + o[0].length;
+        acc.push(s.slice(offset));
       }
-      
-      else acc.push(s.slice(xs[i - 1].index + xs[i - 1] [0].length, o.index));
-      return acc;
-    }, []);
+
+      else {
+        const last = acc.pop();
+        acc.push(last.slice(0, o.index - offset));
+        offset = o.index + o[0].length;
+        acc.push(s.slice(offset));
+      }
+
+      return {acc, offset};
+    }, {acc: [], offset: 0}).acc;
   }
 };
 
 
-// split a string at dynamically specified indices or matches
+// variant that additionally passes each split to a function
 
-Rex.splitWith = f => s => Rex.split(f(s)) (s);
+R.splitWith = ({f, xs}) => s => {
+  if (typeof xs[0] === "number") {
+    return xs.reduce(({acc, offset}, i) => {
+      if (offset === 0) {
+        acc.push(...f(s.slice(0, i)));
+        offset = i;
+        acc.push(s.slice(i));
+      }
+      
+      else {
+        const last = acc.pop();
+        acc.push(...f(last.slice(0, i - offset)));
+        offset = i;
+        acc.push(s.slice(i));
+      }
+      
+      return {acc, offset};
+    }, {acc: [], offset: 0}).acc;
+  }
+
+  else {
+    return xs.reduce(({acc, offset}, o) => {
+      if (offset === 0) {
+        acc.push(...f(s.slice(0, o.index)));
+        offset = o.index + o[0].length;
+        acc.push(s.slice(offset));
+      }
+
+      else {
+        const last = acc.pop();
+        acc.push(...f(last.slice(0, o.index - offset)));
+        offset = o.index + o[0].length;
+        acc.push(s.slice(offset));
+      }
+
+      return {acc, offset};
+    }, {acc: [], offset: 0}).acc;
+  }
+};
 
 
 /* Split a string depending on character class transitions defined by regular
@@ -5659,59 +5777,59 @@ There are lots of suitable predefined character classes defined within this
 namespace. If you need more granular control, use one of the combinators with
 splitting semantics from the string namespace. */
 
-Rex.splitTrans = flags => (...xs) => s => s.split(
+R.splitTrans = flags => (...xs) => s => s.split(
   new RegExp(xs.join("|"), flags));
 
 
-Rex.splitLetterTrans = Rex.splitTrans("v") (Rex.classes.letter.sep);
+R.splitLetterTrans = R.splitTrans("v") (R.classes.letter.sep);
 
 
-Rex.splitCasingTrans = Rex.splitTrans("v")
-  (Rex.classes.ucl.sep, Rex.classes.lcl.sep);
+R.splitCasingTrans = R.splitTrans("v")
+  (R.classes.ucl.sep, R.classes.lcl.sep);
 
 
 // unicode number class
 
-Rex.splitNumTrans = Rex.splitTrans("v") (Rex.classes.num.sep);
+R.splitNumTrans = R.splitTrans("v") (R.classes.num.sep);
 
 
 // only ascii digits
 
-Rex.splitDigTrans = Rex.splitTrans("v") (Rex.classes.digit.sep);
+R.splitDigTrans = R.splitTrans("v") (R.classes.digit.sep);
 
 
-Rex.splitAlnumTrans = Rex.splitTrans("v") (Rex.classes.alnum.sep);
+R.splitAlnumTrans = R.splitTrans("v") (R.classes.alnum.sep);
 
 
-Rex.splitAldigTrans = Rex.splitTrans("v") (Rex.classes.aldig.sep);
+R.splitAldigTrans = R.splitTrans("v") (R.classes.aldig.sep);
 
 
-Rex.splitNonAlnumTrans = Rex.splitTrans("v") (
-  Rex.classes.punct.sep,
-  Rex.classes.sym.sep,
-  Rex.classes.space.sep,
-  Rex.classes.crnl.sep);
+R.splitNonAlnumTrans = R.splitTrans("v") (
+  R.classes.punct.sep,
+  R.classes.sym.sep,
+  R.classes.space.sep,
+  R.classes.crnl.sep);
 
 
 // split almost all
 
-Rex.splitAlmostAllTrans = Rex.splitTrans("v") (
-  Rex.classes.num.sep,
-  Rex.classes.punct.sep,
-  Rex.classes.sym.sep,
-  Rex.classes.space.sep,
-  Rex.classes.crnl.sep,
+R.splitAlmostAllTrans = R.splitTrans("v") (
+  R.classes.num.sep,
+  R.classes.punct.sep,
+  R.classes.sym.sep,
+  R.classes.space.sep,
+  R.classes.crnl.sep,
   "(?<=\\p{Ll})(?=\\p{Lu})"); // "fooBar" -> ["foo", "Bar"]
 
 
 // split all
 
-Rex.splitAllTrans = Rex.splitTrans("v") (
-  Rex.classes.num.sep,
-  Rex.classes.punct.sep,
-  Rex.classes.sym.sep,
-  Rex.classes.space.sep,
-  Rex.classes.crnl.sep,
+R.splitAllTrans = R.splitTrans("v") (
+  R.classes.num.sep,
+  R.classes.punct.sep,
+  R.classes.sym.sep,
+  R.classes.space.sep,
+  R.classes.crnl.sep,
   "(?<=\\p{Ll})(?=\\p{Lu})|(?<=\\p{Lu})(?=\\p{Ll})"); // "fooBar" -> ["foo", "B", "ar"]
 
 
@@ -5720,10 +5838,10 @@ Rex.splitAllTrans = Rex.splitTrans("v") (
 
 // strict variant
 
-Rex.matchAll = rx => s => Array.from(s.matchAll(rx));
+R.matchAll = rx => s => Array.from(s.matchAll(rx));
 
 
-Rex.matchAllWith = ({p, rx}) => s => Array.from(s.matchAll(rx)).filter(r => {
+R.matchAllWith = ({p, rx}) => s => Array.from(s.matchAll(rx)).filter(r => {
   const [match, ...xs] = r,
     o = r.groups,
     i = r.index;
@@ -5733,7 +5851,7 @@ Rex.matchAllWith = ({p, rx}) => s => Array.from(s.matchAll(rx)).filter(r => {
 
 
 
-Rex.matchFirst = rx => s => {
+R.matchFirst = rx => s => {
   if (rx.flags.search("g") !== not_found)
     throw new Err("unexpected global flag");
 
@@ -5743,7 +5861,7 @@ Rex.matchFirst = rx => s => {
 };
 
 
-Rex.matchFirstWith = ({p, rx}) => s => {
+R.matchFirstWith = ({p, rx}) => s => {
   for (const r of s.matchAll(rx)) {
     const [match, ...xs] = r,
       o = r.groups,
@@ -5756,16 +5874,16 @@ Rex.matchFirstWith = ({p, rx}) => s => {
 };
 
 
-Rex.matchLast = rx => s => Array.from(s.matchAll(rx)).slice(-1);
+R.matchLast = rx => s => Array.from(s.matchAll(rx)).slice(-1);
 
 
-Rex.matchLastWith = ({p, rx}) => s =>
-  Rex.matchAllWith({p, rx}) (s).slice(-1);
+R.matchLastWith = ({p, rx}) => s =>
+  R.matchAllWith({p, rx}) (s).slice(-1);
 
 
 // considers negative indices like native slice does
 
-Rex.matchNth = ({i, rx}) => s => {
+R.matchNth = ({i, rx}) => s => {
   const xs = Array.from(s.matchAll(rx));
   if (i - 1 >= xs.length) return [];
   else if (i >= 0) return [xs[i - 1]];
@@ -5775,8 +5893,8 @@ Rex.matchNth = ({i, rx}) => s => {
 
 // considers negative indices like native slice does
 
-Rex.matchNthWith = ({p, i, rx}) => s => {
-  const xs = Rex.matchAllWith({p, rx}) (s),
+R.matchNthWith = ({p, i, rx}) => s => {
+  const xs = R.matchAllWith({p, rx}) (s),
     o = xs[i];
 
   if (i - 1 >= xs.length) return [];
@@ -5788,12 +5906,12 @@ Rex.matchNthWith = ({p, i, rx}) => s => {
 //█████ Replacing █████████████████████████████████████████████████████████████
 
 
-// Rex.replaceAll is redundant
+// R.replaceAll is redundant
 
 
 // utilize a replacer
 
-Rex.replaceAllWith = ({f, rx}) => s => {
+R.replaceAllWith = ({f, rx}) => s => {
   const xs = Array.from(s.matchAll(rx));
 
   if (xs.length === 0) return s;
@@ -5814,8 +5932,8 @@ Rex.replaceAllWith = ({f, rx}) => s => {
 
 // more general version that allows to restrict the matches using a predicate
 
-Rex.replaceAllBy = ({p, f, rx}) => s => {
-  const xs = Rex.matchAllWith({p, rx}) (s);
+R.replaceAllBy = ({p, f, rx}) => s => {
+  const xs = R.matchAllWith({p, rx}) (s);
 
   if (xs.length === 0) return s;
 
@@ -5833,10 +5951,10 @@ Rex.replaceAllBy = ({p, f, rx}) => s => {
 };
 
 
-// Rex.replaceFirst is redundant
+// R.replaceFirst is redundant
 
 
-Rex.replaceFirstWith = ({f, rx}) => s => {
+R.replaceFirstWith = ({f, rx}) => s => {
   if (rx.flags.search("g") !== not_found)
     throw new Err("unexpected global flag");
 
@@ -5855,7 +5973,7 @@ Rex.replaceFirstWith = ({f, rx}) => s => {
 };
 
 
-Rex.replaceFirstBy = ({p, f, rx}) => s => {
+R.replaceFirstBy = ({p, f, rx}) => s => {
   for (const r of s.matchAll(rx)) {
     const [match, ...xs] = r,
       o = r.groups,
@@ -5871,7 +5989,7 @@ Rex.replaceFirstBy = ({p, f, rx}) => s => {
 };
 
 
-Rex.replaceLast = ({sub, rx}) => s => {
+R.replaceLast = ({sub, rx}) => s => {
   if (rx.flags.search("g") === not_found)
     throw new Err("missing global flag");
 
@@ -5886,7 +6004,7 @@ Rex.replaceLast = ({sub, rx}) => s => {
 };
 
 
-Rex.replaceLastWith = ({f, rx}) => s => {
+R.replaceLastWith = ({f, rx}) => s => {
   const xs = Array.from(s.matchAll(rx));
 
   if (xs.length === 0) return s;
@@ -5903,8 +6021,8 @@ Rex.replaceLastWith = ({f, rx}) => s => {
 };
 
 
-Rex.replaceLastBy = ({p, f, rx}) => s => {
-  const xs = Rex.matchAllWith({p, rx}) (s);
+R.replaceLastBy = ({p, f, rx}) => s => {
+  const xs = R.matchAllWith({p, rx}) (s);
 
   if (xs.length === 0) return s;
 
@@ -5922,7 +6040,7 @@ Rex.replaceLastBy = ({p, f, rx}) => s => {
 
 // considers negative indices like native slice does
 
-Rex.replaceNth = ({i, sub, rx}) => s => {
+R.replaceNth = ({i, sub, rx}) => s => {
   if (rx.flags.search("g") === not_found)
     throw new Err("missing global flag");
 
@@ -5941,7 +6059,7 @@ Rex.replaceNth = ({i, sub, rx}) => s => {
 
 // considers negative indices like native slice does
 
-Rex.replaceNthWith = ({i, f, rx}) => s => {
+R.replaceNthWith = ({i, f, rx}) => s => {
   const xs = Array.from(s.matchAll(rx));
 
   if (i - 1 >= xs.length) return s;
@@ -5960,8 +6078,8 @@ Rex.replaceNthWith = ({i, f, rx}) => s => {
 
 // considers negative indices like native slice does
 
-Rex.replaceNthBy = ({i, f, rx}) => s => {
-  const xs = Rex.matchAllWith({p, rx}) (s);
+R.replaceNthBy = ({i, f, rx}) => s => {
+  const xs = R.matchAllWith({p, rx}) (s);
 
   if (i - 1 >= xs.length) return s;
 
@@ -5983,7 +6101,7 @@ Rex.replaceNthBy = ({i, f, rx}) => s => {
 /* slice a region of a string using a single search function that yields several
 matches. The first and last match then define the bounds. */
 
-Rex.slice = search => {
+R.slice = search => {
   const is = search(s);
   if (is.length <= 1) return s;
   else return s.slice(is[0], is[is.length - 1]);
@@ -5992,7 +6110,7 @@ Rex.slice = search => {
 
 // define the left bound of a string in a composable manner
 
-Rex.sliceFrom = search => s => {
+R.sliceFrom = search => s => {
   const is = search(s);
   if (is.length === 0) return s;
   else return s.slice(is[0]);
@@ -6001,7 +6119,7 @@ Rex.sliceFrom = search => s => {
 
 // define the right bound of a string in a composable manner
 
-Rex.sliceTo = search => s => {
+R.sliceTo = search => s => {
   const is = search(s);
   if (is.length === 0) return s;
   else return s.slice(0, is[0]);
@@ -6015,7 +6133,7 @@ Rex.sliceTo = search => s => {
 subpattern with its left/right character classes and create a regular expression
 from it. */
 
-Rex.bound = ({left, right}) => rx => {
+R.bound = ({left, right}) => rx => {
   const flags = left.flags + right.flags + rx.flags;
   return new RegExp(`(?<=^|[${left}])${rx.source}(?=$|[${right}])`, flags);
 };
@@ -6023,7 +6141,7 @@ Rex.bound = ({left, right}) => rx => {
 
 // create only a left boundary
 
-Rex.leftBound = left => rx => {
+R.leftBound = left => rx => {
   const flags = left.flags + rx.flags;
   return new RegExp(`(?<=^|[${left}])${rx.source}`, flags);
 };
@@ -6031,7 +6149,7 @@ Rex.leftBound = left => rx => {
 
 // create only a right boundary
 
-Rex.rightBound = right => rx => {
+R.rightBound = right => rx => {
   const flags = right.flags + rx.flags;
   return new RegExp(`${rx.source}(?=$|[${right}])`, flags);
 };
@@ -6044,77 +6162,77 @@ Rex.rightBound = right => rx => {
 classes with their respective placeholders. */
 
 
-Rex.General = {};
+R.General = {};
 
 
-Rex.General.Class = {};
+R.General.Class = {};
 
 
-Rex.General.Class.letter = ({defs: [...xs], placeholder = null}) => 
+R.General.Class.letter = ({defs: [...xs], placeholder = null}) => 
   ({defs: xs, fallback: [/\p{L}/gv, placeholder || "L"]});
 
 
-Rex.General.Class.notLetter = ({defs: [...xs], placeholder}) => 
+R.General.Class.notLetter = ({defs: [...xs], placeholder}) => 
   ({defs: xs, fallback: [/[^\p{L}]/gv, placeholder]});
 
 
-Rex.General.Class.ucl = ({defs: [...xs], placeholder = null}) => 
+R.General.Class.ucl = ({defs: [...xs], placeholder = null}) => 
   ({defs: xs, fallback: [/\p{Lu}/gv, placeholder || "A"]});
 
 
-Rex.General.Class.notUcl = ({defs: [...xs], placeholder}) => 
+R.General.Class.notUcl = ({defs: [...xs], placeholder}) => 
   ({defs: xs, fallback: [/[^\p{Lu}]/gv, placeholder]});
 
 
-Rex.General.Class.lcl = ({defs: [...xs], placeholder = null}) => 
+R.General.Class.lcl = ({defs: [...xs], placeholder = null}) => 
   ({defs: xs, fallback: [/\p{Ll}/gv, placeholder || "a"]});
 
 
-Rex.General.Class.notLcl = ({defs: [...xs], placeholder}) => 
+R.General.Class.notLcl = ({defs: [...xs], placeholder}) => 
   ({defs: xs, fallback: [/[^\p{Ll}]/gv, placeholder]});
 
 
-Rex.General.Class.num = ({defs: [...xs], placeholder = null}) => 
+R.General.Class.num = ({defs: [...xs], placeholder = null}) => 
   ({defs: xs, fallback: [/\p{N}/gv, placeholder || "ℕ"]});
 
 
-Rex.General.Class.notNum = ({defs: [...xs], placeholder}) => 
+R.General.Class.notNum = ({defs: [...xs], placeholder}) => 
   ({defs: xs, fallback: [/[^\p{N}]/gv, placeholder]});
 
 
-Rex.General.Class.punct = ({defs: [...xs], placeholder = null}) => 
+R.General.Class.punct = ({defs: [...xs], placeholder = null}) => 
   ({defs: xs, fallback: [/\p{P}/gv, placeholder || "·"]});
 
 
-Rex.General.Class.notPunct = ({defs: [...xs], placeholder}) => 
+R.General.Class.notPunct = ({defs: [...xs], placeholder}) => 
   ({defs: xs, fallback: [/[^\p{P}]/gv, placeholder]});
 
 
-Rex.General.Class.symbol = ({defs: [...xs], placeholder = null}) => 
+R.General.Class.symbol = ({defs: [...xs], placeholder = null}) => 
   ({defs: xs, fallback: [/\p{S}/gv, placeholder || "$"]});
 
 
-Rex.General.Class.notSymbol = ({defs: [...xs], placeholder}) => 
+R.General.Class.notSymbol = ({defs: [...xs], placeholder}) => 
   ({defs: xs, fallback: [/[^\p{S}]/gv, placeholder]});
 
 
-Rex.General.Class.space = ({defs: [...xs], placeholder = null}) => 
+R.General.Class.space = ({defs: [...xs], placeholder = null}) => 
   ({defs: xs, fallback: [/\p{Z}/gv, placeholder || "_"]});
 
 
-Rex.General.Class.notSpace = ({defs: [...xs], placeholder}) => 
+R.General.Class.notSpace = ({defs: [...xs], placeholder}) => 
   ({defs: xs, fallback: [/[^\p{Z}]/gv, placeholder]});
 
 
-Rex.General.Class.control = ({defs: [...xs], placeholder = null}) => 
+R.General.Class.control = ({defs: [...xs], placeholder = null}) => 
   ({defs: xs, fallback: [/\p{C}/gv, placeholder || "¶"]});
 
 
-Rex.General.Class.notControl = ({defs: [...xs], placeholder}) => 
+R.General.Class.notControl = ({defs: [...xs], placeholder}) => 
   ({defs: xs, fallback: [/[^\p{C}]/gv, placeholder]});
 
 
-Rex.General.generalize = (...classes) => s => {
+R.General.generalize = (...classes) => s => {
   const subs = new Set();
   let s2 = s, s3 = s;
 
@@ -6134,7 +6252,7 @@ Rex.General.generalize = (...classes) => s => {
     }
   }
 
-  return {general: s3, abstract: Rex.dedupe(s3)};
+  return {general: s3, abstract: R.dedupe(s3)};
 };
 
 
@@ -6146,10 +6264,10 @@ localized, i.e. require a list of locales that should be considered. Meant to
 be used after splitting strings into tokens. */
 
 
-Rex.Context = {};
+R.Context = {};
 
 
-Rex.Context.hyphen = tokens => {
+R.Context.hyphen = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6224,7 +6342,7 @@ Rex.Context.hyphen = tokens => {
 
 // takes a set of abbreviations
 
-Rex.Context.period = abbrs => tokens => {
+R.Context.period = abbrs => tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6276,7 +6394,7 @@ Rex.Context.period = abbrs => tokens => {
 };
 
 
-Rex.Context.apo = (...locales) => tokens => {
+R.Context.apo = (...locales) => tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6324,7 +6442,7 @@ Rex.Context.apo = (...locales) => tokens => {
 };
 
 
-Rex.Context.slash = tokens => {
+R.Context.slash = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6368,7 +6486,7 @@ Rex.Context.slash = tokens => {
 };
 
 
-Rex.Context.comma = (...locales) => tokens => {
+R.Context.comma = (...locales) => tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6400,7 +6518,7 @@ Rex.Context.comma = (...locales) => tokens => {
 };
 
 
-Rex.Context.colon = tokens => {
+R.Context.colon = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6440,7 +6558,7 @@ Rex.Context.colon = tokens => {
 };
 
 
-Rex.Context.quota = tokens => {
+R.Context.quota = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6468,7 +6586,7 @@ Rex.Context.quota = tokens => {
 };
 
 
-Rex.Context.percent = tokens => {
+R.Context.percent = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6496,7 +6614,7 @@ Rex.Context.percent = tokens => {
 };
 
 
-Rex.Context.ampersand = tokens => {
+R.Context.ampersand = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6537,7 +6655,7 @@ Rex.Context.ampersand = tokens => {
 };
 
 
-Rex.Context.currency = tokens => {
+R.Context.currency = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6580,7 +6698,7 @@ Rex.Context.currency = tokens => {
 };
 
 
-Rex.Context.plus = tokens => {
+R.Context.plus = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6617,7 +6735,7 @@ Rex.Context.plus = tokens => {
 };
 
 
-Rex.Context.at = tokens => {
+R.Context.at = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6647,7 +6765,7 @@ Rex.Context.at = tokens => {
 };
 
 
-Rex.Context.asterisk = tokens => {
+R.Context.asterisk = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6677,7 +6795,7 @@ Rex.Context.asterisk = tokens => {
 };
 
 
-Rex.Context.underscore = tokens => {
+R.Context.underscore = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6707,7 +6825,7 @@ Rex.Context.underscore = tokens => {
 };
 
 
-Rex.Context.para = tokens => {
+R.Context.para = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6737,7 +6855,7 @@ Rex.Context.para = tokens => {
 };
 
 
-Rex.Context.degree = tokens => {
+R.Context.degree = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6772,7 +6890,7 @@ Rex.Context.degree = tokens => {
 };
 
 
-Rex.Context.ellipsis = tokens => {
+R.Context.ellipsis = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6821,7 +6939,7 @@ Rex.Context.ellipsis = tokens => {
 };
 
 
-Rex.Context.amount = tokens => {
+R.Context.amount = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6862,7 +6980,7 @@ Rex.Context.amount = tokens => {
 };
 
 
-Rex.Context.abbrs = tokens => {
+R.Context.abbrs = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -6894,7 +7012,7 @@ Rex.Context.abbrs = tokens => {
 };
 
 
-Rex.Context.protocol = tokens => {
+R.Context.protocol = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -7009,120 +7127,16 @@ Object.defineProperty(_Set.deDE, "conjSuffixes", {
 });
 
 
-// declination suffixes (adjectival)
-
-Object.defineProperty(_Set.deDE, "declSuffAdj", {
-  get() {
-    const s = new Set([
-      "e",
-      "er",
-      "es",
-      "em",
-      "en",
-    ]);
-
-    delete this.declSuffAdj;
-    this.declSuffAdj = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// comparation suffixes (adjectival)
-
-Object.defineProperty(_Set.deDE, "compSuffAdj", {
-  get() {
-    const s = new Set([
-      "er",
-      "ere",
-      "ste",
-      "ßte",
-      "erer",
-      "eres",
-      "erem",
-      "eren",
-      "ster",
-      "ßter",
-      "stes",
-      "ßtes",
-      "stem",
-      "ßtem",
-      "sten",
-      "ßten",
-    ]);
-
-    delete this.declSuffAdj;
-    this.declSuffAdj = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// declination suffixes (pronominal)
-
-Object.defineProperty(_Set.deDE, "declSuffPro", {
-  get() {
-    const s = new Set([
-      "e", "m", "n", "r", "s", "em", "en", "er", "es",
-    ]);
-
-    delete this.declSuffPro;
-    this.declSuffPro = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
 // declination suffixes (nominal)
 
-Object.defineProperty(_Set.deDE, "declSuffNom", {
+Object.defineProperty(_Set.deDE, "infinitive", {
   get() {
     const s = new Set([
-      "e", "n", "s", "en", "er", "ern",
+      "n", "en",
     ]);
 
-    delete this.declSuffNom;
-    this.declSuffNom = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// interfixes (nominal)
-
-Object.defineProperty(_Set.deDE, "interfixes", {
-  get() {
-    const s = new Set([
-      "e", "n", "s", "en", "er", "es", "ens",
-    ]);
-
-    delete this.interfixes;
-    this.interfixes = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// conjugation/declination elisions (removal) of letters
-
-Object.defineProperty(_Set.deDE, "inflElisions", {
-  get() {
-    const s = new Set([
-      "e", "en",
-    ]);
-
-    delete this.inflElisions;
-    this.inflElisions = s;
+    delete this.infinitive;
+    this.infinitive = s;
     return s;
   },
 
@@ -7170,7 +7184,24 @@ Object.defineProperty(_Set.deDE, "copulaVerbs", {
 });
 
 
-// separable prefixes (verbal)
+// separable verbs (insertions)
+Object.defineProperty(_Set.deDE, "sepInsertions", {
+  get() {
+    const s = new Set([
+      "ge", // participle II
+      "zu", // infinitive
+    ]);
+
+    delete this.sepInsertions;
+    this.sepInsertions = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// separable verbs (prefixes)
 
 Object.defineProperty(_Set.deDE, "sepPrefixes", {
   get() {
@@ -7317,6 +7348,144 @@ Object.defineProperty(_Set.deDE, "sepPrefixes", {
 });
 
 
+// declination suffixes (nominal)
+
+Object.defineProperty(_Set.deDE, "declSuffNom", {
+  get() {
+    const s = new Set([
+      "e", "n", "s", "en", "er", "ern",
+    ]);
+
+    delete this.declSuffNom;
+    this.declSuffNom = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// interfixes (nominal)
+
+Object.defineProperty(_Set.deDE, "interfixes", {
+  get() {
+    const s = new Set([
+      "e", "n", "s", "en", "er", "es", "ens",
+    ]);
+
+    delete this.interfixes;
+    this.interfixes = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// declination suffixes (adjectival)
+
+Object.defineProperty(_Set.deDE, "declSuffAdj", {
+  get() {
+    const s = new Set([
+      "e",
+      "er",
+      "es",
+      "em",
+      "en",
+    ]);
+
+    delete this.declSuffAdj;
+    this.declSuffAdj = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// comparation suffixes (adjectival)
+
+Object.defineProperty(_Set.deDE, "compSuffAdj", {
+  get() {
+    const s = new Set([
+      "er",
+      "ere",
+      "ste",
+      "ßte",
+      "erer",
+      "eres",
+      "erem",
+      "eren",
+      "ster",
+      "ßter",
+      "stes",
+      "ßtes",
+      "stem",
+      "ßtem",
+      "sten",
+      "ßten",
+    ]);
+
+    delete this.declSuffAdj;
+    this.declSuffAdj = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// declination suffixes (pronominal)
+
+Object.defineProperty(_Set.deDE, "declSuffPron", {
+  get() {
+    const s = new Set([
+      "e", "m", "n", "r", "s", "em", "en", "er", "es",
+    ]);
+
+    delete this.declSuffPro;
+    this.declSuffPro = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// conjugation/declination elisions (removal) of letters
+
+Object.defineProperty(_Set.deDE, "inflElisions", {
+  get() {
+    const s = new Set([
+      "e", "en",
+    ]);
+
+    delete this.inflElisions;
+    this.inflElisions = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// compound noun elision (removal) of letters
+
+Object.defineProperty(_Set.deDE, "compNounElisions", {
+  get() {
+    const s = new Set([
+      "e",
+    ]);
+
+    delete this.compNounElisions;
+    this.compNounElisions = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
 /*█████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████ COMBINATORS █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -7422,7 +7591,7 @@ _Set.interconvertBy = f => g => s => new Set(f(Array.from(s).map(g)));
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-export const Str = {}; // namespace
+export const S = {}; // namespace
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -7430,21 +7599,13 @@ export const Str = {}; // namespace
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-Str.deDE = {};
+S.deDE = {};
 
 
-Str.deDE.vowelConsonantRatio = 0.666666667;
+S.deDE.vowelConsonantRatio = 0.666666667;
 
 
-Str.deDE.avgWordLen = 5.5;
-
-
-Str.deDE.toInfinitive = "zu";
-
-
-// compound noun elision (removal) of letters
-
-Str.deDE.compNounElision = "e";
+S.deDE.avgWordLen = 5.5;
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -7452,21 +7613,21 @@ Str.deDE.compNounElision = "e";
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-Str.countChar = c => s => {
+S.countChar = c => s => {
   let n = 0;
   for (const c2 of s) if (c === c2 ) n++;
   return n;
 };
 
 
-Str.countChars = s => {
+S.countChars = s => {
   const m = new Map();
   for (const c of s) _Map.inc(c) (acc);
   return m;
 };
 
 
-Str.countSubstr = t => s => {
+S.countSubstr = t => s => {
   let n = 0, offset = 0;
 
   while (true) {
@@ -7479,7 +7640,7 @@ Str.countSubstr = t => s => {
 };
 
 
-Str.replaceChar = (c, sub) => s => {
+S.replaceChar = (c, sub) => s => {
   let t = "";
   
   for (const c2 of s) {
@@ -7491,7 +7652,7 @@ Str.replaceChar = (c, sub) => s => {
 };
 
 
-Str.replaceSub = (sub, sub2) => s => {
+S.replaceSub = (sub, sub2) => s => {
   let t = "", i, j = 0;
 
   while (true) {
@@ -7512,26 +7673,26 @@ Str.replaceSub = (sub, sub2) => s => {
 };
 
 
-Str.stripAlphaNum = s => s.replaceAll(/[\p{L}\p{N}]/gv, "");
+S.stripAlphaNum = s => s.replaceAll(/[\p{L}\p{N}]/gv, "");
 
 
-Str.stripAllButAlphaNum = s => s.replaceAll(/[^\p{L}\p{N}]/gv, "");
+S.stripAllButAlphaNum = s => s.replaceAll(/[^\p{L}\p{N}]/gv, "");
 
 
-Str.stripAllButNum = s => s.replaceAll(/[^\p{N}]/gv, "");
+S.stripAllButNum = s => s.replaceAll(/[^\p{N}]/gv, "");
 
 
-Str.catWith = s => (...xs) => xs.join(s);
+S.catWith = s => (...xs) => xs.join(s);
 
 
 // try to truncate a string without breaking its tokens
 
-Str.trunc = maxLen => s => {
+S.trunc = maxLen => s => {
   if (maxLen >= s.length) return s;
   else if (s[maxLen] === " ") return s.slice(0, maxLen);
 
   else {
-    const is = Rex.searchAll(/ /g) (s);
+    const is = R.searchAll(/ /g) (s);
 
     for (let j = 0; j < is.length; j++)
       if (is[j] > maxLen) return s.slice(0, is[j - 1]);
@@ -7544,12 +7705,12 @@ Str.trunc = maxLen => s => {
 /* Try to truncate a strings without breaking its tokens while both parts meet
 the max length consrtaint. */
 
-Str.trunc2 = maxLen => s => {
+S.trunc2 = maxLen => s => {
   if (maxLen >= s.length) return [s, ""];
   else if (maxLen * 2 <= s.length) return [s.slice(0, maxLen), s.slice(maxLen)];
 
   else {
-    const is = Rex.searchAll(/ /g) (s);
+    const is = R.searchAll(/ /g) (s);
 
     for (let j = 0; j < is.length; j++) {
       if (is[j] > maxLen) {
@@ -7567,26 +7728,26 @@ Str.trunc2 = maxLen => s => {
 };
 
 
-Str.cat = Str.catWith("");
+S.cat = S.catWith("");
 
 
-Str.cat_ = Str.catWith(" ");
+S.cat_ = S.catWith(" ");
 
 
 /* Plain applicator but with a telling name. Intended use:
 
-  Str.template(o => `Happy ${o.foo}, ${o.bar}!`)
+  S.template(o => `Happy ${o.foo}, ${o.bar}!`)
     ({foo: "Thanksgiving", bar: "Muad'dib"})
 
 Yields "Happy Thanksgiving, Muad'dib!" */
 
-Str.template = f => o => f(o);
+S.template = f => o => f(o);
 
 
 //█████ Splitting █████████████████████████████████████████████████████████████
 
 
-Str.splitChunk = ({size, padding = " ", overlap = false}) => s => {
+S.splitChunk = ({size, padding = " ", overlap = false}) => s => {
   const xs = [];
 
   for (let i = 0; i === i; overlap ? i++ : i += size) {
@@ -7604,16 +7765,16 @@ Str.splitChunk = ({size, padding = " ", overlap = false}) => s => {
 };
 
 
-Str.bigram = Str.splitChunk({size: 2, overlap: true});
+S.bigram = S.splitChunk({size: 2, overlap: true});
 
 
-Str.trigram = Str.splitChunk({size: 3, overlap: true});
+S.trigram = S.splitChunk({size: 3, overlap: true});
 
 
 /* Split at character transitions:
-  Str.splitChars("abbccc") // yields ["a", "bb", "ccc"] */
+  S.splitChars("abbccc") // yields ["a", "bb", "ccc"] */
 
-Str.splitTrans = s => {
+S.splitTrans = s => {
   return s.split("").reduce((acc, c) => {
     const i = acc.length - 1;
     
@@ -7628,7 +7789,7 @@ Str.splitTrans = s => {
 
 // split at transitions from ASCII to not ASCII characters
 
-Str.splitAscii = s => {
+S.splitAscii = s => {
   return s.split("").reduce((acc, c) => {
     const i = acc.length - 1;
     
@@ -7647,15 +7808,15 @@ Str.splitAscii = s => {
 // query similar words based on bigrams
 
 
-Str.Bigram = {};
+S.Bigram = {};
 
 
 // Word :: Str
 // Bigram :: [Str]
 // Index :: Nat
 // [Word] => Corpus{words: [Bigram], lookup: Map<Str, Set<Index>>}
-Str.Bigram.createCorpus = words => {
-  const bigrams = words.map(Str.bigram),
+S.Bigram.createCorpus = words => {
+  const bigrams = words.map(S.bigram),
     lookup = new Map();
 
   bigrams.forEach((bigram, i) => {
@@ -7688,8 +7849,8 @@ bigram matches yield a higher score than scattered ones. */
 // Word :: Str
 // Corpus{words: [Word], lookup: Map<Str, Set<Index>>}
 // {corpus: Corpus, lenDiff: [Num, Num], threshold: Num} => Word => [{i: Index, score: Nat}]
-Str.Bigram.query = ({corpus, lenDiff = [0.75, 1.34], matchQuotient = 0.25}) => word => {
-  const queryBigram = Str.bigram(word.toLowerCase()),
+S.Bigram.query = ({corpus, lenDiff = [0.75, 1.34], matchQuotient = 0.25}) => word => {
+  const queryBigram = S.bigram(word.toLowerCase()),
     queryMetas = A.bigram(queryBigram);
 
   if (queryMetas.length === 0) return [];
@@ -7777,7 +7938,7 @@ Str.Bigram.query = ({corpus, lenDiff = [0.75, 1.34], matchQuotient = 0.25}) => w
 };
 
 
-Str.Bigram.toStr = bigram => {
+S.Bigram.toStr = bigram => {
   let s = "";
   for (const pair of bigram) s += pair[0];
   s += bigram[bigram.length - 1] [1];
@@ -7788,15 +7949,15 @@ Str.Bigram.toStr = bigram => {
 //█████ Diffing ███████████████████████████████████████████████████████████████
 
 
-Str.Diff = reify(strDiff => {
+S.Diff = reify(strDiff => {
 
   // retrieve the differences between two strings in a case-insensitive manner
 
   // Nat :: Num
   // IndexedChar :: {char: Str, index: Nat}
   // DiffSide :: {str: Str, matches: [IndexedChar], mismatches: [IndexedChar]}
-  // Str.Diff{left: DiffSide, right: DiffSide}
-  // Str => Str => (Str.Diff | [])
+  // S.Diff{left: DiffSide, right: DiffSide}
+  // Str => Str => (S.Diff | [])
   strDiff.retrieve = l => r => {
     const findBest = (il, ir) => {
       if (il === l.length) return {length: 0, gaps: 0, sequence: []};
@@ -7807,7 +7968,7 @@ Str.Diff = reify(strDiff => {
         const c2 = c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
           rx = new RegExp(c2, "gdiu");
 
-        o[c.toLowerCase()] = Rex.matchAll(rx) (r);
+        o[c.toLowerCase()] = R.matchAll(rx) (r);
       }
 
       const memoKey = `${il},${ir}`;
@@ -7865,7 +8026,7 @@ Str.Diff = reify(strDiff => {
       const right = storeRight(r, seq),
         left = storeLeft(l, right);
 
-      return tag("Str.Diff") ({left, right});
+      return tag("S.Diff") ({left, right});
     }
   };
 
@@ -7977,7 +8138,7 @@ Str.Diff = reify(strDiff => {
 
 
   /* Stringify and accumulate all consecutive matches/mismatches. Can be used
-  with both `Str.Diff` and `Str.Diff.Eval` types. */
+  with both `S.Diff` and `S.Diff.Eval` types. */
 
   strDiff.stringify = o => {
     const p = {
@@ -8090,7 +8251,7 @@ Str.Diff = reify(strDiff => {
 // evaluate differences between two strings
 
 
-Str.Diff.Eval = reify(strDiffEval => {
+S.Diff.Eval = reify(strDiffEval => {
 
 
   strDiffEval.deDE = {};
@@ -8226,11 +8387,11 @@ Str.Diff.Eval = reify(strDiffEval => {
 
   // compose two evaluations
 
-  //  EvalFun :: Str.Diff.Eval => [Str.Diff.Eval]
-  // EvalFun => EvalFun => Str.Diff.Eval => [Str.Diff.Eval]
+  //  EvalFun :: S.Diff.Eval => [S.Diff.Eval]
+  // EvalFun => EvalFun => S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.comp = f => g => evals => {
     if (!Array.isArray(evals)) {
-      if (evals[$] === "Str.Diff")
+      if (evals[$] === "S.Diff")
         evals = strDiffEval.initial(evals);
 
       else evals = [evals];
@@ -8273,8 +8434,8 @@ Str.Diff.Eval = reify(strDiffEval => {
 
 
   const empty = _eval => ({
-    [$]: "Str.Diff.Eval",
-    [$$]: "Str.Diff.Eval",
+    [$]: "S.Diff.Eval",
+    [$$]: "S.Diff.Eval",
     desc: [],
     reason: [],
     offset: [],
@@ -8290,13 +8451,13 @@ Str.Diff.Eval = reify(strDiffEval => {
   // Nat :: Num
   // IndexedChar :: {char: Str, index: Nat}
   // DiffSide :: {str: Str, matches: [IndexedChar], mismatches: [IndexedChar]}
-  // Str.Diff{left: DiffSide, right: DiffSide}
-  // Str.Diff.Eval{desc: Str, reason: [Str], offset: [Nat], penalty: [Nat], left: DiffSide, right: DiffSide}
-  // Str.Diff => [Str.Diff.Eval]
+  // S.Diff{left: DiffSide, right: DiffSide}
+  // S.Diff.Eval{desc: Str, reason: [Str], offset: [Nat], penalty: [Nat], left: DiffSide, right: DiffSide}
+  // S.Diff => [S.Diff.Eval]
   strDiffEval.initial = diff => {
     return [{
-      [$]: "Str.Diff.Eval",
-      [$$]: "Str.Diff.Eval",
+      [$]: "S.Diff.Eval",
+      [$$]: "S.Diff.Eval",
       desc: [],
       reason: [],
       offset: [],
@@ -8310,7 +8471,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   /* Penalize every remaining mismatch with a higher penality. The combinator is
   meant to be used last in compositions of evaluations. */
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.remainder = _eval => {
     const ls = _eval.left.mismatches,
       rs = _eval.right.mismatches;
@@ -8318,8 +8479,8 @@ Str.Diff.Eval = reify(strDiffEval => {
     let penalty = 0;
 
     if (ls.length + rs.length === 0) return [{
-      [$]: "Str.Diff.Eval",
-      [$$]: "Str.Diff.Eval",
+      [$]: "S.Diff.Eval",
+      [$$]: "S.Diff.Eval",
       desc: [],
       reason: [],
       offset: [],
@@ -8331,14 +8492,14 @@ Str.Diff.Eval = reify(strDiffEval => {
     for (const mismatch of _eval.left.mismatches) penalty += 10;
     for (const mismatch of _eval.right.mismatches) penalty += 10;
 
-    const desc = Str.cat(
+    const desc = S.cat(
       ls.map(o => o.char).join("") || "_",
       "/",
       rs.map(o => o.char).join("") || "_");
 
     return [{
-      [$]: "Str.Diff.Eval",
-      [$$]: "Str.Diff.Eval",
+      [$]: "S.Diff.Eval",
+      [$$]: "S.Diff.Eval",
       desc: [desc],
       reason: ["remainder"],
       offset: [0],
@@ -8349,7 +8510,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.match11 = _eval => {
     const go = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
@@ -8387,8 +8548,8 @@ Str.Diff.Eval = reify(strDiffEval => {
             : mismatch2.index - mismatch.index;
 
           xs.push({
-            [$]: "Str.Diff.Eval",
-            [$$]: "Str.Diff.Eval",
+            [$]: "S.Diff.Eval",
+            [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
             offset: [mismatch.index - mismatch2.index],
@@ -8418,7 +8579,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.matchFirst12 = _eval => {
     const go = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i];
@@ -8439,8 +8600,8 @@ Str.Diff.Eval = reify(strDiffEval => {
             : o.letters.join("/");
 
           return [{
-            [$]: "Str.Diff.Eval",
-            [$$]: "Str.Diff.Eval",
+            [$]: "S.Diff.Eval",
+            [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
             offset: [0], // cannot retrieve offset
@@ -8470,7 +8631,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.matchSecond12 = _eval => {
     const go = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i];
@@ -8500,8 +8661,8 @@ Str.Diff.Eval = reify(strDiffEval => {
             : o.letters.join("/");
 
           return [{
-            [$]: "Str.Diff.Eval",
-            [$$]: "Str.Diff.Eval",
+            [$]: "S.Diff.Eval",
+            [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
             offset: [0], // cannot retrieve offset
@@ -8531,7 +8692,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.mismatch12 = _eval => {
     const go = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
@@ -8586,8 +8747,8 @@ Str.Diff.Eval = reify(strDiffEval => {
             : mismatch2.index - mismatch.index;
 
           xs.push({
-            [$]: "Str.Diff.Eval",
-            [$$]: "Str.Diff.Eval",
+            [$]: "S.Diff.Eval",
+            [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
             offset: [offset],
@@ -8617,7 +8778,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.matchFirst22 = _eval => {
     const go = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
@@ -8656,8 +8817,8 @@ Str.Diff.Eval = reify(strDiffEval => {
               : mismatch2.index - mismatch.index;
 
             return [{
-              [$]: "Str.Diff.Eval",
-              [$$]: "Str.Diff.Eval",
+              [$]: "S.Diff.Eval",
+              [$$]: "S.Diff.Eval",
               desc: [desc],
               reason: ["mishearing"],
               offset: [offset],
@@ -8688,7 +8849,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.matchSecond22 = _eval => {
     const go = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
@@ -8727,8 +8888,8 @@ Str.Diff.Eval = reify(strDiffEval => {
               : mismatch2.index - mismatch.index;
 
             return [{
-              [$]: "Str.Diff.Eval",
-              [$$]: "Str.Diff.Eval",
+              [$]: "S.Diff.Eval",
+              [$$]: "S.Diff.Eval",
               desc: [desc],
               reason: ["mishearing"],
               offset: [offset],
@@ -8759,7 +8920,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.mismatch22 = _eval => {
     const go = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
@@ -8800,8 +8961,8 @@ Str.Diff.Eval = reify(strDiffEval => {
             : mismatch3.index - mismatch.index;
 
           xs.push({
-            [$]: "Str.Diff.Eval",
-            [$$]: "Str.Diff.Eval",
+            [$]: "S.Diff.Eval",
+            [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
             offset: [offset],
@@ -8831,7 +8992,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.mismatch13 = _eval => {
     const go = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
@@ -8871,8 +9032,8 @@ Str.Diff.Eval = reify(strDiffEval => {
             : mismatch2.index - mismatch.index;
 
           xs.push({
-            [$]: "Str.Diff.Eval",
-            [$$]: "Str.Diff.Eval",
+            [$]: "S.Diff.Eval",
+            [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
             offset: [offset],
@@ -8902,7 +9063,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.misreading = _eval => {
     const candidates = [];
 
@@ -8921,8 +9082,8 @@ Str.Diff.Eval = reify(strDiffEval => {
             })) (_eval);
 
             candidates.push({
-              [$]: "Str.Diff.Eval",
-              [$$]: "Str.Diff.Eval",
+              [$]: "S.Diff.Eval",
+              [$$]: "S.Diff.Eval",
               desc: [`${mismatch.char}/${mismatch2.char}`],
               reason: ["misreading"],
               offset: [mismatch.index - mismatch2.index],
@@ -8940,7 +9101,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.transposition = _eval => {
     const candidates = [];
 
@@ -8989,8 +9150,8 @@ Str.Diff.Eval = reify(strDiffEval => {
             : `${mismatch.char}${matchLeftAfter.char}/${matchRightBefore.char}${mismatch.char}`;
 
           candidates.push({
-            [$]: "Str.Diff.Eval",
-            [$$]: "Str.Diff.Eval",
+            [$]: "S.Diff.Eval",
+            [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["transposition"],
             offset: [mismatch.index - mismatch2.index + offset],
@@ -9007,7 +9168,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.repetition = _eval => {
     const candidates = [];
 
@@ -9028,8 +9189,8 @@ Str.Diff.Eval = reify(strDiffEval => {
         }) (_eval);
 
         candidates.push({
-          [$]: "Str.Diff.Eval",
-          [$$]: "Str.Diff.Eval",
+          [$]: "S.Diff.Eval",
+          [$$]: "S.Diff.Eval",
           desc: [`${mismatch.char.repeat(2)}/${match2.char}`],
           reason: ["repetition"],
           offset: [mismatch.index - match2.index - 1],
@@ -9057,8 +9218,8 @@ Str.Diff.Eval = reify(strDiffEval => {
         }) (_eval);
 
         candidates.push({
-          [$]: "Str.Diff.Eval",
-          [$$]: "Str.Diff.Eval",
+          [$]: "S.Diff.Eval",
+          [$$]: "S.Diff.Eval",
           desc: [`${match2.char}/${mismatch.char.repeat(2)}`],
           reason: ["repetition"],
           offset: [match2.index - mismatch.index + 1],
@@ -9074,14 +9235,14 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.modifier = _eval => {
     const candidates = [];
 
     for (const mismatch of _eval.left.mismatches) {
       for (const mismatch2 of _eval.right.mismatches) {
-        if (Str.Norm.modifier.has(mismatch.char)) {
-          const c = Str.Norm.modifier.get(mismatch.char);
+        if (S.Norm.modifier.has(mismatch.char)) {
+          const c = S.Norm.modifier.get(mismatch.char);
 
           if (mismatch2.char === c) {
             const eval2 = comp(O.update({
@@ -9093,8 +9254,8 @@ Str.Diff.Eval = reify(strDiffEval => {
             })) (_eval);
 
             candidates.push({
-              [$]: "Str.Diff.Eval",
-              [$$]: "Str.Diff.Eval",
+              [$]: "S.Diff.Eval",
+              [$$]: "S.Diff.Eval",
               desc: [`${mismatch.char}/${mismatch2.char}`],
               reason: ["modifier"],
               offset: [mismatch.index - mismatch2.index],
@@ -9105,8 +9266,8 @@ Str.Diff.Eval = reify(strDiffEval => {
           }
         }
 
-        else if (Str.Norm.modifier.has(mismatch2.char)) {
-          const c = Str.Norm.modifier.get(mismatch2.char);
+        else if (S.Norm.modifier.has(mismatch2.char)) {
+          const c = S.Norm.modifier.get(mismatch2.char);
 
           if (mismatch.char === c) {
             const eval2 = comp(O.update({
@@ -9118,8 +9279,8 @@ Str.Diff.Eval = reify(strDiffEval => {
             })) (_eval);
 
             candidates.push({
-              [$]: "Str.Diff.Eval",
-              [$$]: "Str.Diff.Eval",
+              [$]: "S.Diff.Eval",
+              [$$]: "S.Diff.Eval",
               desc: [`${mismatch.char}/${mismatch2.char}`],
               reason: ["modifier"],
               offset: [mismatch.index - mismatch2.index],
@@ -9137,7 +9298,7 @@ Str.Diff.Eval = reify(strDiffEval => {
   };
 
 
-  // Str.Diff.Eval => [Str.Diff.Eval]
+  // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.equivalence = _eval => {
     const candidates = [];
 
@@ -9164,8 +9325,8 @@ Str.Diff.Eval = reify(strDiffEval => {
                   })) (_eval);
 
                   candidates.push({
-                    [$]: "Str.Diff.Eval",
-                    [$$]: "Str.Diff.Eval",
+                    [$]: "S.Diff.Eval",
+                    [$$]: "S.Diff.Eval",
                     desc: [`${mismatch.char}/${s}`],
                     reason: ["equivalence"],
                     offset: [mismatch.index - mismatch2.index],
@@ -9193,8 +9354,8 @@ Str.Diff.Eval = reify(strDiffEval => {
                   })) (_eval);
 
                   candidates.push({
-                    [$]: "Str.Diff.Eval",
-                    [$$]: "Str.Diff.Eval",
+                    [$]: "S.Diff.Eval",
+                    [$$]: "S.Diff.Eval",
                     desc: [`${mismatch.char}/${s}`],
                     reason: ["equivalence"],
                     offset: [mismatch.index - mismatch2.index],
@@ -9225,8 +9386,8 @@ Str.Diff.Eval = reify(strDiffEval => {
                   })) (_eval);
 
                   candidates.push({
-                    [$]: "Str.Diff.Eval",
-                    [$$]: "Str.Diff.Eval",
+                    [$]: "S.Diff.Eval",
+                    [$$]: "S.Diff.Eval",
                     desc: [`${s}/${mismatch2.char}`],
                     reason: ["equivalence"],
                     offset: [mismatch.index - mismatch2.index],
@@ -9260,8 +9421,8 @@ Str.Diff.Eval = reify(strDiffEval => {
                   })) (_eval);
 
                   candidates.push({
-                    [$]: "Str.Diff.Eval",
-                    [$$]: "Str.Diff.Eval",
+                    [$]: "S.Diff.Eval",
+                    [$$]: "S.Diff.Eval",
                     desc: [`${s}/${mismatch2.char}`],
                     reason: ["equivalence"],
                     offset: [mismatch.index - mismatch2.index],
@@ -9316,17 +9477,17 @@ Str.Diff.Eval = reify(strDiffEval => {
 //█████ Decomposition █████████████████████████████████████████████████████████
 
 
-Str.Decomp = reify(strDecomp => {
+S.Decomp = reify(strDecomp => {
 
 
   const match = (corpus, locale, sub, wkw) => {
-    const diff = Str.Diff.retrieve(sub)
-      (Str.Bigram.toStr(corpus.bigrams[wkw.index]));
+    const diff = S.Diff.retrieve(sub)
+      (S.Bigram.toStr(corpus.bigrams[wkw.index]));
 
-    const evals = Str.Diff.Eval.all(diff);
+    const evals = S.Diff.Eval.all(diff);
 
     if (A.sum(evals[0].penalty) >= 10) {
-      const o = Str.Diff.stringify(evals[0]);
+      const o = S.Diff.stringify(evals[0]);
       let score = 0;
 
       if (o.left.mismatches.length) {
@@ -9345,7 +9506,7 @@ Str.Decomp = reify(strDecomp => {
         // check disjoint element on the right
 
         if (mismatchRight.index + mismatchRight.sub.length === sub.length
-          && Str[locale].compNounElision.has(mismatchRight.sub))
+          && S[locale].compNounElision.has(mismatchRight.sub))
             score += 10 * mismatchRight.sub.length;
       }
 
@@ -9367,7 +9528,7 @@ Str.Decomp = reify(strDecomp => {
           candidates.push({subs, matches: [{
             pos: "prefix",
             score: wkw.score,
-            word: Str.Bigram.toStr(corpus.bigrams[wkw.index])
+            word: S.Bigram.toStr(corpus.bigrams[wkw.index])
           }]});
         }
       }
@@ -9386,7 +9547,7 @@ Str.Decomp = reify(strDecomp => {
           candidate.matches.push({
             pos: "suffix",
             score: wkw.score,
-            word: Str.Bigram.toStr(corpus.bigrams[wkw.index])
+            word: S.Bigram.toStr(corpus.bigrams[wkw.index])
           });
         }
       }
@@ -9405,7 +9566,7 @@ Str.Decomp = reify(strDecomp => {
           candidates.push({subs, matches: [{
             pos: "suffix",
             score: wkw.score,
-            word: Str.Bigram.toStr(corpus.bigrams[wkw.index])
+            word: S.Bigram.toStr(corpus.bigrams[wkw.index])
           }]});
         }
       }
@@ -9431,13 +9592,13 @@ Str.Decomp = reify(strDecomp => {
                 candidate.matches.push({
                   pos: "infix",
                   score: wkw.score,
-                  word: Str.Bigram.toStr(corpus.bigrams[wkw.index])
+                  word: S.Bigram.toStr(corpus.bigrams[wkw.index])
                 });
 
                 candidate.matches.push({
                   pos: "suffix",
                   score: wkw2.score,
-                  word: Str.Bigram.toStr(corpus.bigrams[wkw2.index])
+                  word: S.Bigram.toStr(corpus.bigrams[wkw2.index])
                 });
               }
             }
@@ -9466,7 +9627,7 @@ Str.Decomp = reify(strDecomp => {
                 candidates.push({subs, matches: [{
                   pos: "infix",
                   score: wkw.score,
-                  word: Str.Bigram.toStr(corpus.bigrams[wkw.index])
+                  word: S.Bigram.toStr(corpus.bigrams[wkw.index])
                 }]});
               }
             }
@@ -9539,7 +9700,7 @@ Str.Decomp = reify(strDecomp => {
       }
     }
 
-    const query = Str.Bigram.query({threshold: 0.33, corpus});
+    const query = S.Bigram.query({threshold: 0.33, corpus});
 
     // prefix match
 
@@ -9581,10 +9742,10 @@ Str.Decomp = reify(strDecomp => {
 //█████ Normalizing ███████████████████████████████████████████████████████████
 
 
-Str.Norm = {};
+S.Norm = {};
 
 
-Str.Norm.fraction = new Map([
+S.Norm.fraction = new Map([
   ["½", "1/2"],
   ["⅓", "1/3"],
   ["⅔", "2/3"],
@@ -9606,7 +9767,7 @@ Str.Norm.fraction = new Map([
 ]);
 
 
-Str.Norm.modifier = new Map([
+S.Norm.modifier = new Map([
   ["Á", "A"], ["á", "a"], ["À", "A"], ["à", "a"], ["Â", "A"], ["â", "a"], ["Ǎ", "A"], ["ǎ", "a"], ["Ă", "A"],
   ["ă", "a"], ["Ã", "A"], ["ã", "a"], ["Ả", "A"], ["ả", "a"], ["Ȧ", "A"], ["ȧ", "a"], ["Ạ", "A"], ["ạ", "a"],
   ["Ä", "A"], ["ä", "a"], ["Å", "A"], ["å", "a"], ["Ḁ", "A"], ["ḁ", "a"], ["Ā", "A"], ["ā", "a"], ["Ą", "A"],
@@ -9700,7 +9861,7 @@ Str.Norm.modifier = new Map([
 ]);
 
 
-Str.Norm.equivalence = new Map([
+S.Norm.equivalence = new Map([
   ["ä", "ae"], ["ü", "ue"], ["ö", "oe"], ["ß", "ss"], ["Æ", "Ae"],
   ["æ", "ae"], ["ᴭ", "Ae"], ["ᵆ", "ae"], ["Ǽ", "Ae"], ["ǽ", "ae"],
   ["Ǣ", "Ae"], ["ǣ", "ae"], ["ᴁ", "Ae"], ["ᴂ", "ae"], ["ȸ", "db"],
@@ -9712,7 +9873,7 @@ Str.Norm.equivalence = new Map([
 ]);
 
 
-Str.Norm.latinise = ({inclAlpha}) => doc => {
+S.Norm.latinise = ({inclAlpha}) => doc => {
   let s = "";
 
   for (const c of doc) {
@@ -9733,8 +9894,8 @@ Str.Norm.latinise = ({inclAlpha}) => doc => {
       else if (c === "ˮ") s += "'";
       
       else if (inclAlpha) {
-        if (Str.Norm.modifier.has(c)) s += Str.Norm.modifier.get(c);
-        else if (Str.Norm.equivalence.has(c)) s += Str.Norm.equivalence.get(c);
+        if (S.Norm.modifier.has(c)) s += S.Norm.modifier.get(c);
+        else if (S.Norm.equivalence.has(c)) s += S.Norm.equivalence.get(c);
       }
 
       else s += c;
@@ -9747,8 +9908,8 @@ Str.Norm.latinise = ({inclAlpha}) => doc => {
     // number
 
     else if (/\p{N}/v.test(c)) {
-      if (Str.Norm.fraction.has(c))
-        s += Str.Norm.fraction.get(c);
+      if (S.Norm.fraction.has(c))
+        s += S.Norm.fraction.get(c);
       
       else s += c;
     }
@@ -9872,18 +10033,18 @@ If case insensitive string comparison is required, set the `sensitivity`
 property in the option argument to `"accent"`, */
 
 
-Str.comparator = locale => opt => s => t =>
+S.comparator = locale => opt => s => t =>
     new Intl.Collator(locale, opt).compare(s, t);
 
 
-Str.comparator_ = locale => opt =>
+S.comparator_ = locale => opt =>
     new Intl.Collator(locale, opt).compare;
 
 
-Str.comparatorDe = Str.comparator("de-DE");
+S.comparatorDe = S.comparator("de-DE");
 
 
-Str.comparatorDe_ = Str.comparator_("de-DE");
+S.comparatorDe_ = S.comparator_("de-DE");
 
 
 //█████ Casing ████████████████████████████████████████████████████████████████
@@ -9891,7 +10052,7 @@ Str.comparatorDe_ = Str.comparator_("de-DE");
 
 // capitalize a word and its potential word components
 
-Str.capitalize = word => {
+S.capitalize = word => {
   const xs = word.split("-");
 
   for (let i = 0; i < xs.length; i++) {
@@ -9930,7 +10091,7 @@ Str.capitalize = word => {
   • acronym: FOO
   • arbitrary-case: FOOBar */
 
-Str.determineCasing = word => {
+S.determineCasing = word => {
   const lc = word.toLowerCase(),
     uc = s.toUpperCase();
 
@@ -10551,19 +10712,12 @@ checksum
 cardinality/relation
 order
 structuralIntegrity
-binary
 withProp (associate two props)
 withoutProp (disassociate two props)
 objKeys
 includes (arr)
 uri
-hex
-uuid
-domain
-creditCard
-base64
-alphaNum
-*/
+creditCard */
 
 
 Val.hasSign = tag => x => {
@@ -10656,13 +10810,13 @@ Val.empty = x => {
 
 
 Val.ascii = s => {
-  if (new RegExp(Str.cat(
+  if (new RegExp(S.cat(
     "^(?:",
     "[a-z0-9]",
     "|",
-    Rex.classes.ascii.punct.s,
+    R.classes.ascii.punct.s,
     "|",
-    Rex.classes.ascii.ctrl.s,
+    R.classes.ascii.ctrl.s,
     ")+$"), "i").test(s))
       return Val.True;
 
@@ -10689,15 +10843,15 @@ Val.asciiUcl = s => {
 
 
 Val.latin1 = s => {
-  if (new RegExp(Str.cat(
+  if (new RegExp(S.cat(
     "^(?:",
-    Rex.classes.latin1.letter.s,
+    R.classes.latin1.letter.s,
     "|",
     "\\d",
     "|",
-    Rex.classes.latin1.punct.s,
+    R.classes.latin1.punct.s,
     "|",
-    Rex.classes.ascii.ctrl.s,
+    R.classes.ascii.ctrl.s,
     ")+$"), "i").test(s))
       return Val.True;
 
@@ -10706,7 +10860,7 @@ Val.latin1 = s => {
 
 
 Val.latin1Letters = s => {
-  if (new RegExp(`^${Rex.classes.latin1.letter.s}+$`, "iv").test(s))
+  if (new RegExp(`^${R.classes.latin1.letter.s}+$`, "iv").test(s))
     return Val.True;
 
   else return Val.False("latin1 letter(s) expected");
@@ -10714,7 +10868,7 @@ Val.latin1Letters = s => {
 
 
 Val.latin1LcL = s => {
-  if (new RegExp(`^${Rex.classes.latin1.lcl.s}+$`, "v").test(s))
+  if (new RegExp(`^${R.classes.latin1.lcl.s}+$`, "v").test(s))
     return Val.True;
 
   else return Val.False("latin1 lower-case letter(s) expected");
@@ -10722,7 +10876,7 @@ Val.latin1LcL = s => {
 
 
 Val.latin1Ucl = s => {
-  if (new RegExp(`^${Rex.classes.latin1.ucl.s}+$`, "v").test(s))
+  if (new RegExp(`^${R.classes.latin1.ucl.s}+$`, "v").test(s))
     return Val.True;
 
   else return Val.False("latin1 upper-case letter(s) expected");
@@ -10900,7 +11054,7 @@ the right context of the word in question the word itself and determine, if it
 is an abbreviation. */
 
 Val.abbr = ({locale, dict, abbrs, context}) => word => {
-  const word2 = Str.replaceChar(".", "") (word);
+  const word2 = S.replaceChar(".", "") (word);
 
   // check whether word is a well-known abbreviation
 
@@ -10912,11 +11066,11 @@ Val.abbr = ({locale, dict, abbrs, context}) => word => {
 
   else {
     const score = 0,
-      singlePeriods = Rex.count(/(?<!\.)\.(?!\.)/g) (word),
-      totalPeriods = Str.countChar(".") (word),
-      caps = Rex.count(/(?<!^)\p{Lu}/gv) (word2),
+      singlePeriods = R.count(/(?<!\.)\.(?!\.)/g) (word),
+      totalPeriods = S.countChar(".") (word),
+      caps = R.count(/(?<!^)\p{Lu}/gv) (word2),
       firstCap = /^\p{Lu}/.test(word2),
-      vowels = Rex.count(RegExp(`${Rex.classes.latin1.vowels.s}+`, "g")) (word2);
+      vowels = R.count(RegExp(`${R.classes.latin1.vowels.s}+`, "g")) (word2);
 
     // filter ellipsis
 
@@ -10947,7 +11101,7 @@ Val.abbr = ({locale, dict, abbrs, context}) => word => {
 
         // score derived from deviation against default vowel-consonant ratio
 
-        vowelRatioScore = (Str[locale].vowelConsonantRatio - vowelRatio) / 2,
+        vowelRatioScore = (S[locale].vowelConsonantRatio - vowelRatio) / 2,
 
         // score derived from upper-case letters not at the beginning
 
@@ -10955,20 +11109,20 @@ Val.abbr = ({locale, dict, abbrs, context}) => word => {
 
       // score derived from number of consonant triplets
 
-      const consonantTripletScore = Str.trigram(word2)
-        .filter(s => !new RegExp(Rex.classes.latin1.vowels.s, "g").test(s))
+      const consonantTripletScore = S.trigram(word2)
+        .filter(s => !new RegExp(R.classes.latin1.vowels.s, "g").test(s))
         .length * 0.1;
 
       // score derived from last letter being a consonant
 
-      const finalConsonantScore = new RegExp(Rex.classes.latin1.vowels.s, "g")
+      const finalConsonantScore = new RegExp(R.classes.latin1.vowels.s, "g")
         .test(word2[word2.length - 1])
           ? 0 : 0.1;
 
       // score derived from the default word length
 
       const lenScore = Alg.scaledTanh(0.2)
-        (Str[locale].avgWordLen - (word2.length - totalPeriods));
+        (S[locale].avgWordLen - (word2.length - totalPeriods));
 
       return Val.Maybe(
         capScore
