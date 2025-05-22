@@ -1311,7 +1311,7 @@ Per use case:
 
   • consing: List, IJS* Stack
   • unconsing: Array (A.focus), IJS Stack, List
-  • appending: IJS List, Diff (TODO)
+  • appending: IJS List, Diff
   • splitting: IJS List
   • searching: Tree, IJS Map
   • uniqueness: IJS Set
@@ -2988,9 +2988,6 @@ D.fromTimeStr = d => s => {
 
 
 export const DList = {};
-
-
-// TODO: add tag
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -5264,13 +5261,10 @@ each other. Accumulate all necessary subpatterns and feed them to a downstream
 function along with the original string to take the context into account. */
 
 
-export const R = {};
+export const R = RegExp.bind(null);
 
 
 // TODO: replace RegExp
-
-
-R.new = RegExp;
 
 
 R.g = rx => RegExp(rx, "g");
@@ -5764,6 +5758,21 @@ R.splitWith = ({f, xs}) => s => {
 
       return {acc, offset};
     }, {acc: [], offset: 0}).acc;
+  }
+};
+
+
+// variant that splits only once
+
+R.split1 = x => s => {
+  if (typeof x === "number") {
+    acc.push(s.slice(0, i));
+    acc.push(s.slice(i));
+  }
+
+  else {
+    acc.push(s.slice(0, o.index));
+    acc.push(s.slice(o.index + o[0].length));
   }
 };
 
@@ -7382,6 +7391,65 @@ Object.defineProperty(_Set.deDE, "interfixes", {
 });
 
 
+Object.defineProperty(_Set.deDE, "suffNom", {
+  get() {
+    const s = new Set([
+      "ung",
+      "heit",
+      "keit",
+      "schaft",
+      "in",
+      "ei",
+      "tät",
+      "ion",
+      "ie",
+      "ik",
+      "ur",
+      "ade",
+      "age",
+      "anz",
+      "enz",
+      "isse",
+      "itis",
+      "ive",
+      "sis",
+      "er",
+      "ler",
+      "ner",
+      "ling",
+      "ismus",
+      "ist",
+      "ant",
+      "ent",
+      "eur",
+      "oge",
+      "and",
+      "ar",
+      "är",
+      "or",
+      "ig",
+      "chen",
+      "lein",
+      "ment",
+      "um",
+      "at",
+      "ma",
+      "e",
+      "nis",
+      "tum",
+      "sal",
+      "sel",
+    ]);
+
+    delete this.suffNom;
+    this.suffNom = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
 // declination suffixes (adjectival)
 
 Object.defineProperty(_Set.deDE, "declSuffAdj", {
@@ -7606,6 +7674,23 @@ S.deDE.vowelConsonantRatio = 0.666666667;
 
 
 S.deDE.avgWordLen = 5.5;
+
+
+S.deDE.upperNounLen = 9; // without compounds/Komposita
+
+
+S.PartOfSpeech = {
+  noun: "noun",
+  verb: "verb",
+  adj: "adj",
+  adv: "adv",
+  pron: "pron",
+  conj: "conj",
+  prep: "prep",
+  post: "post", // postposition
+  inter: "inter", // interjection
+  art: "art",
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -9477,7 +9562,9 @@ S.Diff.Eval = reify(strDiffEval => {
 //█████ Decomposition █████████████████████████████████████████████████████████
 
 
-S.Decomp = reify(strDecomp => {
+// decompose compound nouns
+
+S.Decomp = reify(decomp => {
 
 
   const match = (corpus, locale, sub, wkw) => {
@@ -9675,7 +9762,7 @@ S.Decomp = reify(strDecomp => {
 
   // supported locales: deDE
 
-  strDecomp.split = ({locale = "deDE", corpus}) => queryWord => {
+  decomp.split = ({locale = "deDE", corpus}) => queryWord => {
     const candidates = [],
       prefixSuffixes = [],
       infixSuffixes = new Map();
@@ -9735,7 +9822,7 @@ S.Decomp = reify(strDecomp => {
   };
 
 
-  return strDecomp;
+  return decomp;
 });
 
 
@@ -10673,9 +10760,9 @@ Val.False = reason => ({
 });
 
 
-/* Confidence is encoded by a decimal value between any negative number and the
-smallest fraction less than one. A negative number represents a likely false
-validation wheras a positive one represents a likely true validation. */
+/* Confidence is encoded by a decimal value between any negative number and one.
+A negative number represents a likely negative validation wheras a positive one
+a likely positive validation. Zero is assumed to be a still positive validation. */
 
 Val.Maybe = confidence => {
   if (confidence < 0) {
@@ -10687,9 +10774,9 @@ Val.Maybe = confidence => {
     };
   }
 
-  else if (confidence >= 1) {
+  else if (confidence > 1) {
     console.warn("too much confidence");
-    confidence = 0.9999999999999999;
+    confidence = 1;
   }
 
   return {
@@ -11097,39 +11184,34 @@ Val.abbr = ({locale, dict, abbrs, context}) => word => {
     else if (context && /^ +\p{Ll}/v.test(context)) return Val.Maybe(1);
 
     else {
-      const vowelRatio = vowels / (word2.length - vowels),
 
-        // score derived from deviation against default vowel-consonant ratio
+      // score derived from the default word length
 
-        vowelRatioScore = (S[locale].vowelConsonantRatio - vowelRatio) / 2,
+      const lenScore = S[locale].avgWordLen - (word2.length);
 
-        // score derived from upper-case letters not at the beginning
+      // score derived from upper-case letters not at the beginning
 
-        capScore = caps * 0.3 * (firstCap ? 1 : 1.5);
+      const capScore = caps * (firstCap ? 1 : 1.5);
 
-      // score derived from number of consonant triplets
+      // score derived from deviation against default vowel-consonant ratio
 
-      const consonantTripletScore = S.trigram(word2)
-        .filter(s => !new RegExp(R.classes.latin1.vowels.s, "g").test(s))
-        .length * 0.1;
+      const vowelRatio = S[locale].vowelConsonantRatio
+        - (vowels / (word2.length - vowels));
+
+      const vowelRatioScore = vowelRatio > 0 ? vowelRatio * 10 : vowelRatio;
 
       // score derived from last letter being a consonant
 
       const finalConsonantScore = new RegExp(R.classes.latin1.vowels.s, "g")
-        .test(word2[word2.length - 1])
-          ? 0 : 0.1;
+        .test(word2[word2.length - 1]) ? 0 : 1;
 
-      // score derived from the default word length
-
-      const lenScore = Alg.scaledTanh(0.2)
-        (S[locale].avgWordLen - (word2.length - totalPeriods));
-
-      return Val.Maybe(
-        capScore
+      const finalScore = Alg.expGrowth({maxInput: 10}) (
+        lenScore
+        + capScore
         + vowelRatioScore
-        + consonantTripletScore
-        + finalConsonantScore
-        + lenScore);
+        + finalConsonantScore);
+
+      return Val.Maybe(finalScore);
     }
   }
 };
@@ -11414,27 +11496,6 @@ ignore:
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Yield an inverse s-shaped graph for x in the domain from -1 to 1 with the
-origin of 0, where a scaling factor below 1 increases the slope and above 1
-decreases it. */
-
-Alg.scaledLogitLike = scale => x => {
-  if (x <= -1 || x >= 1) {
-    if (x === 1) return scale * Infinity;
-    else if (x === -1) return A * -Infinity;
-    else return NaN;
-  }
-
-  else return scale * Math.log((1 + x) / (1 - x));
-}
-
-
-/* Yield an s-shaped graph with the origin of 0, where a scaling factor below 1
-decreases the slope and above 1 increases it. */
-
-Alg.scaledTanh = scale => x => Math.tanh((scale * x) / 2);
-
-
 // calculate the exponent for a given base and result x
 
 Alg.logx = base => x => Math.log(x) / Math.log(base);
@@ -11547,6 +11608,41 @@ Alg.avgFracs = (o, p) => {
     d = sum.d * 2;
 
   return Alg.simplifyFrac(n, d);
+};
+
+
+//█████ Model Growth ██████████████████████████████████████████████████████████
+
+
+/* Caluclate exponential growth. Max input is used to normalize the input range.
+Slope is a scaling factor to shift the transition from slow to rapid change.
+Suitable to model confidence, e.g. low confidence at the beginning but then
+exponential increase in confidence. */
+
+Alg.expGrowth = ({maxInput, slope = 8}) => x => {
+  if (slope <= 0) throw Err("slope must be greater than 0");
+
+  else {
+    const normalizedValue = Math.min(Math.max(x / maxInput, 0), 1),
+      exponent = -slope * (normalizedValue - 0.5),
+      growth = 1 / (1 + Math.exp(exponent));
+
+    return growth;
+  }
+};
+
+
+// calculate asymptotic growth.
+
+Alg.asympGrowth = ({maxInput, slope = 5}) => x => {
+  if (slope <= 0) throw Err("slope must be greater than 0");
+
+  else {
+    const expTerm = (Math.min(Math.max(x / maxInput, 0), 1)) * slope,
+      growth = 1 - Math.exp(-expTerm);
+
+    return growth;
+  }
 };
 
 
