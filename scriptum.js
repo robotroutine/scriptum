@@ -637,6 +637,24 @@ export const eff = f => x => (f(x), x);
 export const effs = (...exps) => exps;
 
 
+/* Create objects with safe property access if performed via the enum property.
+Intended for mimicking enumerations. */
+
+export const _enum = (...ks) => {
+  const o = {};
+
+  o.enum = k => {
+    if (!(k in o)) throw new Error(`not within enum "${k}"`);
+    else return o[k];
+  };
+
+  return ks.reduce((acc, k) => {
+    acc[k] = k;
+    return acc;
+  }, o);
+};
+
+
 /*█████████████████████████████████████████████████████████████████████████████
 ██████████████████████████████ PATTERN MATCHING ███████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -1951,14 +1969,15 @@ A.span = p => xs => {
   return [ys, xs.slice(ys.length)];
 };
 
-// variant that takes the previous element into account
+
+// variant that takes the current and next element into account
 
 A.span2 = p => xs => {
   const ys = [];
 
-  for (let i = 0; i < xs.length; i++) {
+  for (let i = 0; i < xs.length - 1; i++) {
     if (i === 0) ys.push(xs[i]);
-    else if (p(xs[i], xs[i - 1])) ys.push(xs[i]);
+    else if (p(xs[i], xs[i + 1])) ys.push(xs[i]);
     else break;
   }
 
@@ -4216,45 +4235,6 @@ Object.defineProperty(_Map.deDE, "weekdaysRev", {
 });
 
 
-// letter alterations during inflection
-
-Object.defineProperty(_Map.deDE, "letterAlter", {
-  get() {
-    const m = new Map([
-      ["ä", "a"],
-      ["ö", "o"],
-      ["ü", "u"],
-    ]);
-
-    delete this.letterAlter;
-    this.letterAlter = m;
-    return m;
-  },
-
-  configurable: true
-});
-
-
-Object.defineProperty(_Map.deDE, "letterAlterNoun", {
-  get() {
-    const m = new Map([
-      ["ä", "a"],
-      ["ö", "o"],
-      ["ü", "u"],
-      ["Ä", "A"],
-      ["Ö", "O"],
-      ["Ü", "U"],
-    ]);
-
-    delete this.letterAlterNoun;
-    this.letterAlterNoun = m;
-    return m;
-  },
-
-  configurable: true
-});
-
-
 /*█████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████ COMBINATORS █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -5249,6 +5229,53 @@ O.fromPairs = pairs => pairs.reduce((acc, [k, v]) => (acc[k] = v, acc), {});
 
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████ PARSER ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+/* Parse, don't validate. This isn't yet another parser implementation but
+essentially a type that is meant to replace ture/false validations suffering
+from boolean blindness. A parser takes unstructured data and returns structured
+data or an error. The structured data can either be a definitively valid value
+or a maybe valid value with some confidence. The type can be handled as a row
+polaymorphic one, i.e. there is a set of required properties but you can add
+arbitrary ones. */
+
+
+export const Parser = {};
+
+
+Parser.Valid = ({value, kind, ...rest}) => ({
+  [$]: "Parser",
+  [$$]: "Parser.Valid",
+  value,
+  kind,
+  ...rest
+});
+
+
+Parser.Invalid = ({value, kind, reason, ...rest}) => ({
+  [$]: "Parser",
+  [$$]: "Parser.Valid",
+  value,
+  kind,
+  reason,
+  ...rest
+});
+
+
+Parser.Maybe = ({value, kind, ...rest}) => ({
+  [$]: "Parser",
+  [$$]: "Parser.Valid",
+  value,
+  kind,
+  ...rest
+});
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████
 █████████████████████████████ REGULAR EXPRESSIONS █████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -6168,7 +6195,9 @@ R.rightBound = right => rx => {
 
 
 /* Generalize textual patterns by a 1:1-replacement of characters of different
-classes with their respective placeholders. */
+classes with their respective substitutes. You can provide overrides to alter
+default substitution behavior. Substitutions are guaranteed not to be replaced
+but subsequent replacements. */
 
 
 R.General = {};
@@ -6177,68 +6206,71 @@ R.General = {};
 R.General.Class = {};
 
 
-R.General.Class.letter = ({defs: [...xs], placeholder = null}) => 
-  ({defs: xs, fallback: [/\p{L}/gv, placeholder || "L"]});
+R.General.Overrides = {};
 
 
-R.General.Class.notLetter = ({defs: [...xs], placeholder}) => 
-  ({defs: xs, fallback: [/[^\p{L}]/gv, placeholder]});
+R.General.Class.letter = ({overrides: [...xs], subst = null}) => 
+  ({overrides: xs, fallback: [/\p{L}/gv, subst || "L"]});
 
 
-R.General.Class.ucl = ({defs: [...xs], placeholder = null}) => 
-  ({defs: xs, fallback: [/\p{Lu}/gv, placeholder || "A"]});
+R.General.Class.notLetter = ({overrides: [...xs], subst}) => 
+  ({overrides: xs, fallback: [/[^\p{L}]/gv, subst]});
 
 
-R.General.Class.notUcl = ({defs: [...xs], placeholder}) => 
-  ({defs: xs, fallback: [/[^\p{Lu}]/gv, placeholder]});
+R.General.Class.ucl = ({overrides: [...xs], subst = null}) => 
+  ({overrides: xs, fallback: [/\p{Lu}/gv, subst || "A"]});
 
 
-R.General.Class.lcl = ({defs: [...xs], placeholder = null}) => 
-  ({defs: xs, fallback: [/\p{Ll}/gv, placeholder || "a"]});
+R.General.Class.notUcl = ({overrides: [...xs], subst}) => 
+  ({overrides: xs, fallback: [/[^\p{Lu}]/gv, subst]});
 
 
-R.General.Class.notLcl = ({defs: [...xs], placeholder}) => 
-  ({defs: xs, fallback: [/[^\p{Ll}]/gv, placeholder]});
+R.General.Class.lcl = ({overrides: [...xs], subst = null}) => 
+  ({overrides: xs, fallback: [/\p{Ll}/gv, subst || "a"]});
 
 
-R.General.Class.num = ({defs: [...xs], placeholder = null}) => 
-  ({defs: xs, fallback: [/\p{N}/gv, placeholder || "ℕ"]});
+R.General.Class.notLcl = ({overrides: [...xs], subst}) => 
+  ({overrides: xs, fallback: [/[^\p{Ll}]/gv, subst]});
 
 
-R.General.Class.notNum = ({defs: [...xs], placeholder}) => 
-  ({defs: xs, fallback: [/[^\p{N}]/gv, placeholder]});
+R.General.Class.num = ({overrides: [...xs], subst = null}) => 
+  ({overrides: xs, fallback: [/\p{N}/gv, subst || "ℕ"]});
 
 
-R.General.Class.punct = ({defs: [...xs], placeholder = null}) => 
-  ({defs: xs, fallback: [/\p{P}/gv, placeholder || "·"]});
+R.General.Class.notNum = ({overrides: [...xs], subst}) => 
+  ({overrides: xs, fallback: [/[^\p{N}]/gv, subst]});
 
 
-R.General.Class.notPunct = ({defs: [...xs], placeholder}) => 
-  ({defs: xs, fallback: [/[^\p{P}]/gv, placeholder]});
+R.General.Class.punct = ({overrides: [...xs], subst = null}) => 
+  ({overrides: xs, fallback: [/\p{P}/gv, subst || "·"]});
 
 
-R.General.Class.symbol = ({defs: [...xs], placeholder = null}) => 
-  ({defs: xs, fallback: [/\p{S}/gv, placeholder || "$"]});
+R.General.Class.notPunct = ({overrides: [...xs], subst}) => 
+  ({overrides: xs, fallback: [/[^\p{P}]/gv, subst]});
 
 
-R.General.Class.notSymbol = ({defs: [...xs], placeholder}) => 
-  ({defs: xs, fallback: [/[^\p{S}]/gv, placeholder]});
+R.General.Class.symbol = ({overrides: [...xs], subst = null}) => 
+  ({overrides: xs, fallback: [/\p{S}/gv, subst || "$"]});
 
 
-R.General.Class.space = ({defs: [...xs], placeholder = null}) => 
-  ({defs: xs, fallback: [/\p{Z}/gv, placeholder || "_"]});
+R.General.Class.notSymbol = ({overrides: [...xs], subst}) => 
+  ({overrides: xs, fallback: [/[^\p{S}]/gv, subst]});
 
 
-R.General.Class.notSpace = ({defs: [...xs], placeholder}) => 
-  ({defs: xs, fallback: [/[^\p{Z}]/gv, placeholder]});
+R.General.Class.space = ({overrides: [...xs], subst = null}) => 
+  ({overrides: xs, fallback: [/\p{Z}/gv, subst || "_"]});
 
 
-R.General.Class.control = ({defs: [...xs], placeholder = null}) => 
-  ({defs: xs, fallback: [/\p{C}/gv, placeholder || "¶"]});
+R.General.Class.notSpace = ({overrides: [...xs], subst}) => 
+  ({overrides: xs, fallback: [/[^\p{Z}]/gv, subst]});
 
 
-R.General.Class.notControl = ({defs: [...xs], placeholder}) => 
-  ({defs: xs, fallback: [/[^\p{C}]/gv, placeholder]});
+R.General.Class.control = ({overrides: [...xs], subst = null}) => 
+  ({overrides: xs, fallback: [/\p{C}/gv, subst || "¶"]});
+
+
+R.General.Class.notControl = ({overrides: [...xs], subst}) => 
+  ({overrides: xs, fallback: [/[^\p{C}]/gv, subst]});
 
 
 R.General.generalize = (...classes) => s => {
@@ -6248,7 +6280,7 @@ R.General.generalize = (...classes) => s => {
   for (const _class of classes) {
     s2 = s2.replaceAll(..._class.fallback);
 
-    for (const [rx, sub] of _class.defs) {
+    for (const [rx, sub] of _class.overrides) {
       s3 = s3.replaceAll(rx, sub);
       subs.add(sub);
     }
@@ -6263,6 +6295,9 @@ R.General.generalize = (...classes) => s => {
 
   return {general: s3, abstract: R.dedupe(s3)};
 };
+
+
+R.General.Overrides.digit = [[/\d/g, "#"]];
 
 
 //█████ Context ███████████████████████████████████████████████████████████████
@@ -7090,470 +7125,6 @@ Object.defineProperty(_Set, "currencies", {
 });
 
 
-// conjugation prefixes (verbal)
-
-Object.defineProperty(_Set.deDE, "conjPrefixes", {
-  get() {
-    const s = new Set([
-      "ge",
-    ])
-
-    delete this.conjPrefixes;
-    this.conjPrefixes = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// conjugation suffixes (verbal)
-
-Object.defineProperty(_Set.deDE, "conjSuffixes", {
-  get() {
-    const s = new Set([
-      "e",
-      "t",
-      "en",
-      "et",
-      "st",
-      "te",
-      "end",
-      "eln",
-      "ern",
-      "est",
-      "ten",
-      "tet",
-      "test",
-    ]);
-
-    delete this.conjSuffixes;
-    this.conjSuffixes = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// declination suffixes (nominal)
-
-Object.defineProperty(_Set.deDE, "infinitive", {
-  get() {
-    const s = new Set([
-      "n", "en",
-    ]);
-
-    delete this.infinitive;
-    this.infinitive = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// copula verbs
-
-Object.defineProperty(_Set.deDE, "copulaVerbs", {
-  get() {
-    const s = new Set([
-      "anhören",
-      "bewähren",
-      "bleiben",
-      "darstellen",
-      "enden",
-      "entwickeln",
-      "erscheinen",
-      "erweisen",
-      "fühlen",
-      "gelten",
-      "herausstellen",
-      "klingen",
-      "kommen",
-      "qualifizieren",
-      "riechen",
-      "scheinen",
-      "schmecken",
-      "sehen",
-      "sein",
-      "verstehen",
-      "wandeln",
-      "werden",
-      "wirken",
-      "zeigen",
-    ]);
-
-    delete this.copulaVerbs;
-    this.copulaVerbs = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// separable verbs (insertions)
-Object.defineProperty(_Set.deDE, "sepInsertions", {
-  get() {
-    const s = new Set([
-      "ge", // participle II
-      "zu", // infinitive
-    ]);
-
-    delete this.sepInsertions;
-    this.sepInsertions = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// separable verbs (prefixes)
-
-Object.defineProperty(_Set.deDE, "sepPrefixes", {
-  get() {
-    const s = new Set([
-      "ab",
-      "an",
-      "auf",
-      "aus",
-      "auseinander",
-      "bei",
-      "beisammen",
-      "bloß",
-      "brach",
-      "da",
-      "davor",
-      "dabei",
-      "dafür",
-      "dagegen",
-      "daher",
-      "dahin",
-      "dahinter",
-      "danach",
-      "daneben",
-      "daran",
-      "darauf",
-      "daraus",
-      "darein",
-      "darin",
-      "darüber",
-      "darunter",
-      "dran",
-      "drauf",
-      "draus",
-      "drein",
-      "drin",
-      "drüber",
-      "drunter",
-      "davor",
-      "dazu",
-      "dazwischen",
-      "durch",
-      "ein",
-      "empor",
-      "entgegen",
-      "entlang",
-      "entzwei",
-      "fehl",
-      "fern",
-      "fest",
-      "fort",
-      "frei",
-      "gegen",
-      "gegenüber",
-      "gerade",
-      "gut",
-      "heim",
-      "her",
-      "herab",
-      "heran",
-      "herauf",
-      "heraus",
-      "herbei",
-      "herein",
-      "hernieder",
-      "herüber",
-      "herum",
-      "herunter",
-      "hervor",
-      "herzu",
-      "hin",
-      "hinab",
-      "hinan",
-      "hinauf",
-      "hinaus",
-      "hinein",
-      "hintan",
-      "hintenüber",
-      "hinter",
-      "hinüber",
-      "hinunter",
-      "hinweg",
-      "hinzu",
-      "hoch",
-      "inne",
-      "kaputt",
-      "klar",
-      "klein",
-      "kund",
-      "kurz",
-      "lahm",
-      "lang",
-      "leer",
-      "lieb",
-      "los",
-      "mit",
-      "nach",
-      "nahe",
-      "nieder",
-      "offen",
-      "preis",
-      "quer",
-      "rad",
-      "ran",
-      "rauf",
-      "raus",
-      "rein",
-      "richtig",
-      "rüber",
-      "rum",
-      "runter",
-      "statt",
-      "staub",
-      "teil",
-      "tot",
-      "über",
-      "um",
-      "unter",
-      "vor",
-      "voran",
-      "voraus",
-      "vorbei",
-      "vorher",
-      "vorlieb",
-      "vorweg",
-      "wahr",
-      "weg",
-      "weiter",
-      "wett",
-      "wieder",
-      "zu",
-      "zurecht",
-      "zurück",
-      "zusammen",
-      "zuvor",
-      "zuwider",
-    ]);
-
-    delete this.sepPrefixes;
-    this.sepPrefixes = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// declination suffixes (nominal)
-
-Object.defineProperty(_Set.deDE, "declSuffNom", {
-  get() {
-    const s = new Set([
-      "e", "n", "s", "en", "er", "ern",
-    ]);
-
-    delete this.declSuffNom;
-    this.declSuffNom = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// interfixes (nominal)
-
-Object.defineProperty(_Set.deDE, "interfixes", {
-  get() {
-    const s = new Set([
-      "e", "n", "s", "en", "er", "es", "ens",
-    ]);
-
-    delete this.interfixes;
-    this.interfixes = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-Object.defineProperty(_Set.deDE, "suffNom", {
-  get() {
-    const s = new Set([
-      "ung",
-      "heit",
-      "keit",
-      "schaft",
-      "in",
-      "ei",
-      "tät",
-      "ion",
-      "ie",
-      "ik",
-      "ur",
-      "ade",
-      "age",
-      "anz",
-      "enz",
-      "isse",
-      "itis",
-      "ive",
-      "sis",
-      "er",
-      "ler",
-      "ner",
-      "ling",
-      "ismus",
-      "ist",
-      "ant",
-      "ent",
-      "eur",
-      "oge",
-      "and",
-      "ar",
-      "är",
-      "or",
-      "ig",
-      "chen",
-      "lein",
-      "ment",
-      "um",
-      "at",
-      "ma",
-      "e",
-      "nis",
-      "tum",
-      "sal",
-      "sel",
-    ]);
-
-    delete this.suffNom;
-    this.suffNom = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// declination suffixes (adjectival)
-
-Object.defineProperty(_Set.deDE, "declSuffAdj", {
-  get() {
-    const s = new Set([
-      "e",
-      "er",
-      "es",
-      "em",
-      "en",
-    ]);
-
-    delete this.declSuffAdj;
-    this.declSuffAdj = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// comparation suffixes (adjectival)
-
-Object.defineProperty(_Set.deDE, "compSuffAdj", {
-  get() {
-    const s = new Set([
-      "er",
-      "ere",
-      "ste",
-      "ßte",
-      "erer",
-      "eres",
-      "erem",
-      "eren",
-      "ster",
-      "ßter",
-      "stes",
-      "ßtes",
-      "stem",
-      "ßtem",
-      "sten",
-      "ßten",
-    ]);
-
-    delete this.declSuffAdj;
-    this.declSuffAdj = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// declination suffixes (pronominal)
-
-Object.defineProperty(_Set.deDE, "declSuffPron", {
-  get() {
-    const s = new Set([
-      "e", "m", "n", "r", "s", "em", "en", "er", "es",
-    ]);
-
-    delete this.declSuffPro;
-    this.declSuffPro = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// conjugation/declination elisions (removal) of letters
-
-Object.defineProperty(_Set.deDE, "inflElisions", {
-  get() {
-    const s = new Set([
-      "e", "en",
-    ]);
-
-    delete this.inflElisions;
-    this.inflElisions = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
-// compound noun elision (removal) of letters
-
-Object.defineProperty(_Set.deDE, "compNounElisions", {
-  get() {
-    const s = new Set([
-      "e",
-    ]);
-
-    delete this.compNounElisions;
-    this.compNounElisions = s;
-    return s;
-  },
-
-  configurable: true
-});
-
-
 /*█████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████ COMBINATORS █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -7660,37 +7231,6 @@ _Set.interconvertBy = f => g => s => new Set(f(Array.from(s).map(g)));
 
 
 export const S = {}; // namespace
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-████████████████████████████████████ DATA █████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-S.deDE = {};
-
-
-S.deDE.vowelConsonantRatio = 0.666666667;
-
-
-S.deDE.avgWordLen = 5.5;
-
-
-S.deDE.upperNounLen = 9; // without compounds/Komposita
-
-
-S.PartOfSpeech = {
-  noun: "noun",
-  verb: "verb",
-  adj: "adj",
-  adv: "adv",
-  pron: "pron",
-  conj: "conj",
-  prep: "prep",
-  post: "post", // postposition
-  inter: "inter", // interjection
-  art: "art",
-};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -7887,20 +7427,20 @@ S.splitAscii = s => {
 };
 
 
-//█████ Bigrams ███████████████████████████████████████████████████████████████
+//█████ Retrieval █████████████████████████████████████████████████████████████
 
 
-// query similar words based on bigrams
+// retrieve similar words based on bigrams
 
 
-S.Bigram = {};
+S.Retieve = {};
 
 
 // Word :: Str
 // Bigram :: [Str]
 // Index :: Nat
 // [Word] => Corpus{words: [Bigram], lookup: Map<Str, Set<Index>>}
-S.Bigram.createCorpus = words => {
+S.Retieve.createCorpus = words => {
   const bigrams = words.map(S.bigram),
     lookup = new Map();
 
@@ -7923,18 +7463,23 @@ S.Bigram.createCorpus = words => {
 };
 
 
-/* Query words of a corpus that are similar to a given one using bigrams. The
-comparison is conducted in a case-insensitive manner. Set the lower and upper
-bounds for the allowed length difference between the given and corpus words.
-Match quotient is the quotient of matching bigrams over total bigrams of the
-given word. The result is ordered by score in descending order. Consecutive
-bigram matches yield a higher score than scattered ones. */
+/* Retrieve words of a corpus that are similar to a query word using bigrams.
+The comparison is conducted in a case-insensitive manner.
+
+lenDiff: sets the lower and upper bounds for the allowed length difference
+by calculating the length ratio between the query and the corpus word.
+
+threshold: sets the lower bound of necessary the bigram matches by calculating
+the quotient of matching over total bigrams of the query word.
+
+The result is ordered by score in descending order. Consecutive bigram matches
+yield a higher score than scattered ones. */
 
 // Nat :: Num
 // Word :: Str
 // Corpus{words: [Word], lookup: Map<Str, Set<Index>>}
 // {corpus: Corpus, lenDiff: [Num, Num], threshold: Num} => Word => [{i: Index, score: Nat}]
-S.Bigram.query = ({corpus, lenDiff = [0.75, 1.34], matchQuotient = 0.25}) => word => {
+S.Retieve.query = ({corpus, lenDiff = [0.75, 1.34], threshold = 0.25}) => word => {
   const queryBigram = S.bigram(word.toLowerCase()),
     queryMetas = A.bigram(queryBigram);
 
@@ -7960,7 +7505,7 @@ S.Bigram.query = ({corpus, lenDiff = [0.75, 1.34], matchQuotient = 0.25}) => wor
   const candidates = new Set();
 
   m.forEach((n, i) => {
-    if (n / (queryBigram.length - 1) >= matchQuotient) candidates.add(i);
+    if (n / (queryBigram.length - 1) >= threshold) candidates.add(i);
   });
 
   const results = [], qlen = queryMetas.length;
@@ -8023,7 +7568,7 @@ S.Bigram.query = ({corpus, lenDiff = [0.75, 1.34], matchQuotient = 0.25}) => wor
 };
 
 
-S.Bigram.toStr = bigram => {
+S.Retieve.toStr = bigram => {
   let s = "";
   for (const pair of bigram) s += pair[0];
   s += bigram[bigram.length - 1] [1];
@@ -8036,7 +7581,7 @@ S.Bigram.toStr = bigram => {
 
 S.Diff = reify(strDiff => {
 
-  // retrieve the differences between two strings in a case-insensitive manner
+  // retrieve differences between two strings in a case-insensitive manner
 
   // Nat :: Num
   // IndexedChar :: {char: Str, index: Nat}
@@ -8333,7 +7878,7 @@ S.Diff = reify(strDiff => {
 //█████ Diffing :: Evaluation █████████████████████████████████████████████████
 
 
-// evaluate differences between two strings
+// evaluate differences between two diffed strings
 
 
 S.Diff.Eval = reify(strDiffEval => {
@@ -9559,274 +9104,10 @@ S.Diff.Eval = reify(strDiffEval => {
 });
 
 
-//█████ Decomposition █████████████████████████████████████████████████████████
-
-
-// decompose compound nouns
-
-S.Decomp = reify(decomp => {
-
-
-  const match = (corpus, locale, sub, wkw) => {
-    const diff = S.Diff.retrieve(sub)
-      (S.Bigram.toStr(corpus.bigrams[wkw.index]));
-
-    const evals = S.Diff.Eval.all(diff);
-
-    if (A.sum(evals[0].penalty) >= 10) {
-      const o = S.Diff.stringify(evals[0]);
-      let score = 0;
-
-      if (o.left.mismatches.length) {
-        const mismatchLeft = o.left.mismatches[o.left.mismatches.length - 1];
-
-        // check joint element on the left
-
-        if (mismatchLeft.index + mismatchLeft.sub.length === sub.length
-          && _Set[locale].interfixes.has(mismatchLeft.sub))
-            score += 10 * mismatchLeft.sub.length;
-      }
-
-      if (o.right.mismatches.length) {
-        const mismatchRight = o.right.mismatches[o.right.mismatches.length - 1];
-
-        // check disjoint element on the right
-
-        if (mismatchRight.index + mismatchRight.sub.length === sub.length
-          && S[locale].compNounElision.has(mismatchRight.sub))
-            score += 10 * mismatchRight.sub.length;
-      }
-
-      return A.sum(evals[0].penalty) - score < 10;
-    }
-
-    else return true;
-  };
-
-
-  const matchPrefix = (corpus, locale, candidates, prefixSuffixes, query) => {
-    for (const subs of prefixSuffixes) {
-      const wkws = query(subs[0]);
-
-      if (wkws.length === 0) continue;
-
-      for (const wkw of wkws) {
-        if (match(corpus, locale, subs[0], wkw)) {
-          candidates.push({subs, matches: [{
-            pos: "prefix",
-            score: wkw.score,
-            word: S.Bigram.toStr(corpus.bigrams[wkw.index])
-          }]});
-        }
-      }
-    }
-  };
-
-
-  const matchConsecutiveSuffix = (corpus, locale, candidates, query) => {
-    for (const candidate of candidates) {
-      const wkws = query(candidate.subs[1]);
-
-      if (wkws.length === 0) continue;
-
-      for (const wkw of wkws) {
-        if (match(corpus, locale, candidate.subs[1], wkw)) {
-          candidate.matches.push({
-            pos: "suffix",
-            score: wkw.score,
-            word: S.Bigram.toStr(corpus.bigrams[wkw.index])
-          });
-        }
-      }
-    }
-  };
-
-
-  const matchSuffix = (corpus, locale, candidates, prefixSuffixes, query) => {
-    for (const subs of prefixSuffixes) {
-      const wkws = query(subs[1]);
-
-      if (wkws.length === 0) continue;
-
-      for (const wkw of wkws) {
-        if (match(corpus, locale, subs[1], wkw)) {
-          candidates.push({subs, matches: [{
-            pos: "suffix",
-            score: wkw.score,
-            word: S.Bigram.toStr(corpus.bigrams[wkw.index])
-          }]});
-        }
-      }
-    }
-  };
-
-
-  const matchConsecutiveInfixSuffix = (corpus, locale, candidates, infixSuffixes, query) => {
-    for (const candidate of candidates) {
-      for (const subs of infixSuffixes.get(candidate.subs[0])) {
-        const wkws = query(subs[0]);
-
-        if (wkws.length === 0) continue;
-
-        for (const wkw of wkws) {
-          if (match(corpus, locale, subs[0], wkw)) {
-            const wkws2 = query(subs[1]);
-
-            if (wkws2.length === 0) continue;
-
-            for (const wkw2 of wkws2) {
-              if (match(corpus, locale, subs[1], wkw2)) {
-                candidate.matches.push({
-                  pos: "infix",
-                  score: wkw.score,
-                  word: S.Bigram.toStr(corpus.bigrams[wkw.index])
-                });
-
-                candidate.matches.push({
-                  pos: "suffix",
-                  score: wkw2.score,
-                  word: S.Bigram.toStr(corpus.bigrams[wkw2.index])
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-  };
-
-
-  const matchInfixSuffix = (corpus, locale, candidates, infixSuffixes, query) => {
-    for (const [, xss] of infixSuffixes) {
-      for (const subs of xss) {
-        const wkws = query(subs[0]);
-
-        if (wkws.length === 0) continue;
-
-        for (const wkw of wkws) {
-          if (match(corpus, locale, subs[0], wkw)) {
-            const wkws2 = query(subs[1]);
-
-            if (wkws2.length === 0) continue;
-
-            for (const wkw2 of wkws2) {
-              if (match(corpus, locale, subs[1], wkw2)) {
-                candidates.push({subs, matches: [{
-                  pos: "infix",
-                  score: wkw.score,
-                  word: S.Bigram.toStr(corpus.bigrams[wkw.index])
-                }]});
-              }
-            }
-          }
-        }
-      }
-    }
-  };
-
-
-  const consolidate = candidates => {
-
-    // deduplicate
-
-    const candidates2 = candidates.filter(app(s => o => {
-      const pair = o.matches.reduce((acc, p) => {
-        acc[0] += p.word;
-        acc[1].push(p.word);
-        return acc;
-      }, ["", []]);
-
-      if (s.has(pair[0])) return false;
-
-      else {
-        s.add(pair[0]);
-        _Set.addn(pair[1]) (s);
-        return true;
-      }
-    }) (new Set()));
-
-    return candidates2.map(o => o.matches.reduce((acc, p) =>
-      A.push({pos: p.pos, word: p.word}) (acc), []));
-  };
-
-
-  const sort = candidates => {
-    candidates.sort((o, o2) => {
-      const n = o2.matches.length - o.matches.length;
-
-      return n || o2.matches.reduce((acc, p) => acc += p.score, 0)
-        - o.matches.reduce((acc, p) => acc += p.score, 0)
-    });
-  };
-
-
-  // supported locales: deDE
-
-  decomp.split = ({locale = "deDE", corpus}) => queryWord => {
-    const candidates = [],
-      prefixSuffixes = [],
-      infixSuffixes = new Map();
-
-    // create prefix/suffix and prefix/infix/suffix substring combinations
-
-    for (let i = 3; i < queryWord.length - 2; i++) {
-      const prefix = queryWord.slice(0, i),
-        suffix = queryWord.slice(i);
-
-      prefixSuffixes.push([prefix, suffix]);
-
-      if (suffix.length <= 5) infixSuffixes.set(prefix, []);
-
-      else for (let j = 3; j < suffix.length - 2; j++) {
-        const infix = suffix.slice(0, j),
-          suffix2 = suffix.slice(j);
-
-        if (!infixSuffixes.has(prefix)) infixSuffixes.set(prefix, []);
-        const xs = infixSuffixes.get(prefix);
-        xs.push([infix, suffix2]);
-      }
-    }
-
-    const query = S.Bigram.query({threshold: 0.33, corpus});
-
-    // prefix match
-
-    matchPrefix(corpus, locale, candidates, prefixSuffixes, query);
-
-    // suffix match
-
-    if (candidates.length > 0)
-      matchConsecutiveSuffix(corpus, locale, candidates, query);
-
-    else matchSuffix(corpus, locale, candidates, prefixSuffixes, query);
-
-    sort(candidates);
-
-    // short circuit if prefix and suffix have been detected
-
-    if (candidates[0].matches.length === 2)
-      return consolidate(candidates);
-
-    // infix/suffix matches
-
-    const candidates2 = candidates.filter(p => p.matches[0].pos === "prefix");
-
-    if (candidates2.length > 0)
-      matchConsecutiveInfixSuffix(corpus, locale, candidates2, infixSuffixes, query);
-
-    else matchInfixSuffix(corpus, locale, candidates, infixSuffixes, query);
-
-    sort(candidates);
-
-    return consolidate(candidates);
-  };
-
-
-  return decomp;
-});
-
-
 //█████ Normalizing ███████████████████████████████████████████████████████████
+
+
+// normalize unicode characters
 
 
 S.Norm = {};
@@ -10120,18 +9401,27 @@ If case insensitive string comparison is required, set the `sensitivity`
 property in the option argument to `"accent"`, */
 
 
-S.comparator = locale => opt => s => t =>
-    new Intl.Collator(locale, opt).compare(s, t);
+// ascending order
+
+S.ctor = locale => opt =>
+  new Intl.Collator(locale, opt).compare;
 
 
-S.comparator_ = locale => opt =>
-    new Intl.Collator(locale, opt).compare;
+// descending order
+
+S.ctorDesc = locale => opt => (p, o) =>
+  new Intl.Collator(locale, opt).compare(o, p);
 
 
-S.comparatorDe = S.comparator("de-DE");
+S.ctorObj = ({locale, k}) => opt => (o, p) =>
+  new Intl.Collator(locale, opt).compare(o[k], p[k]);
 
 
-S.comparatorDe_ = S.comparator_("de-DE");
+S.ctorWith = ({locale, f}) => opt => (o, p) =>
+  new Intl.Collator(locale, opt).compare(...f(o, p));
+
+
+S.ctorDe = S.ctor("de-DE");
 
 
 //█████ Casing ████████████████████████████████████████████████████████████████
@@ -10172,8 +9462,8 @@ S.capitalize = word => {
 
 /* Possible casings:
 
-  • common-word: foo
-  • proper-word: Foo
+  • lower-case: foo
+  • sentence-case: Foo
   • camel-case: fooBar or FooBar
   • acronym: FOO
   • arbitrary-case: FOOBar */
@@ -10182,7 +9472,7 @@ S.determineCasing = word => {
   const lc = word.toLowerCase(),
     uc = s.toUpperCase();
 
-  if (lc === word) return "common-word";
+  if (lc === word) return "lower-case";
   else if (uc === word) return "acronym";
   
   else {
@@ -10190,7 +9480,7 @@ S.determineCasing = word => {
 
     for (let i = 0; i < word.length; i++) {
       if (lc[i] !== word[i]) {
-        if (i === 0) guess = "proper-word";
+        if (i === 0) guess = "sentence-case";
         else if (s[i - 1] === "-") continue;
         else if (s[i - 1] === ".") continue;
         else if (s[i - 1] === "'") continue;
@@ -10206,6 +9496,12 @@ S.determineCasing = word => {
     return guess;
   }
 };
+
+
+//█████ Word ██████████████████████████████████████████████████████████████████
+
+
+S.Word = {};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -10722,712 +10018,6 @@ export class Tree {
 
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
-█████████████████████████████████ VALIDATION ██████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-/* Validation is a set of predicate-like types. The result sum type:
-
-  Val.True = {valid: Boolean}
-  Val.False = a => {valid: Boolean, reason: String}
-
-They are composable (a => Validate) to form large validation pipelines. */
-
-
-export const Val = {};
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-████████████████████████████████████ TYPES ████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-Val.True = ({
-  [$]: "Val",
-  [$$]: "Val.True",
-  valid: true,
-  confidence: 1
-});
-
-
-Val.False = reason => ({
-  [$]: "Val",
-  [$$]: "Val.False",
-  valid: false,
-  confidence: 0,
-  reason
-});
-
-
-/* Confidence is encoded by a decimal value between any negative number and one.
-A negative number represents a likely negative validation wheras a positive one
-a likely positive validation. Zero is assumed to be a still positive validation. */
-
-Val.Maybe = confidence => {
-  if (confidence < 0) {
-    return {
-      [$]: "Val",
-      [$$]: "Val.Maybe",
-      valid: false,
-      confidence
-    };
-  }
-
-  else if (confidence > 1) {
-    console.warn("too much confidence");
-    confidence = 1;
-  }
-
-  return {
-    [$]: "Val",
-    [$$]: "Val.Maybe",
-    valid: true,
-    confidence
-  };
-};
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-█████████████████████████████████ COMBINATORS █████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
-
-
-/* TODO:
-batchTotal
-checksum
-cardinality/relation
-order
-structuralIntegrity
-withProp (associate two props)
-withoutProp (disassociate two props)
-objKeys
-includes (arr)
-uri
-creditCard */
-
-
-Val.hasSign = tag => x => {
-  const tag2 = Sign.get(x);
-  if (tag === tag2) return Val.True;
-  else return Val.False(`"${tag}" expected`);
-};
-
-
-Val.withPred = p => x => {
-  const r = p(x);
-  if (r === true) return Val.True;
-  
-  else {
-    if (p.name === "") return Val.False("unmet predicate");
-    else return Val.False(`unmet predicate "${p.name}"`);
-  }
-};
-
-
-Val.withPattern = rx => s => {
-  if (rx.test(s) === true) return Val.True;
-  else return Val.False(`pattern mismatch "${rx.source}"`);
-};
-
-
-Val.value = x => {
-  if (x === undefined) return Val.False("type error");
-  else if (x === null) return Val.False("missing result");
-  else if (x !== x) return Val.False("invalid number");
-  else if (isNaN(x)) return Val.False("invalid date");
-
-  else if (typeof x === "number") {
-    if (!Number.isFinite(x)) return Val.False("infinite number");
-    else if (!Number.isSafeInteger(x)) return Val.False("number out of range");
-    else return Val.True;
-  }
-
-  else return Val.True;
-};
-
-
-Val.empty = x => {
-  const tag = intro(x);
-
-  switch (tag) {
-    case "Array": {
-      if (x.length === 0) return Val.True;
-      break;
-    }
-
-    case "Bigint": {
-      if (x === 0n) return Val.True;
-      break;
-    }
-
-    case "Map":
-    case "WeakMap": {
-      if (x.size === 0) return Val.True;
-      break;
-    }
-
-    case "Number": {
-      if (x === 0) return Val.True;
-      break;
-    }
-      
-    case "Object": {
-      if (Object.keys(x).length === 0) return Val.True;
-      break;
-    }
-      
-    case "Set":
-    case "WeakSet": {
-      if (x.size === 0) return Val.True;
-      break;
-    }
-
-    case "String": {
-      if (x === "") return Val.True;
-      break;
-    }
-    
-    return Val.False("not empty");
-  }
-};
-
-
-//█████ Strings ███████████████████████████████████████████████████████████████
-
-
-Val.ascii = s => {
-  if (new RegExp(S.cat(
-    "^(?:",
-    "[a-z0-9]",
-    "|",
-    R.classes.ascii.punct.s,
-    "|",
-    R.classes.ascii.ctrl.s,
-    ")+$"), "i").test(s))
-      return Val.True;
-
-  else return Val.False("ascii character(s) expected");
-};
-
-
-Val.asciiLetters = s => {
-  if (/^[a-z]$/i.test(s)) return Val.True;
-  else return Val.False("ascii letter(s) expected");
-};
-
-
-Val.asciiLcl = s => {
-  if (/^[a-z]$/.test(s)) return Val.True;
-  else return Val.False("ascii lower-case letter(s) expected");
-};
-
-
-Val.asciiUcl = s => {
-  if (/^[A-Z]$/.test(s)) return Val.True;
-  else return Val.False("ascii upper-case letter(s) expected");
-};
-
-
-Val.latin1 = s => {
-  if (new RegExp(S.cat(
-    "^(?:",
-    R.classes.latin1.letter.s,
-    "|",
-    "\\d",
-    "|",
-    R.classes.latin1.punct.s,
-    "|",
-    R.classes.ascii.ctrl.s,
-    ")+$"), "i").test(s))
-      return Val.True;
-
-  else return Val.False("latin1 characters");
-};
-
-
-Val.latin1Letters = s => {
-  if (new RegExp(`^${R.classes.latin1.letter.s}+$`, "iv").test(s))
-    return Val.True;
-
-  else return Val.False("latin1 letter(s) expected");
-};
-
-
-Val.latin1LcL = s => {
-  if (new RegExp(`^${R.classes.latin1.lcl.s}+$`, "v").test(s))
-    return Val.True;
-
-  else return Val.False("latin1 lower-case letter(s) expected");
-};
-
-
-Val.latin1Ucl = s => {
-  if (new RegExp(`^${R.classes.latin1.ucl.s}+$`, "v").test(s))
-    return Val.True;
-
-  else return Val.False("latin1 upper-case letter(s) expected");
-};
-
-
-Val.utf8Letter = s => {
-  if (/^\p{L}+$/v.test(s)) return Val.True;
-  else return Val.False("utf8 letter(s) expected");
-};
-
-
-Val.utf8Lcl = s => {
-  if (/^\p{Ll}+$/v.test(s)) return Val.True;
-  else return Val.False("utf8 lower-case letter(s) expected");
-};
-
-
-Val.utf8Ucl = s => {
-  if (/^\p{Lu}+$/v.test(s)) return Val.True;
-  else return Val.False("utf8 upper-case letter(s) expected");
-};
-
-
-
-Val.iban = s => {
-  const codeLen = 22;
-
-  const iban = s.toUpperCase(),
-    code = iban.match(/^([A-Z]{2})(\d{2})([A-Z\d]+)$/);
-
-  let digits;
-
-  if (!code || iban.length !== codeLen) return false;
-
-  digits = (code[3] + code[1] + code[2]).replace(/[A-Z]/g, letter => {
-    return letter.charCodeAt(0) - 55;
-  });
-
-  let checksum = digits.slice(0, 2),
-    fragment;
-
-  for (let offset = 2; offset < digits.length; offset += 7) {
-    fragment = String(checksum) + digits.substring(offset, offset + 7);
-    checksum = parseInt(fragment, 10) % 97;
-  }
-
-  return checksum === 1 ? Val.True : Val.False(`invalid iban "${s}"`);
-};
-
-
-Val.bic = s => {
-  if (/^([A-Z]{6}[A-Z2-9][A-NP-Z1-9])(X{3}|[A-WY-Z0-9][A-Z0-9]{2})?$/.test(s))
-    return Val.True;
-
-  else return Val.False(`invalid bic "${s}"`);
-};
-
-
-Val.decimal = s => {
-  if (/[0-9.,\-+e]/.test(s)) return Val.True;
-  else return Val.False("decimal-number character(s) expected");
-};
-
-
-Val.digits = s => {
-  if (/^\d+$/.test(s)) return Val.True;
-  else return Val.False("digit character(s) expected");
-};
-
-
-Val.phone = s => {
-  if (/(\(?([\d \-\)\+\/\(]+){6,}\)?([ .\-–\/]?)([\d]+))/.test(s))
-    return Val.True;
-
-  else return Val.False("phone character(s) expected");
-};
-
-
-Val.poBox = s => {
-  if (/^[\d ]+$/.test(s)) return Val.True;
-  else return Val.False("po-box character(s) expected");
-};
-
-
-Val.properName = s => {
-  if (/^[\p{L} \-'.]+$/v.test(s)) return Val.True;
-  else return Val.False("proper-name character(s) expected");
-};
-
-
-Val.street = s => {
-  if (/^[\p{L}\d \-./]+$/.test(s)) return Val.True;
-  else return Val.False("street character(s) expected");
-};
-
-
-Val.email = s => {
-  if (/^[\p{L}\d\-.@_']+$/.test(s)) return Val.True;
-  else return Val.False("digit character(s) expected");
-};
-
-
-/* Words may include the follwing character:
-  * lower-case letters
-  * upper-case letters only at the beginning and after a special char
-  * the following special chars: -.'& (but not consecutive)
-  * digits only at the beginning and only separated by hyphen */
-
-Val.isWord = s => {
-  let mode = "", offset = 0;
-
-  if (/\d/.test(s[0])) {
-    offset++;
-
-    for (let i = 1; i < s.length; i++) {
-      if (!/\d/.test(s[i])) {
-        if (s[i] === "."
-          || s[i] === "'"
-          || s[i] === "&")
-            return false;
-
-        else break;
-      }
-
-      else if (i + 1 === s.length) return false;
-      else offset++;
-    }
-  }
-
-  if (offset > 0 && s[offset] !== "-") return false;
-
-  if (s[offset] === "-") {
-    offset++;
-
-    if (s[offset] === "-"
-      || s[offset] === "."
-      || s[offset] === "'"
-      || s[offset] === "&")
-        return false;
-
-    else offset++;
-  }
-
-  if (/\p{L}/.test(s[offset])) {
-    for (let i = offset + 1; i < s.length; i++) {
-      if (/\p{Ll}/.test(s[i])) mode = "";
-      
-      else if (/\p{Lu}/.test(s[i])) {
-        if (mode === "") return false;
-        else mode = "";
-      }
-      
-      else if (/\d/.test(s[i])) return false;
-      
-      else if (s[i] === "-"
-        || s[i] === "."
-        || s[i] === "'"
-        || s[i] === "&") {
-          if (mode !== "") return false;
-          else mode = s[i];
-          continue;
-      }
-
-      else return false;
-    }
-  }
-
-  else return false;
-};
-
-
-/* Take a locale, a dictionary of well-known words, a set of abbreviations,
-the right context of the word in question the word itself and determine, if it
-is an abbreviation. */
-
-Val.abbr = ({locale, dict, abbrs, context}) => word => {
-  const word2 = S.replaceChar(".", "") (word);
-
-  // check whether word is a well-known abbreviation
-
-  if (abbrs.has(word2)) return Val.True;
-
-  // check whether word is a normal word
-
-  else if (dict.has(word2.toLowerCase())) return Val.False("normal word");
-
-  else {
-    const score = 0,
-      singlePeriods = R.count(/(?<!\.)\.(?!\.)/g) (word),
-      totalPeriods = S.countChar(".") (word),
-      caps = R.count(/(?<!^)\p{Lu}/gv) (word2),
-      firstCap = /^\p{Lu}/.test(word2),
-      vowels = R.count(RegExp(`${R.classes.latin1.vowels.s}+`, "g")) (word2);
-
-    // filter ellipsis
-
-    if (singlePeriods === 0 && totalPeriods > 0) return Val.False("ellipsis");
-
-    // several single periods whithin a term
-
-    else if (singlePeriods > 1) return Val.Maybe(1);
-
-    // acronym
-
-    else if (caps === word2.length) return Val.Maybe(1);
-    
-    // no vowels
-
-    else if (vowels === 0) return Val.Maybe(1);
-
-    // context (followed by comma)
-
-    else if (context && /^ *,/.test(context)) return Val.Maybe(1);
-
-    // context (followed by lower-case word)
-
-    else if (context && /^ +\p{Ll}/v.test(context)) return Val.Maybe(1);
-
-    else {
-
-      // score derived from the default word length
-
-      const lenScore = S[locale].avgWordLen - (word2.length);
-
-      // score derived from upper-case letters not at the beginning
-
-      const capScore = caps * (firstCap ? 1 : 1.5);
-
-      // score derived from deviation against default vowel-consonant ratio
-
-      const vowelRatio = S[locale].vowelConsonantRatio
-        - (vowels / (word2.length - vowels));
-
-      const vowelRatioScore = vowelRatio > 0 ? vowelRatio * 10 : vowelRatio;
-
-      // score derived from last letter being a consonant
-
-      const finalConsonantScore = new RegExp(R.classes.latin1.vowels.s, "g")
-        .test(word2[word2.length - 1]) ? 0 : 1;
-
-      const finalScore = Alg.expGrowth({maxInput: 10}) (
-        lenScore
-        + capScore
-        + vowelRatioScore
-        + finalConsonantScore);
-
-      return Val.Maybe(finalScore);
-    }
-  }
-};
-
-
-//█████ Numbers ███████████████████████████████████████████████████████████████
-
-
-Val.num = n => {
-  if (typeof n !== "number") throw new Err("number expected");
-  if (!Number.isFinite(n)) return Val.False("finite number expected");
-  if (!Number.isSafeInteger(n)) return Val.False("number out of range");
-  else return Val.True;
-};
-
-
-Val.int = n => {
-  const o = Val.num(n), reasons = [];
-  if (o.valid === false) reasons.push(o.reason);
-  if (n % 1 !== 0) reasons.push("integer expected");
-  
-  if (reasons.length === 0) return Val.True;
-  else return Val.False(reasons.join(", "));
-};
-
-
-Val.nat = n => {
-  const o = Val.num(n), reasons = [];
-  if (o.valid === false) reasons.push(o.reason);
-  if (n <= 0) return Val.False("natural number expected");
-  if (n % 1 !== 0) return Val.False("natural number expected");
-
-  if (reasons.length === 0) return Val.True;
-  else return Val.False(reasons.join(", "));
-};
-
-
-Val.neg = n => {
-  const o = Val.num(n), reasons = [];
-  if (o.valid === false) reasons.push(o.reason);
-  if (n > 0) return Val.False("negative number expected");
-  
-  if (reasons.length === 0) return Val.True;
-  else return Val.False(reasons.join(", "));
-};
-
-
-Val.minNum = min => n => {
-  const o = Val.num(n), reasons = [];
-  if (o.valid === false) reasons.push(o.reason);
-  if (n < min) reasons.push("number too small");
-  
-  if (reasons.length === 0) return Val.True;
-  else return Val.False(reasons.join(", "));
-};
-
-
-Val.maxNum = max => n => {
-  const o = Val.num(n), reasons = [];
-  if (o.valid === false) reasons.push(o.reason);
-  if (n > max) reasons.push("number too small");
-  
-  if (reasons.length === 0) return Val.True;
-  else return Val.False(reasons.join(", "));
-};
-
-
-Val.minPrecision = min => n => {
-  const [, dec] = String(n).split(/\./);
-  if (dec.length >= min) return Val.True;
-  else return Val.False("too few decimal digits");
-};
-
-
-Val.maxPrecision = max => n => {
-  const [, dec] = String(n).split(/\./);
-  if (dec.length <= max) return Val.True;
-  else return Val.False("too many decimal digits");
-};
-
-
-//█████ Object Types ██████████████████████████████████████████████████████████
-
-
-Val.minLen = min => xs => { // also string
-  if ("length" in xs) xs.length >= min ? Val.True : Val.False("too short");
-  else throw new Err("length property expected");
-};
-
-
-Val.maxLen = max => xs => { // also string
-  if ("length" in xs) xs.length <= max ? Val.True : Val.False("too long");
-  else throw new Err("length property expected");
-};
-
-
-Val.isMember = o => o => {
-  if (o.has(o)) return Val.True;
-  else return Val.False(`missing member "${x}"`);
-};
-
-
-Val.isProp = o => k => {
-  if (k in o) return Val.True;
-  else return Val.False(`missing property "${x}"`);
-};
-
-
-Val.minSize = min => o => {
-  if ("size" in o) o.size >= min ? Val.True : Val.False("too short");
-  else throw new Err("size property expected");
-};
-
-
-Val.maxSize = max => o => {
-  if ("size" in o) o.size <= max ? Val.True : Val.False("too long");
-  else throw new Err("size property expected");
-};
-
-
-Val.minDate = min => d => {
-  if (d.getTime() >= min) return Val.True;
-  else return Val.False("date out of range");
-};
-
-
-Val.maxDate = max => d => {
-  if (d.getTime() <= max) return Val.True;
-  else return Val.False("date out of range");
-};
-
-
-//█████ Stateful ██████████████████████████████████████████████████████████████
-
-
-Val.unique = s => x => {
-  if (s.has(x)) return Val.False(`not unique "${x}"`);
-
-  else {
-    s.add(x);
-    return Val.True;
-  }
-};
-
-
-//█████ Composition ███████████████████████████████████████████████████████████
-
-
-Val.and = f => g => x => {
-  const o = f(x), p = g(x), reasons = [];
-
-  if (o.valid === false) reasons.push(o.reason);
-  if (p.valid === false) reasons.push(p.reason);
-
-  if (reasons.length === 0) return Val.True;
-  else return Val.False(reasons.join(", "));
-};
-
-
-Val.all = (...fs) => s => {
-  const reasons = [];
-
-  for (const f of fs) {
-    const o = f(s);
-    if (o.valid === false) reasons.push(o.reason);
-  }
-
-  if (reasons.length === 0) return Val.True;
-  else return Val.False(reasons.join(", "));
-};
-
-
-Val.or = f => g => x => {
-  const o = f(x), p = g(x), reasons = [];
-
-  if (o.valid === false) reasons.push(o.reason);
-  if (p.valid === false) reasons.push(p.reason);
-
-  if (reasons.length <= 1) return Val.True;
-  else return Val.False(reasons.join(", "));
-};
-
-
-Val.any = (...fs) => s => {
-  const reasons = [];
-
-  for (const f of fs) {
-    const o = f(s);
-    if (o.valid === false) reasons.push(o.reason);
-  }
-
-  if (reasons.length < fs.length) return Val.True;
-  else return Val.False(reasons.join(", "));
-};
-
-
-Val.xor = f => g => x => {
-  const o = f(x), p = g(x), reasons = [];
-
-  if (o.valid === false) reasons.push(o.reason);
-  if (p.valid === false) reasons.push(p.reason);
-
-  if (reasons.length === 1) return Val.True;
-  else return Val.False(reasons.join(", "));
-};
-
-
-Val.not = f => x => {
-  const o = f(x);
-  if (o.valid === true) return Val.False("not true");
-  else return Val.True;
-};
-
-
-/*█████████████████████████████████████████████████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████ LINEAR ALGEBRA ████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -11499,6 +10089,12 @@ ignore:
 // calculate the exponent for a given base and result x
 
 Alg.logx = base => x => Math.log(x) / Math.log(base);
+
+
+Alg.log2 = Alg.logx(2);
+
+
+Alg.log3 = Alg.logx(3);
 
 
 //█████ Fractions █████████████████████████████████████████████████████████████
@@ -11621,11 +10217,12 @@ exponential increase in confidence. */
 
 Alg.expGrowth = ({maxInput, slope = 8}) => x => {
   if (slope <= 0) throw Err("slope must be greater than 0");
+  else if (maxInput <= 0) throw Err("max input must be greater than 0");
 
   else {
     const normalizedValue = Math.min(Math.max(x / maxInput, 0), 1),
-      exponent = -slope * (normalizedValue - 0.5),
-      growth = 1 / (1 + Math.exp(exponent));
+      expTerm = -slope * (normalizedValue - 0.5),
+      growth = 1 / (1 + Math.exp(expTerm));
 
     return growth;
   }
@@ -11636,6 +10233,7 @@ Alg.expGrowth = ({maxInput, slope = 8}) => x => {
 
 Alg.asympGrowth = ({maxInput, slope = 5}) => x => {
   if (slope <= 0) throw Err("slope must be greater than 0");
+  else if (maxInput <= 0) throw Err("max input must be greater than 0");
 
   else {
     const expTerm = (Math.min(Math.max(x / maxInput, 0), 1)) * slope,
