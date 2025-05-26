@@ -5265,11 +5265,12 @@ Parser.Invalid = ({value, kind, reason, ...rest}) => ({
 });
 
 
-Parser.Maybe = ({value, kind, ...rest}) => ({
+Parser.Maybe = ({value, kind, confidence, ...rest}) => ({
   [$]: "Parser",
-  [$$]: "Parser.Valid",
+  [$$]: "Parser.Maybe",
   value,
   kind,
+  confidence,
   ...rest
 });
 
@@ -6237,6 +6238,9 @@ R.General.Class.num = ({overrides: [...xs], subst = null}) =>
   ({overrides: xs, fallback: [/\p{N}/gv, subst || "ℕ"]});
 
 
+R.General.Overrides.digit = [[/\d/g, "#"]];
+
+
 R.General.Class.notNum = ({overrides: [...xs], subst}) => 
   ({overrides: xs, fallback: [/[^\p{N}]/gv, subst]});
 
@@ -6295,9 +6299,6 @@ R.General.generalize = (...classes) => s => {
 
   return {general: s3, abstract: R.dedupe(s3)};
 };
-
-
-R.General.Overrides.digit = [[/\d/g, "#"]];
 
 
 //█████ Context ███████████████████████████████████████████████████████████████
@@ -7231,6 +7232,20 @@ _Set.interconvertBy = f => g => s => new Set(f(Array.from(s).map(g)));
 
 
 export const S = {}; // namespace
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+████████████████████████████████████ DATA █████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+S.deDE = {};
+
+
+S.deDE.vowelConsonantRatio = 0.666666667;
+
+
+S.deDE.avgWordLen = 5.5;
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -9502,6 +9517,278 @@ S.determineCasing = word => {
 
 
 S.Word = {};
+
+
+/* Well-formed words may include the follwing character:
+
+  * lower-case letters
+  * upper-case letters only at the beginning and after a special char
+  * the following special chars: -.'& (but not consecutive)
+  * digits only at the beginning and only separated by hyphen */
+
+S.Word.parse = s => {
+  let mode = "", offset = 0;
+
+  if (/\d/.test(s[0])) {
+    offset++;
+
+    for (let i = 1; i < s.length; i++) {
+      if (!/\d/.test(s[i])) {
+        if (s[i] === "."
+          || s[i] === "'"
+          || s[i] === "&") {
+            return Parser.Invalid({
+              value: s,
+              kind: "word",
+              reason: "#· sequence",
+            });
+        }
+
+        else break;
+      }
+
+      else if (i + 1 === s.length) return Parser.Invalid({
+        value: s,
+        kind: "word",
+        reason: "number word",
+      });
+
+      else offset++;
+    }
+  }
+
+  if (offset > 0 && s[offset] !== "-") return Parser.Invalid({
+    value: s,
+    kind: "word",
+    reason: "#L sequence",
+  });
+
+  if (s[offset] === "-") {
+    offset++;
+
+    if (s[offset] === "-"
+      || s[offset] === "."
+      || s[offset] === "'"
+      || s[offset] === "&") {
+        return Parser.Invalid({
+          value: s,
+          kind: "word",
+          reason: "·· sequence",
+        });
+    }
+  }
+
+  if (/\p{L}/v.test(s[offset])) {
+    for (let i = offset + 1; i < s.length; i++) {
+      if (/\p{Ll}/v.test(s[i])) mode = "";
+      
+      else if (/\p{Lu}/v.test(s[i])) {
+        if (i === 0) mode = "";
+
+        else if (mode === "") return Parser.Invalid({
+          value: s,
+          kind: "word",
+          reason: "aA sequence",
+        });
+
+        else mode = "";
+      }
+      
+      else if (/\d/.test(s[i])) return Parser.Invalid({
+        value: s,
+        kind: "word",
+        reason: "L# sequence",
+      });
+      
+      else if (s[i] === "-"
+        || s[i] === "."
+        || s[i] === "'"
+        || s[i] === "&") {
+          if (mode !== "") return Parser.Invalid({
+            value: s,
+            kind: "word",
+            reason: "·· sequence",
+          });
+
+          else mode = s[i];
+          continue;
+      }
+
+      else return Parser.Invalid({
+        value: s,
+        kind: "word",
+        reason: `invalid char "${s[i]}"`,
+      });
+    }
+
+    return Parser.Valid({
+      value: s,
+      kind: "word",
+    });
+  }
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "word",
+    reason: `invalid char "${s[i]}"`,
+  });
+};
+
+
+/* Take a set of well-known abbreviations, trigrams from a general corpus and
+the right context of the given word and determine whether it is an abbreviation.
+Combinator is not suitable for detecting acronyms. */
+
+S.Word.parseAbbr = ({locale, abbrs, trigrams, context}) => abbr => {
+  const abbr2 = S.replaceChar(".", "") (abbr);
+
+  // well-known abbreviation
+
+  if (abbrs.has(abbr2)) return Parser.Valid({value: abbr, kind: "abbr"});
+
+  // check whether it is a normal, written out word
+
+  else {
+    const score = 0,
+      standAlonePeriods = R.count(/(?<!\.)\.(?!\.)/g) (abbr),
+      totalPeriods = S.countChar(".") (abbr),
+      caps = R.count(/\p{Lu}/gv) (abbr2),
+      firstCap = /^\p{Lu}/.test(abbr2);
+
+    const standAloneVowels = R.count(RegExp(
+      `${R.classes.latin1.lcl.s}+|${R.classes.latin1.ucl.s}+`, "g")) (abbr2);
+
+    const vowels = R.count(RegExp(`${R.classes.latin1.vowels.s}`, "g")) (abbr2);
+
+    // filter ellipsis
+
+    if (standAlonePeriods === 0 && totalPeriods > 0) return Parser.Invalid({
+      value: abbr, kind: "abbr", reason: "ellipsis"
+    });
+
+    // several stand-alone periods within a term
+
+    else if (standAlonePeriods > 1) return Parser.Maybe({
+      value: abbr, kind: "abbr", confidence: 1
+    });
+
+    // no vowels
+
+    else if (vowels === 0) return Parser.Maybe({
+      value: abbr, kind: "abbr", confidence: 1
+    });
+
+    // only vowels
+
+    else if (vowels === abbr2.length) return Parser.Maybe({
+      value: abbr, kind: "abbr", confidence: 1
+    });
+
+    // lower-case first letter followed by capitalized ones
+
+    else if (!firstCap && caps > 0) return Parser.Maybe({
+      value: abbr, kind: "abbr", confidence: 1
+    });
+
+    // context (followed by comma)
+
+    else if (context && /^ *,/.test(context)) return Parser.Maybe({
+      value: abbr, kind: "abbr", confidence: 1
+    });
+
+    // context (followed by lower-case word)
+
+    else if (context && /^ +\p{Ll}/v.test(context))return Parser.Maybe({
+      value: abbr, kind: "abbr", confidence: 1
+    });
+
+    else {
+
+      // score derived from the default abbr length
+
+      const lenScore = S[locale].avgWordLen - (abbr2.length);
+
+      // consider trigram deviation
+
+      // TODO
+
+      // score derived from upper-case letters (all-caps get low score)
+
+      const capScore = caps === abbr2.length ? 1 : caps;
+
+      // score derived from deviation against default vowel-consonant ratio
+
+      const vowelRatio = S[locale].vowelConsonantRatio
+        - (standAloneVowels / (abbr2.length - standAloneVowels));
+
+      const vowelRatioScore = vowelRatio > 0 ? vowelRatio * 10 : vowelRatio;
+
+      // score derived from last letter being a consonant
+
+      const finalConsonantScore = new RegExp(R.classes.latin1.vowels.s, "g")
+        .test(abbr2[abbr2.length - 1]) ? 0 : 1;
+
+      const finalScore = Alg.expGrowth({maxInput: 10}) (
+        lenScore
+        + capScore
+        + vowelRatioScore
+        + finalConsonantScore);
+
+      return Parser.Maybe({
+        value: abbr, kind: "abbr", confidence: finalScore
+      });
+    }
+  }
+};
+
+
+// parse part of speech (highly depends on corpus quality of general trigrams)
+
+S.Word.parsePos = trigramDicts => word => {
+  const queryTrigram = S.trigram(word);
+
+  const score = {
+    noun: 0,
+    verb: 0,
+    adj: 0,
+  };
+
+  for (const [pos, trigramDict] of O.entries(trigramDicts)) {
+    for (const triple of queryTrigram) {
+      if (!(pos in score)) throw new Err(`unexpcted pos "${pos}"`);
+      else if (trigramDict.has(triple)) score[pos] += trigramDict.get(triple);
+    }
+  }
+
+  // normalization
+
+  score.noun *= trigramDicts.noun.size;
+  score.verb *= trigramDicts.verb.size;
+  score.adj *= trigramDicts.adj.size;
+
+  const pairs = Object.entries(score)
+    .sort((pair, pair2) => pair2[1] - pair[1]);
+
+  const result = [];
+
+  for (let i = 0; i < pairs.length; i++) {
+    if (i === pairs.length - 1) result.push(Parser.Maybe({
+      value: pairs[i] [0],
+      kind: "pos",
+      confidence: pairs[i] [1],
+      delta: 0,
+    }));
+
+    else result.push(Parser.Maybe({
+      value: pairs[i] [0],
+      kind: "pos",
+      confidence: pairs[i] [1],
+      delta: pairs[i] [1] - pairs[i + 1] [1],
+    }));
+  }
+
+  return result;
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
