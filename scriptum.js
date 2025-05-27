@@ -4190,8 +4190,8 @@ Object.defineProperty(_Map.deDE, "monthsRev", {
       ["Okt", 10], ["Nov", 11], ["Dez", 12],
     ]);
 
-    delete this.months;
-    this.months = m;
+    delete this.monthsRev;
+    this.monthsRev = m;
     return m;
   },
 
@@ -4208,8 +4208,8 @@ Object.defineProperty(_Map.deDE, "weekdays", {
       [1, "Mo"], [2, "Di"], [3, "Mi"], [4, "Do"], [5, "Fr"], [6, "Sa"], [0, "So"],
     ]);
 
-    delete this.months;
-    this.months = m;
+    delete this.weekdays;
+    this.weekdays = m;
     return m;
   },
 
@@ -4226,8 +4226,39 @@ Object.defineProperty(_Map.deDE, "weekdaysRev", {
       ["Mo", 1], ["Di", 2], ["Mi", 3], ["Do", 4], ["Fr", 5], ["Sa", 6], ["So", 0],
     ]);
 
-    delete this.months;
-    this.months = m;
+    delete this.weekdaysRev;
+    this.weekdaysRev = m;
+    return m;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Map.deDE, "generalAlteration", {
+  get() {
+    const m = new Map([
+      ["a", "ä"], ["ä", "a"], ["o", "ö"], ["ö", "o"], ["u", "ü"], ["ü", "u"],
+    ]);
+
+    delete this.generalAlteration;
+    this.generalAlteration = m;
+    return m;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Map.deDE, "nominalAlteration", {
+  get() {
+    const m = new Map([
+      ["A", "Ä"], ["Ä", "A"], ["O", "Ö"], ["Ö", "O"], ["U", "Ü"], ["Ü", "U"],
+      ["a", "ä"], ["ä", "a"], ["o", "ö"], ["ö", "o"], ["u", "ü"], ["ü", "u"],
+    ]);
+
+    delete this.nominalAlteration;
+    this.nominalAlteration = m;
     return m;
   },
 
@@ -7117,8 +7148,98 @@ Object.defineProperty(_Set, "currencies", {
       "EUR", "USD", "CNY", "JPY", "GBP", "INR", "RUB", "TRY", "CHF"
     ]);
 
-    delete this.months;
-    this.months = s;
+    delete this.currencies;
+    this.currencies = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Set.deDE, "nominalInterfixes", {
+  get() {
+    const s = new Set([
+      "e", "n", "s", "en", "er", "es", "ens",
+    ]);
+
+    delete this.nominalInterfixes;
+    this.nominalInterfixes = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Set.deDE, "verbalInterfixes", {
+  get() {
+    const s = new Set([
+      "s", "n", "en", "ge", "zu",
+    ]);
+
+    delete this.verbalInterfixes;
+    this.verbalInterfixes = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Set.deDE, "adjectivalInterfixes", {
+  get() {
+    const s = new Set([
+      "e", "n", "s", "en", "er", "es", "ens",
+    ]);
+
+    delete this.adjectivalInterfixes;
+    this.adjectivalInterfixes = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Set.deDE, "numeralInterfixes", {
+  get() {
+    const s = new Set([
+      "und",
+    ]);
+
+    delete this.numeralInterfixes;
+    this.numeralInterfixes = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Set.deDE, "inflectionElisions", {
+  get() {
+    const s = new Set([
+      "e", "en",
+    ]);
+
+    delete this.inflectionElisions;
+    this.inflectionElisions = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Set.deDE, "compositaElisions", {
+  get() {
+    const s = new Set([
+      "e",
+    ]);
+
+    delete this.compositaElisions;
+    this.compositaElisions = s;
     return s;
   },
 
@@ -7411,6 +7532,14 @@ S.bigram = S.splitChunk({size: 2, overlap: true});
 S.trigram = S.splitChunk({size: 3, overlap: true});
 
 
+S.fromNgram = ngram => {
+  let s = "";
+  for (const t of ngram) s += t[0];
+  s += ngram[ngram.length - 1].slice(1);
+  return s;
+};
+
+
 /* Split at character transitions:
   S.splitChars("abbccc") // yields ["a", "bb", "ccc"] */
 
@@ -7448,14 +7577,14 @@ S.splitAscii = s => {
 // retrieve similar words based on bigrams
 
 
-S.Retieve = {};
+S.Retrieve = {};
 
 
 // Word :: Str
 // Bigram :: [Str]
 // Index :: Nat
-// [Word] => Corpus{words: [Bigram], lookup: Map<Str, Set<Index>>}
-S.Retieve.createCorpus = words => {
+// [Word] => Corpus{bigrams: [Bigram], lookup: Map<Str, Set<Index>>}
+S.Retrieve.createCorpus = words => {
   const bigrams = words.map(S.bigram),
     lookup = new Map();
 
@@ -7484,17 +7613,18 @@ The comparison is conducted in a case-insensitive manner.
 lenDiff: sets the lower and upper bounds for the allowed length difference
 by calculating the length ratio between the query and the corpus word.
 
-threshold: sets the lower bound of necessary the bigram matches by calculating
-the quotient of matching over total bigrams of the query word.
+threshold: sets the lower bound of necessary bigram matches by calculating the
+quotient of matching over total bigrams of the query word.
 
 The result is ordered by score in descending order. Consecutive bigram matches
 yield a higher score than scattered ones. */
 
 // Nat :: Num
 // Word :: Str
-// Corpus{words: [Word], lookup: Map<Str, Set<Index>>}
+// Bigram :: [Str]
+// Corpus{bigrams: [Bigram], lookup: Map<Str, Set<Index>>}
 // {corpus: Corpus, lenDiff: [Num, Num], threshold: Num} => Word => [{i: Index, score: Nat}]
-S.Retieve.query = ({corpus, lenDiff = [0.75, 1.34], threshold = 0.25}) => word => {
+S.Retrieve.query = ({corpus, lenDiff = [0.75, 1.34], threshold = 0.25}) => word => {
   const queryBigram = S.bigram(word.toLowerCase()),
     queryMetas = A.bigram(queryBigram);
 
@@ -7509,9 +7639,10 @@ S.Retieve.query = ({corpus, lenDiff = [0.75, 1.34], threshold = 0.25}) => word =
       corpus.lookup.get(k).forEach(i => {
         const ratio = queryBigram.length / corpus.bigrams[i].length;
         
-        if (ratio >= lenDiff[0] && ratio <= lenDiff[1]) {
-          if (m.has(i)) m.set(i, m.get(i) + 1);
-          else m.set(i, 1);
+        if ((lenDiff[0] === null || ratio >= lenDiff[0])
+          && (lenDiff[1] === null || ratio <= lenDiff[1])) {
+            if (m.has(i)) m.set(i, m.get(i) + 1);
+            else m.set(i, 1);
         }
       });
     }
@@ -7580,14 +7711,6 @@ S.Retieve.query = ({corpus, lenDiff = [0.75, 1.34], threshold = 0.25}) => word =
 
   results.sort((o, p) => p.score - o.score);
   return results;
-};
-
-
-S.Retieve.toStr = bigram => {
-  let s = "";
-  for (const pair of bigram) s += pair[0];
-  s += bigram[bigram.length - 1] [1];
-  return s;
 };
 
 
@@ -9788,6 +9911,49 @@ S.Word.parsePos = trigramDicts => word => {
   }
 
   return result;
+};
+
+
+S.Word.parseProperName = word => {
+/*
+  * signal words:
+    * Herr, Frau, Hr, Fr, Dr, med, jur, rer, nat, phil, oec, ing, Ing,
+      Dipl, hc, Prof, Kfm, Kffr, MA , MSc, BA, BSc, Mag, PD, PhD
+    * Mama, Papa, Oma, Opa, Tante, Onkel, Sohn, Tochter, Bruder, Schwester,
+      Cousin, Cousine, Neffe, Nichte, Ehemann, Ehefrau, Schwiegermutter,
+      Schwiegervater, Gatte, Gattin
+  * preceding signal pos:
+    +pron
+    -conj
+    -num
+    -art
+    -adv
+    -inter
+  * properties
+    * two or more consecutive title case words (except for BOS)
+      * Michael Beck, C.H. Beck
+    * genitive "s" (Becks)
+    * nobility: von, von der, etc.
+    * suffixes:
+      * -mann, -er, -sen, -son, -ke, -ow, -berg, -bach, -hoff, -stein
+      * -burg, -stadt, -dorf, -hausen, -heim, -ingen, -au, -berg, -tal, -furt, -brück, -kirche(n)
+    * no plural, weird flection
+    * rare modification through adjectives: the big Max Mustermann
+    * often include non-latin letters/rare trigrams
+    * burstiness: word rarely appears but if it does, it regularly reappears in this local context
+  */
+};
+
+
+S.Word.splitSentences = s => {
+  // TODO
+  // split at periods/exclamation/question mark but
+    // take abbreviation periods into account
+    // take ellipses into account
+    // take several exclamation/question marks into account?!?
+  // newlines might be considered like implicit periods
+  // trim redundant spaces
+  // encode type of sentence: expressive, interrogative, exclamatory
 };
 
 
