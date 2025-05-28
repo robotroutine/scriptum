@@ -58,7 +58,13 @@ export const Err = Error;
 export const noop = null;
 
 
-export const not_found = -1;
+export const notFound = -1;
+
+
+export const posInf = Number.POSITIVE_INFINITY;
+
+
+export const negInf = Number.NEGATIVE_INFINITY;
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -5323,7 +5329,7 @@ function along with the original string to take the context into account. */
 export const R = RegExp.bind(null);
 
 
-// TODO: replace RegExp
+// TODO: replace RegExp calls
 
 
 R.g = rx => RegExp(rx, "g");
@@ -5684,12 +5690,12 @@ R.searchAllWith = p => rx => s =>
 
 
 R.searchFirst = rx => s => {
-  if (rx.flags.search("g") !== not_found)
+  if (rx.flags.search("g") !== notFound)
     throw new Err("unexpected global flag");
 
   const i = s.search(rx);
 
-  if (i === not_found) return []
+  if (i === notFound) return []
   else return [i];
 };
 
@@ -5920,7 +5926,7 @@ R.matchAllWith = ({p, rx}) => s => Array.from(s.matchAll(rx)).filter(r => {
 
 
 R.matchFirst = rx => s => {
-  if (rx.flags.search("g") !== not_found)
+  if (rx.flags.search("g") !== notFound)
     throw new Err("unexpected global flag");
 
   const r = s.match(rx);
@@ -6023,7 +6029,7 @@ R.replaceAllBy = ({p, f, rx}) => s => {
 
 
 R.replaceFirstWith = ({f, rx}) => s => {
-  if (rx.flags.search("g") !== not_found)
+  if (rx.flags.search("g") !== notFound)
     throw new Err("unexpected global flag");
 
   const r = s.match(rx);
@@ -6058,7 +6064,7 @@ R.replaceFirstBy = ({p, f, rx}) => s => {
 
 
 R.replaceLast = ({sub, rx}) => s => {
-  if (rx.flags.search("g") === not_found)
+  if (rx.flags.search("g") === notFound)
     throw new Err("missing global flag");
 
   const xs = Array.from(s.matchAll(rx));
@@ -6109,7 +6115,7 @@ R.replaceLastBy = ({p, f, rx}) => s => {
 // considers negative indices like native slice does
 
 R.replaceNth = ({i, sub, rx}) => s => {
-  if (rx.flags.search("g") === not_found)
+  if (rx.flags.search("g") === notFound)
     throw new Err("missing global flag");
 
   const xs = Array.from(s.matchAll(rx));
@@ -7419,7 +7425,7 @@ S.replaceSub = (sub, sub2) => s => {
   while (true) {
     i = s.indexOf(sub, j)
 
-    if (i === not_found) break;
+    if (i === notFound) break;
     
     else {
       t += s.substring(j, i);
@@ -7614,7 +7620,7 @@ lenDiff: sets the lower and upper bounds for the allowed length difference
 by calculating the length ratio between the query and the corpus word.
 
 threshold: sets the lower bound of necessary bigram matches by calculating the
-quotient of matching over total bigrams of the query word.
+quotient of matching over total bigrams of the shorter word.
 
 The result is ordered by score in descending order. Consecutive bigram matches
 yield a higher score than scattered ones. */
@@ -7651,7 +7657,11 @@ S.Retrieve.query = ({corpus, lenDiff = [0.75, 1.34], threshold = 0.25}) => word 
   const candidates = new Set();
 
   m.forEach((n, i) => {
-    if (n / (queryBigram.length - 1) >= threshold) candidates.add(i);
+    if (queryBigram.length <= corpus.bigrams[i].length) {
+      if (n / (queryBigram.length - 1) >= threshold) candidates.add(i);
+    }
+
+    else if (n / (corpus.bigrams[i].length - 1) >= threshold) candidates.add(i);
   });
 
   const results = [], qlen = queryMetas.length;
@@ -8280,7 +8290,7 @@ S.Diff.Eval = reify(strDiffEval => {
 
   // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.match11 = _eval => {
-    const go = (o, side, i) => {
+    const pick = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
         side2 = ({left: "right", right: "left"}) [side],
         xs = [];
@@ -8336,10 +8346,10 @@ S.Diff.Eval = reify(strDiffEval => {
 
     for (const o of os) {
       for (let i = 0; i < _eval.left.mismatches.length; i++)
-        candidates.push(...go(o, "left", i));
+        candidates.push(...pick(o, "left", i));
 
       for (let i = 0; i < _eval.right.mismatches.length; i++)
-        candidates.push(...go(o, "right", i));
+        candidates.push(...pick(o, "right", i));
     }
 
     if (candidates.length === 0) return [empty(_eval)];
@@ -8349,7 +8359,7 @@ S.Diff.Eval = reify(strDiffEval => {
 
   // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.matchFirst12 = _eval => {
-    const go = (o, side, i) => {
+    const pick = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i];
 
       if (mismatch.char === o.letters[0]) {
@@ -8388,10 +8398,10 @@ S.Diff.Eval = reify(strDiffEval => {
 
     for (const o of os) {
       for (let i = 0; i < _eval.left.mismatches.length; i++)
-        candidates.push(...go(o, "left", i));
+        candidates.push(...pick(o, "left", i));
 
       for (let i = 0; i < _eval.right.mismatches.length; i++)
-        candidates.push(...go(o, "right", i));
+        candidates.push(...pick(o, "right", i));
     }
 
     if (candidates.length === 0) return [empty(_eval)];  
@@ -8401,7 +8411,7 @@ S.Diff.Eval = reify(strDiffEval => {
 
   // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.matchSecond12 = _eval => {
-    const go = (o, side, i) => {
+    const pick = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i];
 
       if (mismatch.char === o.letters[0]) {
@@ -8449,10 +8459,10 @@ S.Diff.Eval = reify(strDiffEval => {
 
     for (const o of os) {
       for (let i = 0; i < _eval.left.mismatches.length; i++)
-        candidates.push(...go(o, "left", i));
+        candidates.push(...pick(o, "left", i));
 
       for (let i = 0; i < _eval.right.mismatches.length; i++)
-        candidates.push(...go(o, "right", i));
+        candidates.push(...pick(o, "right", i));
     }
 
     if (candidates.length === 0) return [empty(_eval)];
@@ -8462,7 +8472,7 @@ S.Diff.Eval = reify(strDiffEval => {
 
   // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.mismatch12 = _eval => {
-    const go = (o, side, i) => {
+    const pick = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
         side2 = ({left: "right", right: "left"}) [side],
         xs = [];
@@ -8535,10 +8545,10 @@ S.Diff.Eval = reify(strDiffEval => {
 
     for (const o of os) {
       for (let i = 0; i < _eval.left.mismatches.length; i++)
-        candidates.push(...go(o, "left", i));
+        candidates.push(...pick(o, "left", i));
 
       for (let i = 0; i < _eval.right.mismatches.length; i++)
-        candidates.push(...go(o, "right", i));
+        candidates.push(...pick(o, "right", i));
     }
 
     if (candidates.length === 0) return [empty(_eval)];
@@ -8548,7 +8558,7 @@ S.Diff.Eval = reify(strDiffEval => {
 
   // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.matchFirst22 = _eval => {
-    const go = (o, side, i) => {
+    const pick = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
         side2 = ({left: "right", right: "left"}) [side],
         xs = [];
@@ -8606,10 +8616,10 @@ S.Diff.Eval = reify(strDiffEval => {
 
     for (const o of os) {
       for (let i = 0; i < _eval.left.mismatches.length; i++)
-        candidates.push(...go(o, "left", i));
+        candidates.push(...pick(o, "left", i));
 
       for (let i = 0; i < _eval.right.mismatches.length; i++)
-        candidates.push(...go(o, "right", i));
+        candidates.push(...pick(o, "right", i));
     }
 
     if (candidates.length === 0) return [empty(_eval)];
@@ -8619,7 +8629,7 @@ S.Diff.Eval = reify(strDiffEval => {
 
   // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.matchSecond22 = _eval => {
-    const go = (o, side, i) => {
+    const pick = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
         side2 = ({left: "right", right: "left"}) [side],
         xs = [];
@@ -8677,10 +8687,10 @@ S.Diff.Eval = reify(strDiffEval => {
 
     for (const o of os) {
       for (let i = 0; i < _eval.left.mismatches.length; i++)
-        candidates.push(...go(o, "left", i));
+        candidates.push(...pick(o, "left", i));
 
       for (let i = 0; i < _eval.right.mismatches.length; i++)
-        candidates.push(...go(o, "right", i));
+        candidates.push(...pick(o, "right", i));
     }
 
     if (candidates.length === 0) return [empty(_eval)];
@@ -8690,7 +8700,7 @@ S.Diff.Eval = reify(strDiffEval => {
 
   // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.mismatch22 = _eval => {
-    const go = (o, side, i) => {
+    const pick = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
         side2 = ({left: "right", right: "left"}) [side],
         xs = [];
@@ -8749,10 +8759,10 @@ S.Diff.Eval = reify(strDiffEval => {
 
     for (const o of os) {
       for (let i = 0; i < _eval.left.mismatches.length; i++)
-        candidates.push(...go(o, "left", i));
+        candidates.push(...pick(o, "left", i));
 
       for (let i = 0; i < _eval.right.mismatches.length; i++)
-        candidates.push(...go(o, "right", i));
+        candidates.push(...pick(o, "right", i));
     }
 
     if (candidates.length === 0) return [empty(_eval)];
@@ -8762,7 +8772,7 @@ S.Diff.Eval = reify(strDiffEval => {
 
   // S.Diff.Eval => [S.Diff.Eval]
   strDiffEval.mismatch13 = _eval => {
-    const go = (o, side, i) => {
+    const pick = (o, side, i) => {
       const mismatch = _eval[side].mismatches[i],
         side2 = ({left: "right", right: "left"}) [side],
         xs = [];
@@ -8820,10 +8830,10 @@ S.Diff.Eval = reify(strDiffEval => {
 
     for (const o of os) {
       for (let i = 0; i < _eval.left.mismatches.length; i++)
-        candidates.push(...go(o, "left", i));
+        candidates.push(...pick(o, "left", i));
 
       for (let i = 0; i < _eval.right.mismatches.length; i++)
-        candidates.push(...go(o, "right", i));
+        candidates.push(...pick(o, "right", i));
     }
 
     if (candidates.length === 0) return [empty(_eval)];
@@ -9759,8 +9769,8 @@ S.Word.parse = s => {
 
 
 /* Take a set of well-known abbreviations, trigrams from a general corpus and
-the right context of the given word and determine whether it is an abbreviation.
-Combinator is not suitable for detecting acronyms. */
+the right string context of the given word and determine whether it is an
+abbreviation. The combinator is not meant to detecting acronyms. */
 
 S.Word.parseAbbr = ({locale, abbrs, trigrams, context}) => abbr => {
   const abbr2 = S.replaceChar(".", "") (abbr);
@@ -9865,7 +9875,10 @@ S.Word.parseAbbr = ({locale, abbrs, trigrams, context}) => abbr => {
 };
 
 
-// parse part of speech (highly depends on corpus quality of general trigrams)
+/* Parse part of speech. A part of speech category is assigned by the degree
+of conformity of the word's trigrams with the distribution of trigrams of a
+category. Another factor is the order of word types in the context of the given
+word, provided their part of speech is already known. */
 
 S.Word.parsePos = trigramDicts => word => {
   const queryTrigram = S.trigram(word);
@@ -9910,6 +9923,8 @@ S.Word.parsePos = trigramDicts => word => {
     }));
   }
 
+  // TODO: incorporate context (pos order)
+
   return result;
 };
 
@@ -9942,6 +9957,239 @@ S.Word.parseProperName = word => {
     * often include non-latin letters/rare trigrams
     * burstiness: word rarely appears but if it does, it regularly reappears in this local context
   */
+};
+
+
+/* Split compound nouns, verbs, adjectives, and numerals unsing a corpus of
+well-known words. */
+
+S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
+  const reconstructInfix = (prefix, infix, suffix, interfixes, elisions, decompositions) => {
+    if (interfixes.has(infix)) 
+      decompositions.push({prefix, infix: "", suffix, remainder: ""});
+
+    else {
+      const infixes = [infix];
+
+      // remove left or right and left/right interfixes
+
+      for (const interfix of interfixes) {
+        infixes.forEach(infix2 => {
+          if(infix2.startsWith(interfix) && infix2.length > interfix.length) {
+            infixes.push(infix2.slice(interfix.length));
+
+            if(infix2.endsWith(interfix) && infix2.length > 2 * interfix.length)
+              infixes.push(infix2.slice(interfix.length, -interfix.length));
+          }
+
+          if(infix2.endsWith(interfix) && infix2.length > interfix.length)
+            infixes.push(infix2.slice(0, -interfix.length));
+        });
+      }
+
+      // add composita elision
+
+      infixes.forEach(infix2 => {
+        for (const elision of elisions) {
+          infixes.push(infix2 + elision);
+        }
+      });
+
+      // reconstruct infix
+
+      for (const infix2 of infixes) {
+        const infixCandidates = S.Retrieve.query({corpus}) (infix2);
+        let wellKnownInfix = false;
+
+        for (const infixCandidate of infixCandidates) {
+          const infixCandidate2 = S.fromNgram(corpus.bigrams[infixCandidate.index]),
+            infixEval = S.Diff.Eval.all(S.Diff.retrieve(infix2) (infixCandidate2));
+
+          if (A.sum(infixEval[0].penalty) <= 1) {
+            decompositions.push({prefix, infix: infixCandidate2, suffix, remainder: ""});
+            wellKnownInfix = true;
+          }
+        }
+
+        if (!wellKnownInfix)
+          decompositions.push({prefix, infix: "", suffix, remainder: infix});
+      }
+    }
+  };
+
+  const prefixes = [], suffixes = [];
+
+  const candidates = S.Retrieve.query(
+    {corpus, lenDiff: [1.2, null]}) (queryWord);
+
+  // retrieve prefixes/suffixes
+
+  for (const candidate of candidates) {
+    const corpusWord = S.fromNgram(corpus.bigrams[candidate.index]),
+      queryPrefix = queryWord.slice(0, corpusWord.length),
+      querySuffix = queryWord.slice(-(corpusWord.length)),
+      prefixEval = S.Diff.Eval.all(S.Diff.retrieve(queryPrefix) (corpusWord)),
+      suffixEval = S.Diff.Eval.all(S.Diff.retrieve(querySuffix) (corpusWord)),
+      prefixPenalty = prefixEval.length ? A.sum(prefixEval[0].penalty) : posInf,
+      suffixPenalty = suffixEval.length ? A.sum(suffixEval[0].penalty) : posInf;
+
+    // match prefix
+
+    if (prefixPenalty < 10) prefixes.push(corpusWord);
+
+    else if (prefixPenalty < 30) {
+      if (prefixEval[0].reason.includes("remainder")) {
+        const o = prefixEval[0].left.mismatches.length
+          ? prefixEval[0].left.mismatches[0]
+          : prefixEval[0].right.mismatches[0];
+
+        if ((o.char === queryPrefix[queryPrefix.length - 1]
+          || o.char === queryWord[queryPrefix.length])
+          && o.index >= queryPrefix.length - 2)
+            prefixes.push(corpusWord);
+      }
+    }
+
+    // match suffix
+
+    if (suffixPenalty < 10) suffixes.push(corpusWord);
+
+    else if (suffixPenalty < 30) {
+      if (suffixEval[0].reason.includes("remainder")) {
+        const o = suffixEval[0].left.mismatches[0];
+
+        if ((o.char === querySuffix[0]
+          || o.char === queryWord[queryWord.length - querySuffix.length - 1])
+          && o.index <= 1)
+            suffixes.push(corpusWord);
+      }
+    }
+  }
+
+  // derive infix from prefix/suffix pair
+
+  const decompositions = [];
+
+  if (prefixes.length ^ suffixes.length) {
+    if (prefixes.length) prefixes.forEach(prefix => {
+      decompositions.push({
+        prefix,
+        infix: "",
+        suffix: "",
+        remainder: queryWord.slice(prefix.length)
+      });
+    });
+
+    else suffixes.forEach(suffix => {
+      decompositions.push({
+        prefix: "",
+        infix: "",
+        suffix,
+        remainder: queryWord.slice(0, -suffix.length)
+      });
+    });
+  }
+
+  else for (const prefix of prefixes) {
+    for (const suffix of suffixes) {
+      if (prefix.length + suffix.length < queryWord.length) {
+        let infix = queryWord;
+
+        infix = infix.slice(prefix.length);
+        infix = infix.slice(0, -suffix.length);
+
+        // check for interfixes
+
+        if (pos === "noun") {
+          reconstructInfix(
+            prefix,
+            infix,
+            suffix,
+            _Set[locale].nominalInterfixes,
+            _Set[locale].compositaElisions,
+            decompositions);
+        }
+
+        else if (pos === "verb") {
+          reconstructInfix(
+            prefix,
+            infix,
+            suffix,
+            _Set[locale].verbalInterfixes,
+            _Set[locale].compositaElisions,
+            decompositions);
+        }
+
+        else if (pos === "adj") {
+          reconstructInfix(
+            prefix,
+            infix,
+            suffix,
+            _Set[locale].adjectivalInterfixes,
+            _Set[locale].compositaElisions,
+            decompositions);
+        }
+
+        else if (pos === "num") {
+          reconstructInfix(
+            prefix,
+            infix,
+            suffix,
+            _Set[locale].numeralInterfixes,
+            _Set[locale].compositaElisions,
+            decompositions);
+        }
+      }
+
+      else if (prefix.length + suffix.length === queryWord.length) {
+        decompositions.push({
+          prefix,
+          infix: "",
+          suffix,
+          remainder: ""
+        });
+      }
+
+      else {
+        decompositions.push({
+          prefix,
+          infix: "",
+          suffix: "",
+          remainder: queryWord.slice(prefix.length)
+        });
+
+        decompositions.push({
+          prefix: "",
+          infix: "",
+          suffix,
+          remainder: queryWord.slice(0, -suffix.length)
+        });
+      }
+    }
+  }
+
+  if (decompositions.length === 0) return decompositions;
+  else if (decompositions.length === 1) return decompositions;
+
+  // select result set
+
+  else {
+
+    // dedupe decompositions
+
+    const m = decompositions.reduce((acc, o) => {
+      const k = `${o.prefix}/${o.infix}/${o.suffix}`;
+      if (!acc.has(k)) acc.set(k, o);
+      return acc;
+    }, new Map);
+
+    const xs = Array.from(m).map(([, o]) => o);
+
+    const pair = A.partition(o => o.remainder.length === 0) (xs);
+
+    if (pair[0].length) return pair[0];
+    else return pair[1];
+  }
 };
 
 
