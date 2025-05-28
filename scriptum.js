@@ -1727,14 +1727,14 @@ A.all = p => xs => {
 
 
 A.min = xs => {
-  let m = Number.POSITIVE_INFINITY
+  let m = posInf;
   for (const n of xs) if (n < m) m = n;
   return m;
 };
 
 
 A.max = xs => {
-  let m = Number.NEGATIVE_INFINITY
+  let m = negInf;
   for (const n of xs) if (n > m) m = n;
   return m;
 };
@@ -5310,6 +5310,91 @@ Parser.Maybe = ({value, kind, confidence, ...rest}) => ({
   confidence,
   ...rest
 });
+
+
+//█████ Combinators ███████████████████████████████████████████████████████████
+
+
+// compose two parsers but short circuit if the first fails
+
+Parser.and = f => g => x => {
+  const o = f(x);
+  if (o[$$] === "Parser.Valid") return g(o.value);
+  else return o;
+};
+
+
+// compose all parsers but short circuit as soon as one fails
+
+Parser.all = (...fs) => {
+  // TODO
+};
+
+
+// compose two parsers but short circuit if the first succeeds
+
+Parser.or = f => g => x => {
+  const o = f(x);
+  if (o[$$] === "Parser.Valid") return o;
+  else return g(x);
+};
+
+
+// short circuit as soon as the first parser succeeds
+
+Parser.any = (...fs) => {
+  // TODO
+};
+
+
+//█████ Numbers ███████████████████████████████████████████████████████████████
+
+
+Parser.num = n => {
+  if (typeof n !== "number") Parser.Invalid({
+    value: n,
+    kind: "number",
+    reason: "not of type number",
+  });
+
+  if (!Number.isFinite(n)) return Parser.Invalid({
+    value: n,
+    kind: "number",
+    reason: "infinite number",
+  });
+
+  if (!Number.isSafeInteger(n)) return Parser.Invalid({
+    value: n,
+    kind: "number",
+    reason: "number out of range",
+  });
+
+  else return Parser.Valid({
+    value: n,
+    kind: "number",
+    reason: "not of type number",
+  });
+};
+
+
+Parser.int = n => {
+  const o = Parser.num(n);
+
+  if (o[$$] === "Parser.Valid") {
+    if (n % 1 !== 0) return Parser.Invalid({
+      value: n,
+      kind: "integer",
+      reason: "decimal number received",
+    });
+    
+    else return Parser.Valid({
+      value: n,
+      kind: "integer",
+    });
+  }
+
+  else return o;
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
