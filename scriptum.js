@@ -549,6 +549,11 @@ export const app = f => x => f(x);
 export const appr = x => f => f(x);
 
 
+// take x that represents a state and return a styteful function
+
+export const fstate = appr;
+
+
 // flipped arguments
 
 export const appf = (f, y) => x => f(x) (y);
@@ -721,7 +726,7 @@ class PatternMatch {
     
     else return this.r;
   }
-}
+};
 
 
 export const pattern = o => new PatternMatch(o);
@@ -1162,7 +1167,7 @@ export const Lazy = ({tag, cons = tag}) => thunk => {
       super(message);
       this.name = "LazyError";
     }
-  }
+  };
 
   const forceEval = target => {
     if (target.evaluating) throw new LazyError("cyclic lazy evaluation");
@@ -1437,6 +1442,24 @@ A.tails = xs => {
 };
 
 
+// filter all indices that contain x
+
+A.filterIndices = x => xs => {
+  const is = [];
+
+  for (let i = xs.indexOf(x); i !== -1; i = xs.indexOf(x, i + 1))
+    is.push(i);
+
+  return is;
+};
+
+
+A.filterIndicesWith = p => xs => xs.reduce((acc, x, i) => {
+  if (p(x, i)) acc.push(i);
+  return acc;
+}, []);
+
+
 // use native slice for take
 
 A.takeWhile = p => xs => Loop2((acc, i) => {
@@ -1536,15 +1559,6 @@ A.focus = ({from, to}) => xs => {
     defineProperty: (ys, prop, descriptor) => false,
     deleteProperty: (ys, prop) => false,
   });
-};
-
-
-A.isIndex = x => {
-  const tag = typeof x;
-
-  if (tag === "string" && /^\d+$/.test(x)) return true;
-  else if (tag === "number" && Number.isInteger(x)) return true;
-  else return false;
 };
 
 
@@ -1828,17 +1842,17 @@ A.fromCsv = ({
 
   const csv2 = csv
     .trim()
-    .replaceAll(new RegExp(`(?<=${sep}|^)${delim}{2}(?=${sep}|$)`, "gmv"), "") 
-    .replaceAll(new RegExp(`${delim}{3}`, "gv"), "<delim/>") 
-    .replaceAll(new RegExp(
+    .replaceAll(R(`(?<=${sep}|^)${delim}{2}(?=${sep}|$)`, "gmv"), "") 
+    .replaceAll(R.gv(`${delim}{3}`), "<delim/>") 
+    .replaceAll(R(
       `((?:${sep}|^)${delim})([^${delim}\n]+)(${delim}(?:${sep}|$))`, "gmv"), (...args) => {
-        let s = args[2].replaceAll(new RegExp(sep, "g"), "<sep/>");
+        let s = args[2].replaceAll(R.g(sep), "<sep/>");
         if (args[1].startsWith(sep)) s = sep + s;
         if (args[3].endsWith(sep)) s += sep;
         return s;
       });
 
-  if (new RegExp(delim, "g").test(csv2)) throw new Err("malformed delimiter")
+  if (R.g(delim).test(csv2)) throw new Err("malformed delimiter")
 
   o.table = csv2
     .replaceAll(/<delim\/>/g, delim)
@@ -1976,18 +1990,22 @@ A.span = p => xs => {
 };
 
 
-// variant that takes the current and next element into account
+/* Variant that takes the current and next element into account. You can also
+apply span with a stateful predicate: `A.span(fstate("") (state => x => ..))`. */
 
 A.span2 = p => xs => {
-  const ys = [];
+  if (xs.length === 0) return [[], []];
 
-  for (let i = 0; i < xs.length - 1; i++) {
-    if (i === 0) ys.push(xs[i]);
-    else if (p(xs[i], xs[i + 1])) ys.push(xs[i]);
-    else break;
+  else {
+    const ys = [xs[0]];
+
+    for (let i = 1; i < xs.length - 1; i++) {
+      if (p(xs[i - 1], xs[i])) ys.push(xs[i]);
+      else break;
+    }
+
+    return [ys, xs.slice(ys.length)];
   }
-
-  return [ys, xs.slice(ys.length)];
 };
 
 
@@ -4241,10 +4259,10 @@ Object.defineProperty(_Map.deDE, "weekdaysRev", {
 });
 
 
-Object.defineProperty(_Map.deDE, "generalAlteration", {
+Object.defineProperty(_Map.deDE, "generalAlterations", {
   get() {
     const m = new Map([
-      ["a", "ä"], ["ä", "a"], ["o", "ö"], ["ö", "o"], ["u", "ü"], ["ü", "u"],
+      ["ä", "a"], ["ö", "o"], ["ü", "u"],
     ]);
 
     delete this.generalAlteration;
@@ -4256,11 +4274,11 @@ Object.defineProperty(_Map.deDE, "generalAlteration", {
 });
 
 
-Object.defineProperty(_Map.deDE, "nominalAlteration", {
+Object.defineProperty(_Map.deDE, "nominalAlterations", {
   get() {
     const m = new Map([
-      ["A", "Ä"], ["Ä", "A"], ["O", "Ö"], ["Ö", "O"], ["U", "Ü"], ["Ü", "U"],
-      ["a", "ä"], ["ä", "a"], ["o", "ö"], ["ö", "o"], ["u", "ü"], ["ü", "u"],
+      ["Ä", "A"], ["Ö", "O"], ["Ü", "U"],
+      ["ä", "a"], ["ö", "o"], ["ü", "u"],
     ]);
 
     delete this.nominalAlteration;
@@ -5102,7 +5120,7 @@ Num.formatFrac = digits => n =>
 Num.formatInt = sep => n =>
   String(Math.trunc(n))
     .replace(/^-/, "")
-    .replaceAll(new RegExp("(\\d)(?=(?:\\d{3})+$)", "g"), `$1${sep}`);
+    .replaceAll(R.g("(\\d)(?=(?:\\d{3})+$)"), `$1${sep}`);
 
 
 Num.formatSign = ({pos, neg}) => n =>
@@ -5315,7 +5333,7 @@ Parser.Maybe = ({value, kind, confidence, ...rest}) => ({
 //█████ Combinators ███████████████████████████████████████████████████████████
 
 
-// compose two parsers but short circuit if the first fails
+// take two parsers but short circuit if the first fails
 
 Parser.and = f => g => x => {
   const o = f(x);
@@ -5324,14 +5342,21 @@ Parser.and = f => g => x => {
 };
 
 
-// compose all parsers but short circuit as soon as one fails
+// take many parsers but short circuit as soon as one fails
 
-Parser.all = (...fs) => {
-  // TODO
+Parser.all = (...fs) => x => {
+  let o = {value: x};
+
+  for (const f of fs) {
+    o = f(o.value);
+    if (x[$$] === "Parser.Invalid") return o;
+  }
+
+  return o;
 };
 
 
-// compose two parsers but short circuit if the first succeeds
+// take two parsers but short circuit if the first succeeds
 
 Parser.or = f => g => x => {
   const o = f(x);
@@ -5340,10 +5365,30 @@ Parser.or = f => g => x => {
 };
 
 
-// short circuit as soon as the first parser succeeds
+// take many parsers but short circuit as soon as the first parser succeeds
 
 Parser.any = (...fs) => {
-  // TODO
+  let o = {value: x};
+
+  for (const f of fs) {
+    o = f(o.value);
+    if (x[$$] === "Parser.Valid") return o;
+  }
+
+  return o;
+};
+
+
+Parser.reject = reason => x => Parser.Invalid({
+  value: x,
+  kind: "reject",
+  reason,
+});
+
+
+Parser.satisfy = ({p, kind, reason}) => x => {
+  if (p(x)) return Parser.Valid({value: x, kind});
+  else return Parser.Invalid({value: x, kind, reason});
 };
 
 
@@ -5397,6 +5442,122 @@ Parser.int = n => {
 };
 
 
+Parser.nat = n => {
+  const o = Parser.int(n);
+
+  if (o[$$] === "Parser.Valid") {
+    if (n === 0) return Parser.Invalid({
+      value: n,
+      kind: "natrual number",
+      reason: "zero received",
+    });
+
+    else if (n < 0) return Parser.Invalid({
+      value: n,
+      kind: "natrual number",
+      reason: "negative number received",
+    });
+    
+    else return Parser.Valid({
+      value: n,
+      kind: "natrual number",
+    });
+  }
+
+  else return o;
+};
+
+
+Parser.neg = n => {
+  const o = Parser.num(n);
+
+  if (o[$$] === "Parser.Valid") {
+    if (n === 0) return Parser.Invalid({
+      value: n,
+      kind: "negative number",
+      reason: "zero received",
+    });
+
+    else if (n > 0) return Parser.Invalid({
+      value: n,
+      kind: "negative number",
+      reason: "positive number received",
+    });
+    
+    else return Parser.Valid({
+      value: n,
+      kind: "negative number",
+    });
+  }
+
+  else return o;
+};
+
+
+Parser.min = min => n => {
+  if (n < min) return Parser.Invalid({
+    value: n,
+    kind: "min number",
+    reason: "below threshold",
+  });
+
+  else return Parser.Valid({
+    value: n,
+    kind: "min number",
+  });
+};
+
+
+Parser.max = max => n => {
+  if (n > max) return Parser.Invalid({
+    value: n,
+    kind: "max number",
+    reason: "above threshold",
+  });
+
+  else return Parser.Valid({
+    value: n,
+    kind: "max number",
+  });
+};
+
+
+// minimal decimal places
+
+Parser.minDec = min => n => {
+  const [, dec] = String(n).split(/\./);
+  
+  if (dec.length < min) return Parser.Invalid({
+    value: n,
+    kind: "min precision",
+    reason: "below threshold",
+  });
+
+  else return Parser.Valid({
+    value: n,
+    kind: "min precision",
+  });
+};
+
+
+// maximal decimal places
+
+Parser.maxDec = max => n => {
+  const [, dec] = String(n).split(/\./);
+  
+  if (dec.length < min) return Parser.Invalid({
+    value: n,
+    kind: "max precision",
+    reason: "above threshold",
+  });
+
+  else return Parser.Valid({
+    value: n,
+    kind: "max precision",
+  });
+};
+
+
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 █████████████████████████████ REGULAR EXPRESSIONS █████████████████████████████
@@ -5414,28 +5575,34 @@ function along with the original string to take the context into account. */
 export const R = RegExp.bind(null);
 
 
-// TODO: replace RegExp calls
+R.g = rx => new RegExp(rx, "g");
 
 
-R.g = rx => RegExp(rx, "g");
+R.i = rx => new RegExp(rx, "i");
 
 
-R.i = rx => RegExp(rx, "i");
+R.v = rx => new RegExp(rx, "v");
 
 
-R.v = rx => RegExp(rx, "v");
+R.gi = rx => new RegExp(rx, "gi");
 
 
-R.gi = rx => RegExp(rx, "gi");
+R.gv = rx => new RegExp(rx, "gv");
 
 
-R.gv = rx => RegExp(rx, "gv");
+R.iv = rx => new RegExp(rx, "iv");
 
 
-R.iv = rx => RegExp(rx, "iv");
+R.giv = rx => new RegExp(rx, "giv");
 
 
-R.giv = rx => RegExp(rx, "giv");
+R.gu = rx => new RegExp(rx, "gu");
+
+
+R.iu = rx => new RegExp(rx, "iu");
+
+
+R.giu = rx => new RegExp(rx, "giu");
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -5937,7 +6104,7 @@ namespace. If you need more granular control, use one of the combinators with
 splitting semantics from the string namespace. */
 
 R.splitTrans = flags => (...xs) => s => s.split(
-  new RegExp(xs.join("|"), flags));
+  R(xs.join("|"), flags));
 
 
 R.splitLetterTrans = R.splitTrans("v") (R.classes.letter.sep);
@@ -6068,7 +6235,24 @@ R.matchNthWith = ({p, i, rx}) => s => {
 // R.replaceAll is redundant
 
 
-// utilize a replacer
+R.replaceAllAccum = rx => s => {
+  const xs = Array.from(s.matchAll(rx));
+
+  if (xs.length === 0) return s;
+
+  else for (let i = xs.length - 1; i >= 0; i--) {
+    const r = xs[i],
+      [match, ...ys] = r,
+      o = r.groups,
+      j = r.index;
+
+    const sub = f({match, xs: ys, i: j, o, s});
+    s = s.slice(0, j) + sub + s.slice(j + match.length);
+  }
+
+  return s;
+};
+
 
 R.replaceAllWith = ({f, rx}) => s => {
   const xs = Array.from(s.matchAll(rx));
@@ -6086,6 +6270,27 @@ R.replaceAllWith = ({f, rx}) => s => {
   }
 
   return s;
+};
+
+
+// accumulate each individual replacement
+
+R.replaceAllWithAccum = ({f, rx}) => s => {
+  const xs = Array.from(s.matchAll(rx)), ys = [];
+
+  if (xs.length === 0) return s;
+
+  else for (let i = xs.length - 1; i >= 0; i--) {
+    const r = xs[i],
+      [match, ...zs] = r,
+      o = r.groups,
+      j = r.index;
+
+    const sub = f({match, xs: zs, i: j, o, s});
+    ys.unshift(s.slice(0, j) + sub + s.slice(j + match.length));
+  }
+
+  return ys;
 };
 
 
@@ -6107,6 +6312,27 @@ R.replaceAllBy = ({p, f, rx}) => s => {
   }
 
   return s;
+};
+
+
+// accumulate each individual replacement
+
+R.replaceAllByAccum = ({p, f, rx}) => s => {
+  const xs = R.matchAllWith({p, rx}) (s), ys = [];
+
+  if (xs.length === 0) return s;
+
+  for (let i = xs.length - 1; i >= 0; i--) {
+    const r = xs[i],
+      [match, ...zs] = r,
+      o = r.groups,
+      j = r.index;
+
+    const sub = f({match, xs: zs, i: j, o, s});
+    ys.unshift(s.slice(0, j) + sub + s.slice(j + match.length));
+  }
+
+  return ys;
 };
 
 
@@ -6294,7 +6520,7 @@ from it. */
 
 R.bound = ({left, right}) => rx => {
   const flags = left.flags + right.flags + rx.flags;
-  return new RegExp(`(?<=^|[${left}])${rx.source}(?=$|[${right}])`, flags);
+  return R(`(?<=^|[${left}])${rx.source}(?=$|[${right}])`, flags);
 };
 
 
@@ -6302,7 +6528,7 @@ R.bound = ({left, right}) => rx => {
 
 R.leftBound = left => rx => {
   const flags = left.flags + rx.flags;
-  return new RegExp(`(?<=^|[${left}])${rx.source}`, flags);
+  return R(`(?<=^|[${left}])${rx.source}`, flags);
 };
 
 
@@ -6310,7 +6536,7 @@ R.leftBound = left => rx => {
 
 R.rightBound = right => rx => {
   const flags = right.flags + rx.flags;
-  return new RegExp(`${rx.source}(?=$|[${right}])`, flags);
+  return R(`${rx.source}(?=$|[${right}])`, flags);
 };
 
 
@@ -7251,7 +7477,7 @@ Object.defineProperty(_Set, "currencies", {
 Object.defineProperty(_Set.deDE, "nominalInterfixes", {
   get() {
     const s = new Set([
-      "e", "n", "s", "en", "er", "es", "ens",
+      "ens", "en", "er", "es", "e", "n", "s",
     ]);
 
     delete this.nominalInterfixes;
@@ -7263,10 +7489,40 @@ Object.defineProperty(_Set.deDE, "nominalInterfixes", {
 });
 
 
+Object.defineProperty(_Set.deDE, "nominalSuffixes", {
+  get() {
+    const s = new Set([
+      "ern", "nen", "en", "er", "es", "e", "n", "s",
+    ]);
+
+    delete this.nominalSuffixes;
+    this.nominalSuffixes = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Set.deDE, "verbalPrefixes", {
+  get() {
+    const s = new Set([
+      "ge",
+    ]);
+
+    delete this.verbalPrefixes;
+    this.verbalPrefixes = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
 Object.defineProperty(_Set.deDE, "verbalInterfixes", {
   get() {
     const s = new Set([
-      "s", "n", "en", "ge", "zu",
+      "zu", "ge",
     ]);
 
     delete this.verbalInterfixes;
@@ -7278,10 +7534,40 @@ Object.defineProperty(_Set.deDE, "verbalInterfixes", {
 });
 
 
+Object.defineProperty(_Set.deDE, "verbalSuffixes", {
+  get() {
+    const s = new Set([
+      "test", "tet", "ten", "te", "est", "et", "st", "en", "t", "e", "n",
+    ]);
+
+    delete this.verbalSuffixes;
+    this.verbalSuffixes = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Set.deDE, "verbalInfinitives", {
+  get() {
+    const s = new Set([
+      "en", "n",
+    ]);
+
+    delete this.verbalInfinitives;
+    this.verbalInfinitives = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
 Object.defineProperty(_Set.deDE, "adjectivalInterfixes", {
   get() {
     const s = new Set([
-      "e", "n", "s", "en", "er", "es", "ens",
+      "ens", "en", "er", "es", "e", "n", "s",
     ]);
 
     delete this.adjectivalInterfixes;
@@ -7311,7 +7597,7 @@ Object.defineProperty(_Set.deDE, "numeralInterfixes", {
 Object.defineProperty(_Set.deDE, "inflectionElisions", {
   get() {
     const s = new Set([
-      "e", "en",
+      "en", "e",
     ]);
 
     delete this.inflectionElisions;
@@ -7323,14 +7609,14 @@ Object.defineProperty(_Set.deDE, "inflectionElisions", {
 });
 
 
-Object.defineProperty(_Set.deDE, "compositaElisions", {
+Object.defineProperty(_Set.deDE, "compoundElisions", {
   get() {
     const s = new Set([
       "e",
     ]);
 
-    delete this.compositaElisions;
-    this.compositaElisions = s;
+    delete this.compoundElisions;
+    this.compoundElisions = s;
     return s;
   },
 
@@ -7465,63 +7751,13 @@ S.deDE.avgWordLen = 5.5;
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-S.countChar = c => s => {
-  let n = 0;
-  for (const c2 of s) if (c === c2 ) n++;
-  return n;
-};
-
-
-S.countChars = s => {
-  const m = new Map();
-  for (const c of s) _Map.inc(c) (acc);
-  return m;
-};
-
-
-S.countSubstr = t => s => {
-  let n = 0, offset = 0;
-
-  while (true) {
-    const i = s.indexOf(t, offset);
-    if (i === -1) break;
-    else (n++, offset = i + 1);
-  }
-
-  return n;
-};
-
-
-S.replaceChar = (c, sub) => s => {
-  let t = "";
+S.searchAll = sub => s => {
+  const is = [];
   
-  for (const c2 of s) {
-    if (c !== c2) t += c2;
-    else t += sub;
-  }
+  for (let i = s.indexOf(sub); i !== -1; i = s.indexOf(sub, i + 1))
+    is.push(i);
   
-  return t;
-};
-
-
-S.replaceSub = (sub, sub2) => s => {
-  let t = "", i, j = 0;
-
-  while (true) {
-    i = s.indexOf(sub, j)
-
-    if (i === notFound) break;
-    
-    else {
-      t += s.substring(j, i);
-      t += sub2;
-      j = i + sub.length;
-    }
-  }
-
-  if (j < s.length) t += s.substring(j);
-
-  return t;
+  return is;
 };
 
 
@@ -7594,6 +7830,99 @@ S.cat_ = S.catWith(" ");
 Yields "Happy Thanksgiving, Muad'dib!" */
 
 S.template = f => o => f(o);
+
+
+//█████ Counting ██████████████████████████████████████████████████████████████
+
+
+S.countChar = c => s => {
+  let n = 0;
+  for (const c2 of s) if (c === c2 ) n++;
+  return n;
+};
+
+
+S.countChars = s => {
+  const m = new Map();
+  for (const c of s) _Map.inc(c) (acc);
+  return m;
+};
+
+
+S.countSubstr = t => s => {
+  let n = 0, offset = 0;
+
+  while (true) {
+    const i = s.indexOf(t, offset);
+    if (i === -1) break;
+    else (n++, offset = i + 1);
+  }
+
+  return n;
+};
+
+
+//█████ Replacing █████████████████████████████████████████████████████████████
+
+
+S.replaceChar = (c, sub) => s => {
+  let t = "";
+  
+  for (const c2 of s) {
+    if (c !== c2) t += c2;
+    else t += sub;
+  }
+  
+  return t;
+};
+
+
+// accumulate each individual replacement
+
+S.replaceCharAccum = (c, sub) => s => {
+  const xs = [];
+
+  for (let i = s.indexOf(c); i !== -1; i = s.indexOf(c, i + 1)) {
+    const prefix = s.substring(0, i),
+      suffix = s.substring(i + c.length);
+    
+    xs.push(prefix + sub + suffix);
+  }
+
+  return xs;
+};
+
+
+S.replaceSub = (c, sub) => s => {
+  let r = "", j = 0;
+
+  for (let i = s.indexOf(c, j); i !== -1; i = s.indexOf(c, j)) {
+    r += s.substring(j, i);
+    r += sub;
+    j = i + c.length;
+  }
+
+  r += s.substring(j);
+  return r;
+};
+
+
+// accumulate each individual replacement
+
+S.replaceSubAccum = (sub, sub2) => s => {
+  const xs = [];
+  let j = 0;
+
+  for (let i = s.indexOf(sub, j); i !== -1; i = s.indexOf(sub, j)) {
+    const prefix = s.substring(0, i),
+      suffix = s.substring(i + sub.length);
+
+    xs.push(prefix + sub2 + suffix);
+    j = i + 1;
+  }
+
+  return xs;
+};
 
 
 //█████ Splitting █████████████████████████████████████████████████████████████
@@ -7812,300 +8141,330 @@ S.Retrieve.query = ({corpus, lenDiff = [0.75, 1.34], threshold = 0.25}) => word 
 //█████ Diffing ███████████████████████████████████████████████████████████████
 
 
-S.Diff = reify(strDiff => {
+/* Retrieve differences between two strings in a case-insensitive manner. Only
+return diffings for word pairs that have at least a two-letter sequence in
+common. */
 
-  // retrieve differences between two strings in a case-insensitive manner
+
+S.Diff = class Diff {
+  static #createNgrams(word) {
+    const n = word.length, ngrams = [];
+
+    for (let len = n; len >= 1; len--) {
+      for (let i = 0; i <= n - len; i++) {
+        ngrams.push({
+          text: word.substring(i, i + len),
+          start: i,
+          length: len,
+          end: i + len - 1
+        });
+      }
+    }
+
+    return ngrams;
+  }
+
+
+  static #match(wordLeft, wordRight) {
+    const ngramsLeft = Diff.#createNgrams(wordLeft),
+      ngramsRight = Diff.#createNgrams(wordRight),
+      lookupLeft = new Set(),
+      lookupRight = new Set(),
+      matchesLeft = [],
+      matchesRight = [];
+
+    for (const o of ngramsLeft) {
+      if (lookupLeft.has(o.text + "/" + o.start)) continue;
+
+      for (const p of ngramsRight) {
+        if (o.text.toLowerCase() === p.text.toLowerCase()) {
+          if (!lookupLeft.has(o.text + "/" + o.start)) matchesLeft.push(o);
+          if (!lookupRight.has(p.text + "/" + p.start)) matchesRight.push(p);
+          lookupLeft.add(o.text + "/" + o.start);
+          lookupRight.add(p.text + "/" + p.start);
+        }
+      }
+    }
+
+    matchesLeft.sort((o, p) => o.start - p.start);
+    matchesRight.sort((o, p) => o.start - p.start);
+
+    return {
+      ngramsLeft: matchesLeft,
+      ngramsRight: matchesRight,
+    };
+  }
+
+
+  static #format(ngrams, wordLeft, wordRight) {
+    const letters = {
+      left: Array(wordLeft.length).fill(""),
+      right: Array(wordRight.length).fill(""),
+    };
+
+    for (const ngram of ngrams) {
+      for (let i = ngram.start, j = 0; i <= ngram.end; i++, j++)
+        letters.left[i] = ngram.text[j];
+
+      for (let i = ngram.right, j = 0; i < ngram.right + ngram.length; i++, j++)
+        letters.right[i] = ngram.text[j];
+    }
+
+    const left = {
+      str: wordLeft,
+      matches: [],
+      matches_: [],
+      mismatches: [],
+      mismatches_: [],
+    };
+
+    const right = {
+      str: wordRight,
+      matches: [],
+      matches_: [],
+      mismatches: [],
+      mismatches_: [],
+    };
+
+    let matchBuf = "", mismatchBuf = "";
+
+    for (let i = 0; i < letters.left.length; i++) {
+      if (letters.left[i] === "") {
+        left.mismatches.push({char: wordLeft[i], index: i});
+        mismatchBuf += wordLeft[i];
+
+        if (matchBuf !== "") {
+          left.matches_.push(matchBuf);
+          matchBuf = ""
+        };
+      }
+      
+      else {
+        left.matches.push({char: wordLeft[i], index: i});
+        matchBuf += wordLeft[i];
+
+        if (mismatchBuf !== "") {
+          left.mismatches_.push(mismatchBuf);
+          mismatchBuf = ""
+        };
+      }
+    }
+
+    if (matchBuf) left.matches_.push(matchBuf);
+    if (mismatchBuf) left.mismatches_.push(mismatchBuf);
+    
+    matchBuf = "", mismatchBuf = "";
+
+    for (let i = 0; i < letters.right.length; i++) {
+      if (letters.right[i] === "") {
+        right.mismatches.push({char: wordRight[i], index: i});
+        mismatchBuf += wordRight[i];
+
+        if (matchBuf !== "") {
+          right.matches_.push(matchBuf);
+          matchBuf = ""
+        };
+      }
+      
+      else {
+        right.matches.push({char: wordRight[i], index: i});
+        matchBuf += wordRight[i];
+
+        if (mismatchBuf !== "") {
+          right.mismatches_.push(mismatchBuf);
+          mismatchBuf = ""
+        };
+      }
+    }
+
+    if (matchBuf) right.matches_.push(matchBuf);
+    if (mismatchBuf) right.mismatches_.push(mismatchBuf);
+
+    return tag("S.Diff") ({left, right});
+  };
+
 
   // Nat :: Num
   // IndexedChar :: {char: Str, index: Nat}
-  // DiffSide :: {str: Str, matches: [IndexedChar], mismatches: [IndexedChar]}
+  // SubStr :: Str
+  // DiffSide :: {str: Str, matches: [IndexedChar], matches_: [SubStr], mismatches: [IndexedChar], mismatches_: [SubStr]}
   // S.Diff{left: DiffSide, right: DiffSide}
-  // Str => Str => (S.Diff | [])
-  strDiff.retrieve = l => r => {
-    const findBest = (il, ir) => {
-      if (il === l.length) return {length: 0, gaps: 0, sequence: []};
+  // Str => Str => S.Diff
+  static retrieve = wordLeft => wordRight => {
+    const {ngramsLeft, ngramsRight} = Diff.#match(wordLeft, wordRight), result = [];
+    let maxLenLeft = 0, maxLenRight = 0;
 
-      const memo = new Map(), o = {}, xs = [...new Set(l)];
-      
-      for (const c of xs) {
-        const c2 = c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
-          rx = new RegExp(c2, "gdiu");
+    // retrieve max ngram length in the left word
 
-        o[c.toLowerCase()] = R.matchAll(rx) (r);
-      }
+    for (let i = 0; i < ngramsLeft.length; i++)
+      if (ngramsLeft[i].text.length > maxLenLeft) maxLenLeft = ngramsLeft[i].text.length;
 
-      const memoKey = `${il},${ir}`;
-      if (memo.has(memoKey)) return memo.get(memoKey);
+    // retrieve max ngram length in the right word
 
-      const c = l[il].toLowerCase(),
-        matches = o[c] || [];
-      
-      let bestMatch = {length: -1, gaps: Infinity, sequence: []};
+    for (let i = 0; i < ngramsRight.length; i++)
+      if (ngramsRight[i].text.length > maxLenRight) maxLenRight = ngramsRight[i].text.length;
 
-      for (const match of matches) {
-        const i = match.indices
-          ? match.indices[0][0]
-          : match.index;
+    // short circuit on no or only 1-gram matches
 
-        if (i > ir) {
-          const o = findBest(il + 1, i);
-
-          if (o.length !== -1) {
-            const gap = Math.max(0, i - ir - 1),
-              gaps = gap + o.gaps,
-              length = 1 + o.length,
-              sequence = [match, ...o.sequence];
-
-            const candidate = {length, gaps, sequence};
-
-            if (compareCandidates(candidate, bestMatch) < 0)
-              bestMatch = candidate;
-          }
-        }
-      }
-
-      const skipResult = findBest(il + 1, ir);
-      let finalResult;
-
-      if (bestMatch.length === -1 && skipResult.length === -1)
-        finalResult = {length: -1, gaps: Infinity, sequence: []};
-
-      else if (bestMatch.length === -1) finalResult = skipResult;
-      else if (skipResult.length === -1) finalResult = bestMatch;
-      
-      else finalResult = compareCandidates(bestMatch, skipResult) <= 0
-        ? bestMatch
-        : skipResult;
-
-      memo.set(memoKey, finalResult);
-      return finalResult;
-    };
-
-    const seq = findBest(0, -1);
-
-    if (seq.length <= 0) return [];
+    if (maxLenLeft <= 1) return Diff.#format([], wordLeft, wordRight);
     
-    else {
-      const right = storeRight(r, seq),
-        left = storeLeft(l, right);
+    // collect indices of longest ngrams
 
-      return tag("S.Diff") ({left, right});
-    }
-  };
+    const maxIsLeft = A.filterIndicesWith(o => o.text.length === maxLenLeft) (ngramsLeft),
+      maxIsRight = A.filterIndicesWith(o => o.text.length === maxLenRight) (ngramsRight);
 
+    // traverse largest ngrams
 
-  // Nat :: Num
-  // Indices :: {index: Nat, indices: [[Nat, Nat]]}
-  // Candidate :: {length: Num, gaps: Num, sequence: [Indices]}
-  // (Candidate, Candidate) => Int
-  const compareCandidates = (o, p) => {
-    if (o.length !== p.length) return p.length - o.length;
-    else if (o.gaps !== p.gaps) return o.gaps - p.gaps;
-    return 0;
-  };
+    for (let i = 0; i < maxIsLeft.length; i++) {
+      const longestLeft = ngramsLeft[maxIsLeft[i]],
+        longestStartLeft = ngramsLeft[maxIsLeft[i]].start,
+        longestEndLeft = ngramsLeft[maxIsLeft[i]].end;
 
+      const longestRight = ngramsRight[maxIsRight[i]],
+        longestStartRight = ngramsRight[maxIsRight[i]].start,
+        longestEndRight = ngramsRight[maxIsRight[i]].end;
 
-  // Candidate :: {length: Num, gaps: Num, sequence: [Indices]}
-  // DiffSide :: {str: Str, matches: [IndexedChar], mismatches: [IndexedChar]}
-  // (Str, Candidate) => DiffSide
-  const storeLeft = (l, right) => {
-    const matches = [], mismatches = [];
+      const pickedNgrams = [longestLeft],
+        prefixesLeft = [],
+        suffixesLeft = [];
 
-    for (let i = 0, j = 0; i < l.length; i++) {
-      if (j < right.matches.length) {
-        const match = right.matches[j++];
+      // preserve ngram index of right word
 
-        if (new RegExp(l[i], "i").test(match.char)) matches.push({
-          char: l[i],
-          index: i
+      longestLeft.right = ngramsRight[maxIsRight[i]].start;
+
+      // look for matching ngrams in prefix position of the longest ngram
+
+      if (longestStartLeft > 0) {
+        const maybePrefixesLeft = ngramsLeft.filter(o => o.end < longestStartLeft),
+          maybePrefixesRight = ngramsRight.filter(o => o.end < longestStartRight);
+
+        maybePrefixesLeft.sort((a, b) => {
+          if (a.start !== b.start) return a.start - b.start;
+          return b.length - a.length;
         });
 
-        else {
-          while (true) {
-            mismatches.push({
-              char: l[i],
-              index: i
-            });
+        // keep only the longest ngrams
 
-            if (new RegExp(l[++i], "i").test(match.char)) break;
+        let currIndex = -1;
+
+        for (const maybePrefixLeft of maybePrefixesLeft) {
+          if (maybePrefixLeft.start > currIndex) {
+            prefixesLeft.push(maybePrefixLeft);
+            currIndex = maybePrefixLeft.end;
           }
-
-          matches.push({
-            char: l[i],
-            index: i
-          });
         }
-      }
+        
+        // pick ngrams in close prefix position
 
-      else mismatches.push({
-        char: l[i],
-        index: i
-      });
-    }
+        let currIndexLeft = longestLeft.start,
+          currIndexRight = longestRight.start;
 
-    return {str: l, matches, mismatches};
-  };
+        for (let i = prefixesLeft.length - 1; i >= 0; i--) {
+          if (currIndexLeft - prefixesLeft[i].end > 3) break;
 
-
-  // Candidate :: {length: Num, gaps: Num, sequence: [Indices]}
-  // DiffSide :: {str: Str, matches: [IndexedChar], mismatches: [IndexedChar]}
-  // (Str, Candidate) => DiffSide
-  const storeRight = (r, seq) => {
-    const matches = [], mismatches = [];
-
-    for (let i = 0, j = 0, k = 0; i < r.length; i++) {
-      if (k < seq.sequence.length) {
-        const match = seq.sequence[k++];
-
-        if (j === match.index) {
-          matches.push({
-            char: r[j],
-            index: j
-          });
-
-          j++;
-        }
-
-        else if (j < match.index) {
-           while (true) {
-            mismatches.push({
-              char: r[j],
-              index: j
-            });
-
-            if (++j === match.index) {
-              i = j;
-              break;
-            }
+          const j = maybePrefixesRight.findLastIndex(o =>
+            o.text.toLowerCase() === prefixesLeft[i].text.toLowerCase());
+          
+          if (j === notFound) continue;
+          else if (maybePrefixesRight[j].start >= currIndexRight) continue;
+          else if (currIndexRight - maybePrefixesRight[j].end > 3) break;
+          
+          else {
+            prefixesLeft[i].right = maybePrefixesRight[j].start;
+            pickedNgrams.unshift(prefixesLeft[i]);
+            currIndexLeft = prefixesLeft[i].start;
+            currIndexRight = maybePrefixesRight[j].start;
           }
-
-          matches.push({
-            char: r[j],
-            index: j
-          });
-
-          j++;
         }
-
-        else throw new Err("invalid index");
       }
 
-      else mismatches.push({
-        char: r[i],
-        index: i
-      });
+      // look for matching ngrams in suffix position of the longest ngram
+
+      if (longestEndLeft < wordLeft.length - 1) {
+        const maybeSuffixesLeft = ngramsLeft.filter(o => o.start > longestEndLeft),
+          maybeSuffixesRight = ngramsRight.filter(o => o.start > longestEndRight);
+
+        maybeSuffixesLeft.sort((a, b) => {
+          if (a.start !== b.start) return a.start - b.start;
+          return b.length - a.length;
+        });
+
+        // keep only the longest ngrams
+
+        let currIndex = -1;
+
+        for (const maybeSuffixLeft of maybeSuffixesLeft) {
+          if (maybeSuffixLeft.start > currIndex) {
+            suffixesLeft.push(maybeSuffixLeft);
+            currIndex = maybeSuffixLeft.end;
+          }
+        }
+        
+        // pick ngrams in close suffix position
+
+        let currIndexLeft = longestLeft.end,
+          currIndexRight = longestRight.end;
+
+        for (let i = 0; i < suffixesLeft.length; i++) {
+          if (suffixesLeft[i].start - currIndexLeft > 3) break;
+
+          const j = maybeSuffixesRight.findIndex(o =>
+            o.text.toLowerCase() === suffixesLeft[i].text.toLowerCase());
+          
+          if (j === notFound) continue;
+          else if (maybeSuffixesRight[j].end <= currIndexRight) continue;
+          else if (maybeSuffixesRight[j].start - currIndexRight > 3) break;
+          
+          else {
+            suffixesLeft[i].right = maybeSuffixesRight[j].start;
+            pickedNgrams.push(suffixesLeft[i]);
+            currIndexLeft = suffixesLeft[i].start;
+            currIndexRight = maybeSuffixesRight[j].start;
+          }
+        }
+      }
+
+      if (pickedNgrams.length) result.push(pickedNgrams);
     }
 
-    return {str: r, matches, mismatches};
+    if (result.length <= 1) return Diff.#format(result[0], wordLeft, wordRight);
+
+    // consolidate result
+
+    const lookup = new Set(), result2 = [];
+
+    // dedupe
+
+    for (const os of result) {
+      const k = os.map(o => o.text).join("/");
+
+      if (!lookup.has(k)) {
+        result2.push(os);
+        lookup.add(k);
+      }
+    }
+
+    if (result2.length === 1) return Diff.#format(result2[0], wordLeft, wordRight);
+
+    // pick the ngram that has more letters and is less scattered (left bias)
+
+    const scores = result2.map((ngramsRight, i) => {
+      const factor = ngramsRight.reduce((acc, o) => {
+        acc.score += o.text.length * o.text.length;
+        return acc;
+      }, {i, score: 0});
+
+      const factor2 = ngramsRight.length;
+
+      factor.score = factor.score - factor2 * 0.99;
+      return factor;
+    });
+
+    scores.sort((o, p) => p.score - o.score || o.i - p.i);
+    
+    return Diff.#format(result2[scores[0].i], wordLeft, wordRight);
   };
-
-
-  /* Stringify and accumulate all consecutive matches/mismatches. Can be used
-  with both `S.Diff` and `S.Diff.Eval` types. */
-
-  strDiff.stringify = o => {
-    const p = {
-      left: {
-        str: o.left.str,
-        matches: [],
-        mismatches: []
-      },
-
-      right: {
-        str: o.right.str,
-        matches: [],
-        mismatches: []
-      }
-    };
-
-    let index, sub;
-
-    if (o.left.matches.length) {
-      index = o.left.matches[0].index;
-      sub = o.left.matches[0].char;
-
-      for (let i = 0; i < o.left.matches.length; i++) {
-        const prev = o.left.matches[i],
-          next = o.left.matches[i + 1] || null;
-
-        if (next === null) p.left.matches.push({index, sub});
-
-        else if (next.index - prev.index === 1) sub += next.char;
-
-        else {
-          p.left.matches.push({index, sub});
-          index = next.index;
-          sub = next.char;
-        }
-      }
-    }
-
-    if (o.right.matches.length) {
-      index = o.right.matches[0].index;
-      sub = o.right.matches[0].char;
-
-      for (let i = 0; i < o.right.matches.length; i++) {
-        const prev = o.right.matches[i],
-          next = o.right.matches[i + 1] || null;
-
-        if (next === null) p.right.matches.push({index, sub});
-
-        else if (next.index - prev.index === 1) sub += next.char;
-
-        else {
-          p.right.matches.push({index, sub});
-          index = next.index;
-          sub = next.char;
-        }
-      }
-    }
-
-    if (o.left.mismatches.length) {
-      index = o.left.mismatches[0].index;
-      sub = o.left.mismatches[0].char;
-
-      for (let i = 0; i < o.left.mismatches.length; i++) {
-        const prev = o.left.mismatches[i],
-          next = o.left.mismatches[i + 1] || null;
-
-        if (next === null) p.left.mismatches.push({index, sub});
-
-        else if (next.index - prev.index === 1) sub += next.char;
-
-        else {
-          p.left.mismatches.push({index, sub});
-          index = next.index;
-          sub = next.char;
-        }
-      }
-    }
-
-    if (o.right.mismatches.length) {
-      index = o.right.mismatches[0].index;
-      sub = o.right.mismatches[0].char;
-
-      for (let i = 0; i < o.right.mismatches.length; i++) {
-        const prev = o.right.mismatches[i],
-          next = o.right.mismatches[i + 1] || null;
-
-        if (next === null) p.right.mismatches.push({index, sub});
-
-        else if (next.index - prev.index === 1) sub += next.char;
-
-        else {
-          p.right.mismatches.push({index, sub});
-          index = next.index;
-          sub = next.char;
-        }
-      }
-    }
-
-    return p;
-  };
-
-
-  return strDiff;
-});
+};
 
 
 //█████ Diffing :: Evaluation █████████████████████████████████████████████████
@@ -9943,7 +10302,7 @@ S.Word.parseAbbr = ({locale, abbrs, trigrams, context}) => abbr => {
 
       // score derived from last letter being a consonant
 
-      const finalConsonantScore = new RegExp(R.classes.latin1.vowels.s, "g")
+      const finalConsonantScore = R.g(R.classes.latin1.vowels.s)
         .test(abbr2[abbr2.length - 1]) ? 0 : 1;
 
       const finalScore = Alg.expGrowth({maxInput: 10}) (
@@ -9965,7 +10324,7 @@ of conformity of the word's trigrams with the distribution of trigrams of a
 category. Another factor is the order of word types in the context of the given
 word, provided their part of speech is already known. */
 
-S.Word.parsePos = trigramDicts => word => {
+S.Word.parsePos = trigramsPerPos => word => {
   const queryTrigram = S.trigram(word);
 
   const score = {
@@ -9974,18 +10333,18 @@ S.Word.parsePos = trigramDicts => word => {
     adj: 0,
   };
 
-  for (const [pos, trigramDict] of O.entries(trigramDicts)) {
+  for (const [pos, trigrams] of O.entries(trigramsPerPos)) {
     for (const triple of queryTrigram) {
       if (!(pos in score)) throw new Err(`unexpcted pos "${pos}"`);
-      else if (trigramDict.has(triple)) score[pos] += trigramDict.get(triple);
+      else if (trigrams.has(triple)) score[pos] += trigrams.get(triple);
     }
   }
 
   // normalization
 
-  score.noun *= trigramDicts.noun.size;
-  score.verb *= trigramDicts.verb.size;
-  score.adj *= trigramDicts.adj.size;
+  score.noun *= trigramsPerPos.noun.size;
+  score.verb *= trigramsPerPos.verb.size;
+  score.adj *= trigramsPerPos.adj.size;
 
   const pairs = Object.entries(score)
     .sort((pair, pair2) => pair2[1] - pair[1]);
@@ -10011,37 +10370,6 @@ S.Word.parsePos = trigramDicts => word => {
   // TODO: incorporate context (pos order)
 
   return result;
-};
-
-
-S.Word.parseProperName = word => {
-/*
-  * signal words:
-    * Herr, Frau, Hr, Fr, Dr, med, jur, rer, nat, phil, oec, ing, Ing,
-      Dipl, hc, Prof, Kfm, Kffr, MA , MSc, BA, BSc, Mag, PD, PhD
-    * Mama, Papa, Oma, Opa, Tante, Onkel, Sohn, Tochter, Bruder, Schwester,
-      Cousin, Cousine, Neffe, Nichte, Ehemann, Ehefrau, Schwiegermutter,
-      Schwiegervater, Gatte, Gattin
-  * preceding signal pos:
-    +pron
-    -conj
-    -num
-    -art
-    -adv
-    -inter
-  * properties
-    * two or more consecutive title case words (except for BOS)
-      * Michael Beck, C.H. Beck
-    * genitive "s" (Becks)
-    * nobility: von, von der, etc.
-    * suffixes:
-      * -mann, -er, -sen, -son, -ke, -ow, -berg, -bach, -hoff, -stein
-      * -burg, -stadt, -dorf, -hausen, -heim, -ingen, -au, -berg, -tal, -furt, -brück, -kirche(n)
-    * no plural, weird flection
-    * rare modification through adjectives: the big Max Mustermann
-    * often include non-latin letters/rare trigrams
-    * burstiness: word rarely appears but if it does, it regularly reappears in this local context
-  */
 };
 
 
