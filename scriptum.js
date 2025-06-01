@@ -1336,7 +1336,7 @@ Lazy.eager = thunk => {
 following lists comprise persistent data types and their effective uses cases
 and derived data structures, respectively.
 
-Per use case:
+In terms of use cases:
 
   • consing: List, IJS* Stack
   • unconsing: Array (A.focus), IJS Stack, List
@@ -1346,7 +1346,7 @@ Per use case:
   • uniqueness: IJS Set
   • index access: Array
 
-Per data structure:
+In terms of data structures:
 
   • record: Object (O.update), IJS* Record
   • value object: IJS ValueObject
@@ -1442,9 +1442,9 @@ A.tails = xs => {
 };
 
 
-// filter all indices that contain x
+// like `indexAll` but collect all indices that contain x
 
-A.filterIndices = x => xs => {
+A.indexOfAll = x => xs => {
   const is = [];
 
   for (let i = xs.indexOf(x); i !== -1; i = xs.indexOf(x, i + 1))
@@ -1454,7 +1454,9 @@ A.filterIndices = x => xs => {
 };
 
 
-A.filterIndicesWith = p => xs => xs.reduce((acc, x, i) => {
+// like `findIndex` but collect all indices using the predicate
+
+A.findIndexAll = p => xs => xs.reduce((acc, x, i) => {
   if (p(x, i)) acc.push(i);
   return acc;
 }, []);
@@ -6251,22 +6253,20 @@ R.matchNthWith = ({p, i, rx}) => s => {
 // R.replaceAll is redundant
 
 
-R.replaceAllAccum = rx => s => {
-  const xs = Array.from(s.matchAll(rx));
+R.replaceAllAccum = ({sub, rx}) => s => {
+  const xs = Array.from(s.matchAll(rx)), ys = [];
 
-  if (xs.length === 0) return s;
+  if (xs.length === 0) return [s];
 
   else for (let i = xs.length - 1; i >= 0; i--) {
     const r = xs[i],
-      [match, ...ys] = r,
-      o = r.groups,
+      match = r[0],
       j = r.index;
 
-    const sub = f({match, xs: ys, i: j, o, s});
-    s = s.slice(0, j) + sub + s.slice(j + match.length);
+    ys.unshift(s.slice(0, j) + sub + s.slice(j + match.length));
   }
 
-  return s;
+  return ys;
 };
 
 
@@ -6294,7 +6294,7 @@ R.replaceAllWith = ({f, rx}) => s => {
 R.replaceAllWithAccum = ({f, rx}) => s => {
   const xs = Array.from(s.matchAll(rx)), ys = [];
 
-  if (xs.length === 0) return s;
+  if (xs.length === 0) return [s];
 
   else for (let i = xs.length - 1; i >= 0; i--) {
     const r = xs[i],
@@ -6336,7 +6336,7 @@ R.replaceAllBy = ({p, f, rx}) => s => {
 R.replaceAllByAccum = ({p, f, rx}) => s => {
   const xs = R.matchAllWith({p, rx}) (s), ys = [];
 
-  if (xs.length === 0) return s;
+  if (xs.length === 0) return [s];
 
   for (let i = xs.length - 1; i >= 0; i--) {
     const r = xs[i],
@@ -7595,6 +7595,56 @@ Object.defineProperty(_Set.deDE, "adjectivalInterfixes", {
 });
 
 
+Object.defineProperty(_Set.deDE, "adjectivalSuffixes", {
+  get() {
+    const s = new Set([
+      "em", "en", "es", "e",
+    ]);
+
+    delete this.adjectivalSuffixes;
+    this.adjectivalSuffixes = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+// comparative/superlative
+
+Object.defineProperty(_Set.deDE, "adjectivalIntensification", {
+  get() {
+    const s = new Set([
+      "erem", "eren", "erer", "eres",
+      "ster", "stes", "stem", "sten",
+      "ßtem", "ßten", "ßter", "ßtes",
+      "ere", "ste", "ßte", "er",
+    ]);
+
+    delete this.adjectivalIntensification;
+    this.adjectivalIntensification = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Set.deDE, "pronominalSuffixes", {
+  get() {
+    const s = new Set([
+      "em", "en", "er", "es", "s", "e",
+    ]);
+
+    delete this.pronominalSuffixes;
+    this.pronominalSuffixes = s;
+    return s;
+  },
+
+  configurable: true
+});
+
+
 Object.defineProperty(_Set.deDE, "numeralInterfixes", {
   get() {
     const s = new Set([
@@ -7896,7 +7946,7 @@ S.replaceChar = (c, sub) => s => {
 // accumulate each individual replacement
 
 S.replaceCharAccum = (c, sub) => s => {
-  const xs = [];
+  const xs = [s];
 
   for (let i = s.indexOf(c); i !== -1; i = s.indexOf(c, i + 1)) {
     const prefix = s.substring(0, i),
@@ -7926,7 +7976,7 @@ S.replaceSub = (c, sub) => s => {
 // accumulate each individual replacement
 
 S.replaceSubAccum = (sub, sub2) => s => {
-  const xs = [];
+  const xs = [s];
   let j = 0;
 
   for (let i = s.indexOf(sub, j); i !== -1; i = s.indexOf(sub, j)) {
@@ -8327,8 +8377,8 @@ S.Diff = class Diff {
     
     // collect indices of longest ngrams
 
-    const maxIsLeft = A.filterIndicesWith(o => o.text.length === maxLenLeft) (ngramsLeft),
-      maxIsRight = A.filterIndicesWith(o => o.text.length === maxLenRight) (ngramsRight);
+    const maxIsLeft = A.findIndexAll(o => o.text.length === maxLenLeft) (ngramsLeft),
+      maxIsRight = A.findIndexAll(o => o.text.length === maxLenRight) (ngramsRight);
 
     // traverse largest ngrams
 
@@ -8519,26 +8569,6 @@ S.Diff.Eval = class DiffEval {
         ["S", ["5", "8"]],
         ["T", ["7"]],
         ["Z", ["2"]],
-      ]),
-
-      equivalences: MultiMap.fromIt([
-        ["ä", "ae"], ["ü", "ue"], ["ö", "oe"], ["ß", "ss"], ["Æ", "Ae"],
-        ["æ", "ae"], ["ᴭ", "Ae"], ["ᵆ", "ae"], ["Ǽ", "Ae"], ["ǽ", "ae"],
-        ["Ǣ", "Ae"], ["ǣ", "ae"], ["ᴁ", "Ae"], ["ᴂ", "ae"], ["ȸ", "db"],
-        ["Ǳ", "Dz"], ["ǲ", "Dz"], ["ǳ", "dz"], ["Ǆ", "Dz"], ["ǅ", "Dz"],
-        ["ǆ", "dz"], ["ﬀ", "ff"], ["ﬃ", "ffi"], ["ﬄ", "ffl"], ["ﬁ", "fi"],
-        ["ﬂ", "fl"], ["Ĳ", "Ij"], ["ĳ", "ij"], ["Ǉ", "Lj"], ["ǈ", "Lj"],
-        ["ǉ", "lj"], ["Ǌ", "Nj"], ["ǋ", "Nj"], ["ǌ", "nj"], ["Œ", "Oe"],
-        ["œ", "oe"], ["ȹ", "qp"], ["ᵫ", "ue"],
-        
-        ["ae", "ä"], ["ue", "ü"], ["oe", "ö"], ["ss", "ß"], ["Ae", "Æ"],
-        ["ae", "æ"], ["Ae", "ᴭ"], ["ae", "ᵆ"], ["Ae", "Ǽ"], ["ae", "ǽ"],
-        ["Ae", "Ǣ"], ["ae", "ǣ"], ["Ae", "ᴁ"], ["ae", "ᴂ"], ["db", "ȸ"],
-        ["Dz", "Ǳ"], ["Dz", "ǲ"], ["dz", "ǳ"], ["Dz", "Ǆ"], ["Dz", "ǅ"],
-        ["dz", "ǆ"], ["ff", "ﬀ"], ["ffi", "ﬃ"], ["ffl", "ﬄ"], ["fi", "ﬁ"],
-        ["fl", "ﬂ"], ["Ij", "Ĳ"], ["ij", "ĳ"], ["Lj", "Ǉ"], ["Lj", "ǈ"],
-        ["lj", "ǉ"], ["Nj", "Ǌ"], ["Nj", "ǋ"], ["nj", "ǌ"], ["Oe", "Œ"],
-        ["oe", "œ"], ["qp", "ȹ"], ["ue", "ᵫ"],
       ]),
 
       mishearings: {
@@ -9566,7 +9596,7 @@ S.Diff.Eval = class DiffEval {
   equivalence(_eval) {
     const candidates = [];
 
-    for (const [k, v] of DiffEval.#data[this.locale].equivalences) {
+    for (const [k, v] of S.Norm.equivalence) {
       for (let i = 0; i < _eval.left.mismatches.length; i++) {
         const mismatch = _eval.left.mismatches[i];
 
@@ -9721,29 +9751,29 @@ S.Diff.Eval = class DiffEval {
 S.Norm = {};
 
 
-S.Norm.fraction = new Map([
-  ["½", "1/2"],
-  ["⅓", "1/3"],
-  ["⅔", "2/3"],
-  ["¼", "1/4"],
-  ["¾", "3/4"],
-  ["⅕", "1/5"],
-  ["⅖", "2/5"],
-  ["⅗", "3/5"],
-  ["⅘", "4/5"],
-  ["⅙", "1/6"],
-  ["⅚", "5/6"],
-  ["⅐", "1/7"],
-  ["⅛", "1/8"],
-  ["⅜", "3/8"],
-  ["⅝", "5/8"],
-  ["⅞", "7/8"],
-  ["⅑", "1/9"],
-  ["⅒", "1/10"],
-]);
+Object.defineProperty(S.Norm, "fraction", {
+  get() {
+    const m = new Map([
+      ["½", "1/2"], ["⅓", "1/3"], ["⅔", "2/3"],
+      ["¼", "1/4"], ["¾", "3/4"], ["⅕", "1/5"],
+      ["⅖", "2/5"], ["⅗", "3/5"], ["⅘", "4/5"],
+      ["⅙", "1/6"], ["⅚", "5/6"], ["⅐", "1/7"],
+      ["⅛", "1/8"], ["⅜", "3/8"], ["⅝", "5/8"],
+      ["⅞", "7/8"], ["⅑", "1/9"], ["⅒", "1/10"],
+    ]);
+
+    delete this.fraction;
+    this.fraction = m;
+    return m;
+  },
+
+  configurable: true
+});
 
 
-S.Norm.modifier = new Map([
+Object.defineProperty(S.Norm, "modifier", {
+  get() {
+    const m = new Map([
   ["Á", "A"], ["á", "a"], ["À", "A"], ["à", "a"], ["Â", "A"], ["â", "a"], ["Ǎ", "A"], ["ǎ", "a"], ["Ă", "A"],
   ["ă", "a"], ["Ã", "A"], ["ã", "a"], ["Ả", "A"], ["ả", "a"], ["Ȧ", "A"], ["ȧ", "a"], ["Ạ", "A"], ["ạ", "a"],
   ["Ä", "A"], ["ä", "a"], ["Å", "A"], ["å", "a"], ["Ḁ", "A"], ["ḁ", "a"], ["Ā", "A"], ["ā", "a"], ["Ą", "A"],
@@ -9834,19 +9864,48 @@ S.Norm.modifier = new Map([
   ["Ẓ", "Z"], ["ẓ", "z"], ["Ẕ", "Z"], ["ẕ", "z"], ["Ƶ", "Z"], ["ƶ", "z"], ["Ȥ", "Z"], ["ȥ", "z"], ["Ⱬ", "Z"],
   ["ⱬ", "z"], ["ᵶ", "z"], ["ᶎ", "z"], ["ʐ", "z"], ["ʑ", "z"], ["ɀ", "z"], ["ᴢ", "z"], ["Ʒ", "Z"], ["ʒ", "z"],
   ["Ǯ", "Z"], ["ǯ", "z"], ["Ƹ", "Z"], ["ƹ", "z"], ["Ｚ", "Z"], ["ｚ", "z"],
-]);
+    ]);
+
+    delete this.modifier;
+    this.modifier = m;
+    return m;
+  },
+
+  configurable: true
+});
 
 
-S.Norm.equivalence = new Map([
-  ["ä", "ae"], ["ü", "ue"], ["ö", "oe"], ["ß", "ss"], ["Æ", "Ae"],
-  ["æ", "ae"], ["ᴭ", "Ae"], ["ᵆ", "ae"], ["Ǽ", "Ae"], ["ǽ", "ae"],
-  ["Ǣ", "Ae"], ["ǣ", "ae"], ["ᴁ", "Ae"], ["ᴂ", "ae"], ["ȸ", "db"],
-  ["Ǳ", "Dz"], ["ǲ", "Dz"], ["ǳ", "dz"], ["Ǆ", "Dz"], ["ǅ", "Dz"],
-  ["ǆ", "dz"], ["ﬀ", "ff"], ["ﬃ", "ffi"], ["ﬄ", "ffl"], ["ﬁ", "fi"],
-  ["ﬂ", "fl"], ["Ĳ", "Ij"], ["ĳ", "ij"], ["Ǉ", "Lj"], ["ǈ", "Lj"],
-  ["ǉ", "lj"], ["Ǌ", "Nj"], ["ǋ", "Nj"], ["ǌ", "nj"], ["Œ", "Oe"],
-  ["œ", "oe"], ["ȹ", "qp"], ["ᵫ", "ue"],
-]);
+// multimap of equivalent single letters and letter sequences
+
+Object.defineProperty(S.Norm, "equivalence", {
+  get() {
+    const m = MultiMap.fromIt([
+      ["ä", "ae"], ["ü", "ue"], ["ö", "oe"], ["ß", "ss"], ["Æ", "Ae"],
+      ["æ", "ae"], ["ᴭ", "Ae"], ["ᵆ", "ae"], ["Ǽ", "Ae"], ["ǽ", "ae"],
+      ["Ǣ", "Ae"], ["ǣ", "ae"], ["ᴁ", "Ae"], ["ᴂ", "ae"], ["ȸ", "db"],
+      ["Ǳ", "Dz"], ["ǲ", "Dz"], ["ǳ", "dz"], ["Ǆ", "Dz"], ["ǅ", "Dz"],
+      ["ǆ", "dz"], ["ﬀ", "ff"], ["ﬃ", "ffi"], ["ﬄ", "ffl"], ["ﬁ", "fi"],
+      ["ﬂ", "fl"], ["Ĳ", "Ij"], ["ĳ", "ij"], ["Ǉ", "Lj"], ["ǈ", "Lj"],
+      ["ǉ", "lj"], ["Ǌ", "Nj"], ["ǋ", "Nj"], ["ǌ", "nj"], ["Œ", "Oe"],
+      ["œ", "oe"], ["ȹ", "qp"], ["ᵫ", "ue"],
+
+      ["ae", "ä"], ["ue", "ü"], ["oe", "ö"], ["ss", "ß"], ["Ae", "Æ"],
+      ["ae", "æ"], ["Ae", "ᴭ"], ["ae", "ᵆ"], ["Ae", "Ǽ"], ["ae", "ǽ"],
+      ["Ae", "Ǣ"], ["ae", "ǣ"], ["Ae", "ᴁ"], ["ae", "ᴂ"], ["db", "ȸ"],
+      ["Dz", "Ǳ"], ["Dz", "ǲ"], ["dz", "ǳ"], ["Dz", "Ǆ"], ["Dz", "ǅ"],
+      ["dz", "ǆ"], ["ff", "ﬀ"], ["ffi", "ﬃ"], ["ffl", "ﬄ"], ["fi", "ﬁ"],
+      ["fl", "ﬂ"], ["Ij", "Ĳ"], ["ij", "ĳ"], ["Lj", "Ǉ"], ["Lj", "ǈ"],
+      ["lj", "ǉ"], ["Nj", "Ǌ"], ["Nj", "ǋ"], ["nj", "ǌ"], ["Oe", "Œ"],
+      ["oe", "œ"], ["qp", "ȹ"], ["ue", "ᵫ"],
+    ]);
+
+    delete this.equivalence;
+    this.equivalence = m;
+    return m;
+  },
+
+  configurable: true
+});
 
 
 S.Norm.latinise = ({inclAlpha}) => doc => {
@@ -10432,7 +10491,7 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
 
         for (const infixCandidate of infixCandidates) {
           const infixCandidate2 = S.fromNgram(corpus.bigrams[infixCandidate.index]),
-            infixEval = S.Diff.Eval.all(S.Diff.retrieve(infix2) (infixCandidate2));
+            infixEval = _eval.pipeAll(S.Diff.query(infix2) (infixCandidate2));
 
           if (A.sum(infixEval[0].penalty) <= 1) {
             decompositions.push({prefix, infix: infixCandidate2, suffix, remainder: ""});
@@ -10446,6 +10505,8 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
     }
   };
 
+  const _eval = new S.Diff.Eval(locale);
+
   const prefixes = [], suffixes = [];
 
   const candidates = S.Retrieve.query(
@@ -10455,10 +10516,10 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
 
   for (const candidate of candidates) {
     const corpusWord = S.fromNgram(corpus.bigrams[candidate.index]),
-      queryPrefix = queryWord.slice(0, corpusWord.length),
-      querySuffix = queryWord.slice(-(corpusWord.length)),
-      prefixEval = S.Diff.Eval.all(S.Diff.retrieve(queryPrefix) (corpusWord)),
-      suffixEval = S.Diff.Eval.all(S.Diff.retrieve(querySuffix) (corpusWord)),
+      queryPrefix = queryWord.slice(0, corpusWord.length + 1),
+      querySuffix = queryWord.slice(-(corpusWord.length + 1)),
+      prefixEval = _eval.pipeAll(S.Diff.query(queryPrefix) (corpusWord)),
+      suffixEval = _eval.pipeAll(S.Diff.query(querySuffix) (corpusWord)),
       prefixPenalty = prefixEval.length ? A.sum(prefixEval[0].penalty) : posInf,
       suffixPenalty = suffixEval.length ? A.sum(suffixEval[0].penalty) : posInf;
 
@@ -10535,7 +10596,7 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
             infix,
             suffix,
             _Set[locale].nominalInterfixes,
-            _Set[locale].compositaElisions,
+            _Set[locale].compoundElisions,
             decompositions);
         }
 
@@ -10545,7 +10606,7 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
             infix,
             suffix,
             _Set[locale].verbalInterfixes,
-            _Set[locale].compositaElisions,
+            _Set[locale].compoundElisions,
             decompositions);
         }
 
@@ -10555,7 +10616,7 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
             infix,
             suffix,
             _Set[locale].adjectivalInterfixes,
-            _Set[locale].compositaElisions,
+            _Set[locale].compoundElisions,
             decompositions);
         }
 
@@ -10565,7 +10626,7 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
             infix,
             suffix,
             _Set[locale].numeralInterfixes,
-            _Set[locale].compositaElisions,
+            _Set[locale].compoundElisions,
             decompositions);
         }
       }
@@ -10622,15 +10683,146 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
 };
 
 
-S.Word.splitSentences = s => {
-  // TODO
-  // split at periods/exclamation/question mark but
-    // take abbreviation periods into account
-    // take ellipses into account
-    // take several exclamation/question marks into account?!?
-  // newlines might be considered like implicit periods
-  // trim redundant spaces
-  // encode type of sentence: expressive, interrogative, exclamatory
+//█████ Lemmatization █████████████████████████████████████████████████████████
+
+
+/* Create lists of possible lemmas by considering inflections of nouns, verbs,
+adjectives and pronouns. Additionally, considers comparative and superlative
+forms for adjectives and adverbs. Use an appropriate dictionary of well-known
+words to select the valid lemma from candidate lists. */
+
+S.Word.Lemma = {};
+
+
+S.Word.Lemma.noun = locale => noun => {
+  const candidates = [noun];
+
+  for (const suffix of _Set[locale].nominalSuffixes)
+    if (noun.endsWith(suffix)) candidates.push(noun.slice(0, -suffix.length));
+
+  for (const [from, to] of _Map[locale].nominalAlterations) {
+    candidates.forEach(candidate => {
+      const candidates2 = S.replaceCharAccum(from, to) (candidate);
+
+      candidates2.shift();
+      if (candidates2.length) A.pushn(candidates2) (candidates);
+    });
+  }
+
+  return candidates;
+};
+
+
+S.Word.Lemma.verb = locale => verb => {
+  const candidates = [verb];
+
+  for (const prefix of _Set[locale].verbalPrefixes)
+    if (verb.startsWith(prefix)) candidates.push(verb.slice(prefix.length));
+
+  for (const interfix of _Set[locale].verbalInterfixes) {
+    candidates.forEach(candidate => {
+      const candidates2 = R.replaceAllAccum({
+        sub: "",
+        rx: R.g(`(?<!^)${interfix}(?!$)`)
+      }) (candidate);
+
+      candidates2.shift();
+      if (candidates2.length) A.pushn(candidates2) (candidates);
+    });
+  }
+
+  for (const suffix of _Set[locale].verbalSuffixes) {
+    candidates.forEach(candidate => {
+      if (candidate.endsWith(suffix)) candidates.push(candidate.slice(0, -suffix.length));
+    });
+  }
+
+  for (const infinitive of _Set[locale].verbalInfinitives)
+    candidates.forEach(candidate => candidates.push(candidate + infinitive));
+
+  return candidates;
+};
+
+
+S.Word.Lemma.adj = locale => adj => {
+  const candidates = [adj];
+
+  for (const interfix of _Set[locale].adjectivalInterfixes) {
+    candidates.forEach(candidate => {
+      const candidates2 = R.replaceAllAccum({
+        sub: "",
+        rx: R.g(`(?<!^)${interfix}(?!$)`)
+      }) (candidate);
+
+      candidates2.shift();
+      if (candidates2.length) A.pushn(candidates2) (candidates);
+    });
+  }
+
+  for (const suffix of _Set[locale].adjectivalSuffixes)
+    if (adj.endsWith(suffix)) candidates.push(adj.slice(0, -suffix.length));
+
+  // comparative/superlative
+
+  let isIntensified = false;
+
+  for (const intensification of _Set[locale].adjectivalIntensification) {
+    if (adj.endsWith(intensification)) {
+      candidates.push(adj.slice(0, -intensification.length));
+      isIntensified = true;
+    }
+  }
+
+  if (isIntensified) {
+    for (const [from, to] of _Map[locale].generalAlterations) {
+      candidates.forEach(candidate => {
+        const candidates2 = S.replaceCharAccum(from, to) (candidate);
+
+        candidates2.shift();
+        if (candidates2.length) A.pushn(candidates2) (candidates);
+      });
+    }
+  }
+
+  return candidates;
+};
+
+
+S.Word.Lemma.adv = locale => adv => {
+
+  // only comparative/superlative
+
+  let isIntensified = false;
+
+  for (const intensification of _Set[locale].adjectivalIntensification) {
+    if (adv.endsWith(intensification)) {
+      candidates.push(adv.slice(0, -intensification.length));
+      isIntensified = true;
+    }
+  }
+
+  if (isIntensified) {
+    for (const [from, to] of _Map[locale].generalAlterations) {
+      candidates.forEach(candidate => {
+        const candidates2 = S.replaceCharAccum(from, to) (candidate);
+
+        candidates2.shift();
+        if (candidates2.length) A.pushn(candidates2) (candidates);
+      });
+    }
+  }
+
+  return candidates;
+};
+
+
+S.Word.Lemma.pron = locale => pron => {
+  const candidates = [pron];
+
+  for (const suffix of _Set[locale].pronominalSuffixes)
+    if (pron.endsWith(suffix)) candidates.push(pron.slice(0, -suffix.length));
+
+  return candidates;
 };
 
 
