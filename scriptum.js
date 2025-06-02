@@ -8537,7 +8537,19 @@ S.Diff = class Diff {
 //█████ Diffing :: Evaluation █████████████████████████████████████████████████
 
 
-// evaluate diffings between two compared strings
+/* Evaluate diffings between two compared strings. There are four major cases:
+
+* bar => bat
+* bar => barbat
+* bar => batbar
+* bar => batbarbaz
+
+The first case includes all word pairs of query and target word that have the
+same length. All other cases exhibit diverging word lengths where the query
+word is either in prefix, infix or suffix position. The algorithm is suitable
+for cases where the length difference between both words doesn't exceed one or
+two letters, because it doesn't consider offsets during diffence evaluation.
+Beyond small length differences, it becomes increasingly unreliable. */
 
 
 S.Diff.Eval = class DiffEval {
@@ -8674,7 +8686,6 @@ S.Diff.Eval = class DiffEval {
         p.desc = [...o.desc, ...p.desc];
         p.reason = [...o.reason, ...p.reason];
         p.penalty = [...o.penalty, ...p.penalty];
-        p.offset = [...o.offset, ...p.offset];
         return p;
       });
     });
@@ -8686,7 +8697,6 @@ S.Diff.Eval = class DiffEval {
         p.desc = [...o.desc, ...p.desc];
         p.reason = [...o.reason, ...p.reason];
         p.penalty = [...o.penalty, ...p.penalty];
-        p.offset = [...o.offset, ...p.offset];
         return p;
       });
     });
@@ -8732,7 +8742,6 @@ S.Diff.Eval = class DiffEval {
     [$$]: "S.Diff.Eval",
     desc: [],
     reason: [],
-    offset: [],
     penalty: [],
     left: _eval.left,
     right: _eval.right
@@ -8746,7 +8755,7 @@ S.Diff.Eval = class DiffEval {
   // IndexedChar :: {char: Str, index: Nat}
   // DiffSide :: {str: Str, matches: [IndexedChar], mismatches: [IndexedChar]}
   // S.Diff{left: DiffSide, right: DiffSide}
-  // S.Diff.Eval{desc: Str, reason: [Str], offset: [Nat], penalty: [Nat], left: DiffSide, right: DiffSide}
+  // S.Diff.Eval{desc: Str, reason: [Str], penalty: [Nat], left: DiffSide, right: DiffSide}
   // S.Diff => [S.Diff.Eval]
   initialize(diff) {
     return [{
@@ -8754,7 +8763,6 @@ S.Diff.Eval = class DiffEval {
       [$$]: "S.Diff.Eval",
       desc: [],
       reason: [],
-      offset: [],
       penalty: [],
       left: diff.left,
       right: diff.right,
@@ -8777,7 +8785,6 @@ S.Diff.Eval = class DiffEval {
       [$$]: "S.Diff.Eval",
       desc: [],
       reason: [],
-      offset: [],
       penalty: [],
       left: _eval.left,
       right: _eval.right,
@@ -8796,7 +8803,6 @@ S.Diff.Eval = class DiffEval {
       [$$]: "S.Diff.Eval",
       desc: [desc],
       reason: ["remainder"],
-      offset: [0],
       penalty: [penalty],
       left: _eval.left,
       right: _eval.right,
@@ -8837,16 +8843,11 @@ S.Diff.Eval = class DiffEval {
             ? o.letters.join("/")
             : o.letters.toReversed().join("/");
 
-          const offset = side === "left"
-            ? mismatch.index - mismatch2.index
-            : mismatch2.index - mismatch.index;
-
           xs.push({
             [$]: "S.Diff.Eval",
             [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
-            offset: [offset],
             penalty: [1],
             left: eval2.left,
             right: eval2.right,
@@ -8898,7 +8899,6 @@ S.Diff.Eval = class DiffEval {
             [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
-            offset: [0], // cannot retrieve offset
             penalty: [1],
             left: eval2.left,
             right: eval2.right,
@@ -8959,7 +8959,6 @@ S.Diff.Eval = class DiffEval {
             [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
-            offset: [0], // cannot retrieve offset
             penalty: [1],
             left: eval2.left,
             right: eval2.right,
@@ -9036,16 +9035,11 @@ S.Diff.Eval = class DiffEval {
             ? o.letters.join("/")
             : o.letters.toReversed().join("/");
 
-          const offset = side === "left"
-            ? mismatch.index - mismatch2.index
-            : mismatch2.index - mismatch.index;
-
           xs.push({
             [$]: "S.Diff.Eval",
             [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
-            offset: [offset],
             penalty: [1],
             left: eval2.left,
             right: eval2.right,
@@ -9106,16 +9100,11 @@ S.Diff.Eval = class DiffEval {
               ? o.letters.join("/")
               : o.letters.toReversed().join("/");
 
-            const offset = side === "left"
-              ? mismatch.index - mismatch2.index
-              : mismatch2.index - mismatch.index;
-
             return [{
               [$]: "S.Diff.Eval",
               [$$]: "S.Diff.Eval",
               desc: [desc],
               reason: ["mishearing"],
-              offset: [offset],
               penalty: [1],
               left: eval2.left,
               right: eval2.right,
@@ -9177,16 +9166,11 @@ S.Diff.Eval = class DiffEval {
               ? o.letters.join("/")
               : o.letters.toReversed().join("/");
 
-            const offset = side === "left"
-              ? mismatch.index - mismatch2.index
-              : mismatch2.index - mismatch.index;
-
             return [{
               [$]: "S.Diff.Eval",
               [$$]: "S.Diff.Eval",
               desc: [desc],
               reason: ["mishearing"],
-              offset: [offset],
               penalty: [1],
               left: eval2.left,
               right: eval2.right,
@@ -9250,16 +9234,11 @@ S.Diff.Eval = class DiffEval {
             ? o.letters.join("/")
             : o.letters.toReversed().join("/");
 
-          const offset = side === "left"
-            ? mismatch.index - mismatch3.index
-            : mismatch3.index - mismatch.index;
-
           xs.push({
             [$]: "S.Diff.Eval",
             [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
-            offset: [offset],
             penalty: [1],
             left: eval2.left,
             right: eval2.right,
@@ -9321,16 +9300,11 @@ S.Diff.Eval = class DiffEval {
             ? o.letters.join("/")
             : o.letters.toReversed().join("/");
 
-          const offset = side === "left"
-            ? mismatch.index - mismatch2.index
-            : mismatch2.index - mismatch.index;
-
           xs.push({
             [$]: "S.Diff.Eval",
             [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
-            offset: [offset],
             penalty: [1],
             left: eval2.left,
             right: eval2.right,
@@ -9380,7 +9354,6 @@ S.Diff.Eval = class DiffEval {
               [$$]: "S.Diff.Eval",
               desc: [`${mismatch.char}/${mismatch2.char}`],
               reason: ["misreading"],
-              offset: [mismatch.index - mismatch2.index],
               penalty: [1],
               left: eval2.left,
               right: eval2.right,
@@ -9448,7 +9421,6 @@ S.Diff.Eval = class DiffEval {
             [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["transposition"],
-            offset: [mismatch.index - mismatch2.index + offset],
             penalty: [1],
             left: eval2.left,
             right: eval2.right,
@@ -9487,7 +9459,6 @@ S.Diff.Eval = class DiffEval {
           [$$]: "S.Diff.Eval",
           desc: [`${mismatch.char.repeat(2)}/${match2.char}`],
           reason: ["repetition"],
-          offset: [mismatch.index - match2.index - 1],
           penalty: [1],
           left: eval2.left,
           right: eval2.right,
@@ -9516,7 +9487,6 @@ S.Diff.Eval = class DiffEval {
           [$$]: "S.Diff.Eval",
           desc: [`${match2.char}/${mismatch.char.repeat(2)}`],
           reason: ["repetition"],
-          offset: [match2.index - mismatch.index + 1],
           penalty: [1],
           left: eval2.left,
           right: eval2.right,
@@ -9552,7 +9522,6 @@ S.Diff.Eval = class DiffEval {
               [$$]: "S.Diff.Eval",
               desc: [`${mismatch.char}/${mismatch2.char}`],
               reason: ["modifier"],
-              offset: [mismatch.index - mismatch2.index],
               penalty: [1],
               left: eval2.left,
               right: eval2.right,
@@ -9577,7 +9546,6 @@ S.Diff.Eval = class DiffEval {
               [$$]: "S.Diff.Eval",
               desc: [`${mismatch.char}/${mismatch2.char}`],
               reason: ["modifier"],
-              offset: [mismatch.index - mismatch2.index],
               penalty: [1],
               left: eval2.left,
               right: eval2.right,
@@ -9623,7 +9591,6 @@ S.Diff.Eval = class DiffEval {
                     [$$]: "S.Diff.Eval",
                     desc: [`${mismatch.char}/${s}`],
                     reason: ["equivalence"],
-                    offset: [mismatch.index - mismatch2.index],
                     penalty: [1],
                     left: eval2.left,
                     right: eval2.right,
@@ -9652,7 +9619,6 @@ S.Diff.Eval = class DiffEval {
                     [$$]: "S.Diff.Eval",
                     desc: [`${mismatch.char}/${s}`],
                     reason: ["equivalence"],
-                    offset: [mismatch.index - mismatch2.index],
                     penalty: [1],
                     left: eval2.left,
                     right: eval2.right,
@@ -9684,7 +9650,6 @@ S.Diff.Eval = class DiffEval {
                     [$$]: "S.Diff.Eval",
                     desc: [`${s}/${mismatch2.char}`],
                     reason: ["equivalence"],
-                    offset: [mismatch.index - mismatch2.index],
                     penalty: [1],
                     left: eval2.left,
                     right: eval2.right,
@@ -9719,7 +9684,6 @@ S.Diff.Eval = class DiffEval {
                     [$$]: "S.Diff.Eval",
                     desc: [`${s}/${mismatch2.char}`],
                     reason: ["equivalence"],
-                    offset: [mismatch.index - mismatch2.index],
                     penalty: [1],
                     left: eval2.left,
                     right: eval2.right,
