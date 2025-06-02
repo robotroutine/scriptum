@@ -7678,7 +7678,7 @@ Object.defineProperty(_Set.deDE, "inflectionElisions", {
 Object.defineProperty(_Set.deDE, "compoundElisions", {
   get() {
     const s = new Set([
-      "e",
+      "en", "e",
     ]);
 
     delete this.compoundElisions;
@@ -8846,7 +8846,7 @@ S.Diff.Eval = class DiffEval {
             [$$]: "S.Diff.Eval",
             desc: [desc],
             reason: ["mishearing"],
-            offset: [mismatch.index - mismatch2.index],
+            offset: [offset],
             penalty: [1],
             left: eval2.left,
             right: eval2.right,
@@ -9808,7 +9808,7 @@ Object.defineProperty(S.Norm, "modifier", {
   ["Ǐ", "I"], ["ǐ", "i"], ["Ï", "I"], ["ï", "i"], ["Ḯ", "I"], ["ḯ", "i"], ["Ĩ", "I"], ["ĩ", "i"], ["Į", "I"],
   ["į", "i"], ["Ī", "I"], ["ī", "i"], ["Ỉ", "I"], ["ỉ", "i"], ["Ȉ", "I"], ["ȉ", "i"], ["Ȋ", "I"], ["ȋ", "i"],
   ["Ị", "I"], ["ị", "i"], ["Ḭ", "I"], ["ḭ", "i"], ["Ɨ", "I"], ["ɨ", "i"], ["ᵻ", "I"], ["ᶖ", "i"], ["İ", "I"],
-  ["i", "i"], ["I", "I"], ["ı", "i"], ["ɪ", "I"], ["Ɩ", "I"], ["ɩ", "i"], ["Ｉ", "I"], ["ｉ", "i"], ["Ĵ", "J"],
+  ["ı", "i"], ["ɪ", "I"], ["Ɩ", "I"], ["ɩ", "i"], ["Ｉ", "I"], ["ｉ", "i"], ["Ĵ", "J"],
   ["ĵ", "j"], ["Ɉ", "J"], ["ɉ", "j"], ["J̌", "J"], ["ǰ", "j"], ["ȷ", "J"], ["ʝ", "j"], ["ɟ", "j"], ["ʄ", "j"],
   ["ᴊ", "J"], ["Ｊ", "J"], ["ｊ", "j"], ["ʲ", "j"], ["j̃", "j"], ["Ḱ", "K"], ["ḱ", "k"], ["Ǩ", "K"], ["ǩ", "k"],
   ["Ķ", "K"], ["ķ", "k"], ["Ḳ", "K"], ["ḳ", "k"], ["Ḵ", "K"], ["ḵ", "k"], ["Ƙ", "K"], ["ƙ", "k"], ["Ⱪ", "K"],
@@ -10453,8 +10453,14 @@ well-known words. */
 
 S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
   const reconstructInfix = (prefix, infix, suffix, interfixes, elisions, decompositions) => {
-    if (interfixes.has(infix)) 
-      decompositions.push({prefix, infix: "", suffix, remainder: ""});
+    if (interfixes.has(infix)) {
+      decompositions.push({
+        prefix: prefix.word,
+        infix: "",
+        suffix: suffix.word,
+        remainder: ""
+      });
+    }
 
     else {
       const infixes = [infix];
@@ -10494,13 +10500,25 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
             infixEval = _eval.pipeAll(S.Diff.query(infix2) (infixCandidate2));
 
           if (A.sum(infixEval[0].penalty) <= 1) {
-            decompositions.push({prefix, infix: infixCandidate2, suffix, remainder: ""});
+            decompositions.push({
+              prefix: prefix.word,
+              infix: infixCandidate2,
+              suffix: suffix.word,
+              remainder: ""
+            });
+            
             wellKnownInfix = true;
           }
         }
 
-        if (!wellKnownInfix)
-          decompositions.push({prefix, infix: "", suffix, remainder: infix});
+        if (!wellKnownInfix) {
+          decompositions.push({
+            prefix: prefix.word,
+            infix: "",
+            suffix: suffix.word,
+            remainder: infix
+          });
+        }
       }
     }
   };
@@ -10515,43 +10533,23 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
   // retrieve prefixes/suffixes
 
   for (const candidate of candidates) {
-    const corpusWord = S.fromNgram(corpus.bigrams[candidate.index]),
-      queryPrefix = queryWord.slice(0, corpusWord.length + 1),
-      querySuffix = queryWord.slice(-(corpusWord.length + 1)),
-      prefixEval = _eval.pipeAll(S.Diff.query(queryPrefix) (corpusWord)),
-      suffixEval = _eval.pipeAll(S.Diff.query(querySuffix) (corpusWord)),
-      prefixPenalty = prefixEval.length ? A.sum(prefixEval[0].penalty) : posInf,
-      suffixPenalty = suffixEval.length ? A.sum(suffixEval[0].penalty) : posInf;
+    for (let i = -2; i <= 2; i++) {
+      const corpusWord = S.fromNgram(corpus.bigrams[candidate.index]),
+        queryPrefix = queryWord.slice(0, corpusWord.length + i),
+        querySuffix = queryWord.slice(-(corpusWord.length + i)),
+        prefixEval = _eval.pipeAll(S.Diff.query(queryPrefix) (corpusWord)),
+        suffixEval = _eval.pipeAll(S.Diff.query(querySuffix) (corpusWord)),
+        prefixPenalty = prefixEval.length ? A.sum(prefixEval[0].penalty) : posInf,
+        suffixPenalty = suffixEval.length ? A.sum(suffixEval[0].penalty) : posInf;
 
-    // match prefix
-
-    if (prefixPenalty < 10) prefixes.push(corpusWord);
-
-    else if (prefixPenalty < 30) {
-      if (prefixEval[0].reason.includes("remainder")) {
-        const o = prefixEval[0].left.mismatches.length
-          ? prefixEval[0].left.mismatches[0]
-          : prefixEval[0].right.mismatches[0];
-
-        if ((o.char === queryPrefix[queryPrefix.length - 1]
-          || o.char === queryWord[queryPrefix.length])
-          && o.index >= queryPrefix.length - 2)
-            prefixes.push(corpusWord);
+      if (prefixPenalty < 10) {
+        const offset = queryPrefix.length - corpusWord.length;
+        prefixes.push({word: corpusWord, offset});
       }
-    }
 
-    // match suffix
-
-    if (suffixPenalty < 10) suffixes.push(corpusWord);
-
-    else if (suffixPenalty < 30) {
-      if (suffixEval[0].reason.includes("remainder")) {
-        const o = suffixEval[0].left.mismatches[0];
-
-        if ((o.char === querySuffix[0]
-          || o.char === queryWord[queryWord.length - querySuffix.length - 1])
-          && o.index <= 1)
-            suffixes.push(corpusWord);
+      if (suffixPenalty < 10) {
+        const offset = querySuffix.length - corpusWord.length;
+        suffixes.push({word: corpusWord, offset});
       }
     }
   }
@@ -10563,10 +10561,10 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
   if (prefixes.length ^ suffixes.length) {
     if (prefixes.length) prefixes.forEach(prefix => {
       decompositions.push({
-        prefix,
+        prefix: prefix.word,
         infix: "",
         suffix: "",
-        remainder: queryWord.slice(prefix.length)
+        remainder: queryWord.slice(prefix.word.length + prefix.offset)
       });
     });
 
@@ -10574,19 +10572,22 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
       decompositions.push({
         prefix: "",
         infix: "",
-        suffix,
-        remainder: queryWord.slice(0, -suffix.length)
+        suffix: suffix.word,
+        remainder: queryWord.slice(0, -(suffix.word.length + suffix.offset))
       });
     });
   }
 
   else for (const prefix of prefixes) {
     for (const suffix of suffixes) {
-      if (prefix.length + suffix.length < queryWord.length) {
+      const prefixLen = prefix.word.length + prefix.offset,
+        suffixLen = suffix.word.length + suffix.offset;
+
+      if (prefixLen + suffixLen < queryWord.length) {
         let infix = queryWord;
 
-        infix = infix.slice(prefix.length);
-        infix = infix.slice(0, -suffix.length);
+        infix = infix.slice(prefixLen);
+        infix = infix.slice(0, -suffixLen);
 
         // check for interfixes
 
@@ -10631,28 +10632,28 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
         }
       }
 
-      else if (prefix.length + suffix.length === queryWord.length) {
+      else if (prefixLen + suffixLen === queryWord.length) {
         decompositions.push({
-          prefix,
+          prefix: prefix.word,
           infix: "",
-          suffix,
+          suffix: suffix.word,
           remainder: ""
         });
       }
 
       else {
         decompositions.push({
-          prefix,
+          prefix: prefix.word,
           infix: "",
           suffix: "",
-          remainder: queryWord.slice(prefix.length)
+          remainder: queryWord.slice(prefixLen)
         });
 
         decompositions.push({
           prefix: "",
           infix: "",
-          suffix,
-          remainder: queryWord.slice(0, -suffix.length)
+          suffix: suffix.word,
+          remainder: queryWord.slice(0, -suffixLen)
         });
       }
     }
