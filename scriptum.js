@@ -3762,32 +3762,63 @@ Ait.from = x => x[Symbol.asyncIterator] ();
 // alternate two async iterators
 
 Ait.alternate = ix => async function* (iy) {
-  for await (const x of ix) {
-    for await (const y of iy) {
-      yield x;
-      yield y;
-    }    
+  let doneFst = false, doneSnd = false;
+
+  while (true) {
+    let nextX = {done: true};
+
+    if (!doneFst) {
+      nextX = await ix.next();
+      if (nextX.done) doneFst = true;
+      else yield nextX.value;
+    }
+
+    let nextY = {done: true};
+
+    if (!doneSnd) {
+      nextY = await iy.next();
+      if (nextY.done) doneSnd = true;
+      else yield nextY.value;
+    }
+
+    if (doneFst && doneSnd) break;
   }
 };
 
 
 // interpolate a string into an async iterator
 
-Ait.interpose = s => async function* (ix) {
-  for await (const t of ix) {
-    yield t;
-    yield s;
+Ait.interpose = ({sep, trailing = true}) => async function* (ix) {
+  let isFirst = true, prevVal;
+
+  for await (const x of ix) {
+    if (!isFirst) {
+      yield prevVal;
+      yield sep;
+    }
+
+    prevVal = x;
+    isFirst = false;
+  }
+
+  if (!isFirst) {
+    yield prevVal;
+    if (trailing) yield sep;
   }
 };
 
 
 // interpolate a string into an array
 
-Ait.interposeArr = s => async function* (xs) {
+Ait.interposeArr = ({sep, trailing = true}) => async function* (xs) {
   for (let i = 0; i < xs.length; i++) {
-    const t = await xs[i];
-    yield t
-    yield s;
+    const isLast = i === xs.length - 1,
+      t = await xs[i];
+
+    yield t;
+
+    if (!isLast) yield sep;
+    else if (trailing) yield sep;
   }
 };
 
@@ -3795,10 +3826,7 @@ Ait.interposeArr = s => async function* (xs) {
 //█████ Chunking ██████████████████████████████████████████████████████████████
 
 
-/* Supply semantically complete data chunks that can be processed in isolation
-from each other as part of a stream of chunks. This way, large data sources can
-be processed in a divide and conquer fashion exibiting a small memory footprint.
-Usage:
+/* Stream semantically meaningful data chunks. Example usage using streams:
 
   const writable = fs.createWriteStream("./awords.txt");
 
@@ -3813,47 +3841,39 @@ Usage:
     else console.log("done");
   });
 
-The listed code reads from a text file containing words separated by newline,
-reduces the chunk size to each line length, filters all words starting with "a"
-and writes them to a text file with the filtered words separated by newline. */
+Allows processing of vast amounts of data that doesn't fit in memory. */
 
 Ait.chunk = ({sep, threshold = 65536, skipRest = false}) => ix => {
-  let chunks = [], buffer = "";
+  let buf = "";
 
   return async function* () {
-    for await (const value of ix) {
-      chunks = (buffer + value.toString()).split(sep);
-      buffer = chunks.pop();
+    for await (const x of ix) {
+      const s = buf + x.toString(),
+        chunks = s.split(sep);
 
-      if (buffer.length > threshold) throw new Err("buffer overflow");
-      else if (chunks.length === 0) continue;
+      buf = chunks.pop() || "";
 
-      else {
-        yield* async function* () {
-          do {
-            const chunk = chunks.shift();
-            yield chunk;
-          } while (chunks.length);
-        } ();
+      if (buf.length > threshold) throw new Err("buffer overflow");
 
-        continue;
-      }
+      for (const chunk of chunks) yield chunk;
     }
 
-    if (buffer.length && skipRest === false) {
-      yield* async function* () {
-        yield buffer;
-      } ();
-    }
+    if (buf.length > 0 && !skipRest) yield buf;
   } ();
 };
 
 
 /* Iterate over groups of n consecutive chunks where each iteration is offset by
-a single chunk, i.e. the groups overlap one another. The last n - 1 chunks of the
-source are filled with empty strings in order to maintain a consistent group size.
-Consumer of this function must only store the first chunk of each group to avoid
-redundancy. Usage:
+a single chunk. For example if sep = "." and num = 3 then the data
+
+  sentence1.sentence2.sentence3.sentence4.sentence5.
+
+is provided as chunks of
+
+  sentence1.sentence2.sentence3.  
+  sentence2.sentence3.sentence4.
+
+Example usage:
 
   const sx = stream.compose(
     Ait.from(fs.createReadStream("./words.txt")),
@@ -3861,62 +3881,78 @@ redundancy. Usage:
     Ait.overlappingChunks(3)) */
 
 Ait.overlappingChunks = num => {
-  const chunks = [];
-
   return async function* (ix) {
-    if (chunks.length === 0) {
-      for (let i = num; i > 1; i--) {
-        const o = await ix.next();
-        if (o.done) return;
-        else chunks.push(o.value);
-      }
+    const win = [];
+
+    for (let i = 0; i < num; i++) {
+      const o = await ix.next();
+      if (o.done) return;
+      win.push(o.value);
     }
 
-    while (true) {
-      const p = await ix.next();
-      if (p.done) break;
-      else chunks.push(p.value);
-      yield chunks;
-      chunks.shift();
-    }
+    yield [...win];
 
-    for (const chunk of chunks) {
-      const xs = Array(num).fill("");
-      xs[0] = chunk;
-      yield xs;
+    for await (const x of ix) {
+      win.shift();
+      win.push(x);
+      yield [...win];
     }
   };
 };
 
 
-/* Same as above but iterates over non-overlapping groups of n consecutive
-chunks. Usage:
+// variant that iterates over non-overlapping groups of n consecutive chunks
 
-  const sx = stream.compose(
-    Ait.from(fs.createReadStream("./words.txt")),
-    Ait.chunk({sep: /\r?\n/}),
-    Ait.nonOverlappingChunks(3)) */
+Ait.separatedChunks = ({num, remainder = false}) => {
+  return async function* (ix) {
+    while (true) {
+      const chunks = [];
 
-Ait.nonOverlappingChunks = num => async function* (ix) {
-  while (true) {
-    const chunks = [];
+      for (let i = 0; i < num; i++) {
+        const o = await ix.next();
 
-    for (let i = num; i > 0; i--) {
-      const o = await ix.next();
-      if (o.done) break;
-      else chunks.push(o);
+        if (o.done) {
+          if (remainder && chunks.length > 0) yield [...chunks];
+          return;
+        }
+
+        chunks.push(o.value);
+      }
+
+      yield [...chunks];
     }
-
-    if (chunks.length < num) break;
-    else yield chunks;
-  }
-
-  for (const chunk of chunks) {
-    const xs = Array(num).fill("");
-    xs[0] = chunk;
-    yield xs;
-  }
+  };
 };
+
+
+//█████ Type Classes ██████████████████████████████████████████████████████████
+
+
+Ait.map = f => async function* (ix) {
+  for await (const x of ix) yield f(x);
+};
+
+
+Ait.filter = p => async function* (ix) {
+  for await (const x of ix) if (p(x)) yield x;
+};
+
+
+// strict left-associative fold
+
+Ait.foldl = f => acc => async function (ix) {
+  for await (const x of ix) acc = f(acc, x);
+  return acc;
+};
+
+
+Ait.append = ix => async function* (iy) {
+  for await (const x of ix) yield x;
+  for await (const y of iy) yield y;
+};
+
+
+Ait.empty = async function* () {} ();
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -5410,7 +5446,51 @@ Parser.satisfy = ({p, kind, reason}) => x => {
 };
 
 
-//█████ Numbers ███████████████████████████████████████████████████████████████
+Parser.validValue = x => {
+  const kind = "valid value";
+
+  if (x === undefined) return Parser.Invalid({
+    value: x, kind, reason: "undefined"
+  });
+  
+  else if (x === null) return Parser.Invalid({
+    value: x, kind, reason: "null"
+  });
+
+  else if (x !== x) return Parser.Invalid({
+    value: x, kind, reason: "not a number"
+  });
+
+  else if (isNaN(x)) return Parser.Invalid({
+    value: x, kind, reason: "not a date"
+  });
+
+  else if (typeof x === "number") {
+    if (!Number.isFinite(x)) return Parser.Invalid({
+      value: x, kind, reason: "infinite number"
+    });
+
+    else if (!Number.isSafeInteger(x)) return Parser.Invalid({
+      value: x, kind, reason: "unsafe integer"
+    });
+
+    else return Parser.Valid({value: x, kind});
+  }
+
+  else return Parser.Valid({value: x, kind});
+};
+
+
+//█████ String ████████████████████████████████████████████████████████████████
+
+
+Parser.pattern = ({rx, kind, reason}) => s => {
+  if (rx.test(s)) return Parser.Valid({value: x, kind});
+  else return Parser.Invalid({value: x, kind, reason});
+};
+
+
+//█████ Number ████████████████████████████████████████████████████████████████
 
 
 Parser.num = n => {
