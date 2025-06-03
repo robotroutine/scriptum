@@ -2475,10 +2475,35 @@ export const Cont = resume => ({
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
+Cont.forever = o => Cont.chain(o) (_ => Cont.forever(o));
+
+
 Cont.reject = e => Cont((_res, rej) => {
   try {rej(e)}
-  catch(e2) {log("rejection handler failed")}
+  catch(e2) {throw new e2}
 });
+
+
+Cont.validate = p => o => Cont.chain(o) (x =>
+  p(x) ? Cont.of(x) : Cont.reject(x));
+
+
+Cont.fromPromise = px => Cont((res, rej) =>
+  px.then(x => res(x)).catch(e => rej(e)));
+
+
+Cont.tryCatch = f => o => Cont((res, rej) => o.resume(id, e => res(f(e))));
+
+
+Cont.tryThrow = o => Cont((res, rej) => o.resume(id, e => {throw e}));
+
+
+// final function guaranteed to be called regardless of success or failure
+
+Cont.finalize = finalizer => o => Cont((res, rej) =>
+  o.resume(
+    x => finalizer.resume(_ => res(x), e => rej(e)),
+    e => finalizer.resume(_ => rej(e), e2 => rej(e2))));
 
 
 //█████ Type Classes ██████████████████████████████████████████████████████████
@@ -2547,6 +2572,9 @@ Cont.mapA = dict => f => o => Cont((res, rej) => {
     );
   });
 });
+
+
+// Cont.seqA is equvalent to Cont.Ser.All.arr
 
 
 // kleisli composition
@@ -5123,7 +5151,8 @@ export const O = {};
 
 
 /* Dynamic path traversal where keys can be functions that produce new keys
-depdending on arbitrary conditions, e.g. the last key. */
+depdending on arbitrary conditions, e.g. the last key. Allows short circuiting
+via a sentinel. */
 
 O.get = ({ks, _default = null, _throw = false}) => o => {
   let value = o;
@@ -5159,6 +5188,9 @@ O.get = ({ks, _default = null, _throw = false}) => o => {
 
   return value;
 };
+
+
+O.get.stopTraversal = Symbol("sentinel");
 
 
 /* Immutable and composable object path updates with structural sharing that
@@ -5663,20 +5695,8 @@ Parser.bic = s => {
 // decimal string (without scientific notation)
 
 Parser.decStr = ({sep: {dec, thd}, places: [from, to]}) => s => {
-  R("^(?:+|-)?\\d+(\\.\\d{1,2})?$")
-
-  if (/[0-9.,\-+e]/.test(s)) return Parser.Valid({
-    value: s,
-    kind: "decimal string",
-  });
-
-  else return Parser.Invalid({
-    value: s,
-    kind: "decimal string",
-    reason: "unexpected characters",
-  });
+  // TODO
 };
-
 
 
 //█████ Number ████████████████████████████████████████████████████████████████
