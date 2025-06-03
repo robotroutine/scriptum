@@ -19,10 +19,10 @@ Javascript. */
 
 
 import Child from "node:child_process";
-import Crypto from "node:crypto";
-import FS from "node:fs";
-import Path from "node:path";
-import Stream from "node:stream";
+import Crypto_ from "node:crypto";
+import FS_ from "node:fs";
+import Path_ from "node:path";
+import Stream_ from "node:stream";
 //import * as I from "immutable";
 
 
@@ -3752,13 +3752,13 @@ Ait.interposeArr = ({sep, trailing = true}) => async function* (xs) {
 
   const writable = fs.createWriteStream("./awords.txt");
 
-  const sx = stream.compose(
+  const sx = Node.Stream.compose(
     Ait.from(fs.createReadStream("./words.txt")),
     Ait.chunk({sep: /\r?\n/}),
     Ait.filter(line => line[0] === "a"),
     Ait.map(line => line + "\n"));
 
-  stream.pipeline(sx, writable, e => {
+  Node.Stream.pipeline(sx, writable, e => {
     if (e) console.error(e);
     else console.log("done");
   });
@@ -3797,7 +3797,7 @@ is provided as chunks of
 
 Example usage:
 
-  const sx = stream.compose(
+  const sx = Node.Stream.compose(
     Ait.from(fs.createReadStream("./words.txt")),
     Ait.chunk({sep: /\r?\n/}),
     Ait.overlappingChunks(3)) */
@@ -11841,7 +11841,12 @@ Alg.manhattan = (xs, ys) => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-export const Node = {};
+export const Node = {
+  FS: FS_,
+  Path: Path_,
+  Stream: Stream_,
+  Crypto: Crypto_,
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -11961,7 +11966,7 @@ Node.CLA.setEnv = o => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-Node.Crypto = {};
+Node.Crypto_ = {}; // custom crypto namespace
 
 
 /* Encrypt with 256-bit private key. If this key is derived from a user password,
@@ -11969,15 +11974,15 @@ you must use a strong key derivation function (KDF) like Argon2id or PBKDF2 with
 a high iteration count and a unique salt per user before passing the resulting
 key buffer to the encryption function. */
 
-Node.Crypto.encryptSym = key => plaintext => {
+Node.Crypto_.encryptSym = key => plaintext => {
   if (!Buffer.isBuffer(key) || key.length !== 32)
     throw new Err("32-byte buffer expected");
 
   else if (typeof plaintext !== "string")
     throw new Err("Plaintext must be a string.");
 
-  const iv = crypto.randomBytes(12),
-    cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const iv = Node.Crypto.randomBytes(12),
+    cipher = Node.Crypto.createCipheriv("aes-256-gcm", key, iv);
 
   let ciphertext = cipher.update(plaintext, "utf8", "base64");
   ciphertext += cipher.final("base64");
@@ -11994,7 +11999,7 @@ Node.Crypto.encryptSym = key => plaintext => {
 
 // decrypt with 256-bit private key
 
-Node.Crypto.decryptSym = ({ key, iv, tag }) => ciphertext => {
+Node.Crypto_.decryptSym = ({ key, iv, tag }) => ciphertext => {
   if (!Buffer.isBuffer(key) || key.length !== 32)
     throw new Err("32-byte buffer expected");
 
@@ -12010,7 +12015,7 @@ Node.Crypto.decryptSym = ({ key, iv, tag }) => ciphertext => {
     if (ivBuf.length !== 12)
       throw new Err("invalid iv length provided for gcm decryption");
 
-    const decipher = crypto.createDecipheriv("aes-256-gcm", key, ivBuf);
+    const decipher = Node.Crypto.createDecipheriv("aes-256-gcm", key, ivBuf);
     decipher.setAuthTag(tagBuf);
 
     let plaintext = decipher.update(ciphertext, "base64", "utf8");
@@ -12026,7 +12031,7 @@ Node.Crypto.decryptSym = ({ key, iv, tag }) => ciphertext => {
 
 // generate 256-bit private key
 
-Node.Crypto.createKey256 = () => Crypto.randomBytes(32).toString("base64");
+Node.Crypto_.createKey256 = () => Node.Crypto.randomBytes(32).toString("base64");
 
 
 // TODO: add asymetric encription
@@ -12056,55 +12061,55 @@ a+: open file for appending and reading, file is created if it does not exist, s
 */
 
 
-Node.FS = {};
+Node.FS_ = {}; // custom file system namespace
 
 
-Node.FS.read = opt => path => Cont((res, rej) =>
-  FS.readFile(path, opt, (e, x) => e ? rej(new Err(e)) : res(x)));
+Node.FS_.read = opt => path => Cont((res, rej) =>
+  Node.FS.readFile(path, opt, (e, x) => e ? rej(new Err(e)) : res(x)));
 
 
-Node.FS.readOpt = {encoding: "utf8"};
+Node.FS_.readOpt = {encoding: "utf8"};
 
 
-Node.FS.write = opt => s => path => Cont((res, rej) =>
-  FS.writeFile(path, s, opt, e => e ? rej(new Err(e)) : res(s)));
+Node.FS_.write = opt => s => path => Cont((res, rej) =>
+  Node.FS.writeFile(path, s, opt, e => e ? rej(new Err(e)) : res(s)));
 
 
-Node.FS.writeOpt = {encoding: "utf8", flag: "wx"};
+Node.FS_.writeOpt = {encoding: "utf8", flag: "wx"};
 
 
-Node.FS.scanDir = opt => path => Cont((res, rej) =>
-  FS.readdir(path, opt, (e, xs) => e ? rej(new Err(e)) : res(xs)));
+Node.FS_.scanDir = opt => path => Cont((res, rej) =>
+  Node.FS.readdir(path, opt, (e, xs) => e ? rej(new Err(e)) : res(xs)));
 
 
-Node.FS.scanOpt = {encoding: "utf8", withFileTypes: false, recursive: false};
+Node.FS_.scanOpt = {encoding: "utf8", withFileTypes: false, recursive: false};
 
 
-Node.FS.copy = src => dest => Cont((res, rej) =>
-  FS.copyFile(src, dest, e => e ? rej(new Err(e)) : res(null)));
+Node.FS_.copy = src => dest => Cont((res, rej) =>
+  Node.FS.copyFile(src, dest, e => e ? rej(new Err(e)) : res(null)));
 
 
-Node.FS.unlink = path => Cont((res, rej) =>
-  FS.unlink(path, e => e ? rej(new Err(e)) : res(null)));
+Node.FS_.unlink = path => Cont((res, rej) =>
+  Node.FS.unlink(path, e => e ? rej(new Err(e)) : res(null)));
 
 
-Node.FS.move = src => dest =>
-  Cont.chain(Node.FS.copy(src) (dest)) (x =>
-    Cont.chain(Node.FS.unlink(src)) (y => res(y)));
+Node.FS_.move = src => dest =>
+  Cont.chain(Node.FS_.copy(src) (dest)) (x =>
+    Cont.chain(Node.FS_.unlink(src)) (y => res(y)));
 
 
-Node.FS.stat = path => Cont((res, rej) =>
-  FS.stat(path, (e, p) => e ? rej(new Err(e)) : res(p)));
+Node.FS_.stat = path => Cont((res, rej) =>
+  Node.FS.stat(path, (e, p) => e ? rej(new Err(e)) : res(p)));
 
 
-Node.FS.collectFiles = ({maxDepth, fileTypes}) => rootPath => {
+Node.FS_.collectFiles = ({maxDepth, fileTypes}) => rootPath => {
   return function go(acc, currentPath, depth) {
     if (depth > maxDepth) return Cont.of();
 
-    return Cont.chain(Node.FS.scanDir({withFileTypes: true}) (currentPath)) (qs => {
+    return Cont.chain(Node.FS_.scanDir({withFileTypes: true}) (currentPath)) (qs => {
       const xs = qs.map(q => {
-        const fullPath = Node.path.join(currentPath, q.name),
-          relativePath = Node.path.relative(rootPath, fullPath);
+        const fullPath = Node.Path.join(currentPath, q.name),
+          relativePath = Node.Path.relative(rootPath, fullPath);
 
         if (q.isFile()) {
           const ys = q.name.split(/\./);
@@ -12122,7 +12127,7 @@ Node.FS.collectFiles = ({maxDepth, fileTypes}) => rootPath => {
       });
 
       return Cont.map(_ =>
-        acc.map(path => Node.path.join(rootPath, path))) (Cont.Ser.All.arr(xs));
+        acc.map(path => Node.Path.join(rootPath, path))) (Cont.Ser.All.arr(xs));
     });
   } ([], rootPath, 0);
 };
