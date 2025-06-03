@@ -2947,84 +2947,6 @@ D.formatIso29 = d =>
       + D.formatTz(2) (d);
 
 
-//█████ Conversion ████████████████████████████████████████████████████████████
-
-
-// parse date string
-
-D.fromStr = (locale, century = 20) => s => {
-  let xs;
-
-  switch (locale) {
-    case "iso": xs = R.iso.dates; break;
-    case "de-DE": xs = R.i18n.deDE.dates; break;
-    default: throw new Err(`unknown locale "${locale}"`);
-  }
-
-  for (const rx of xs) {
-    if (rx.test(s)) {
-      const o = s.match(rx);
-
-      o.groups.y = o.groups.y.length === 2
-        ? century + o.groups.y
-        : o.groups.y;
-
-      const y = Number(o.groups.y),
-        m = Number(o.groups.m),
-        d = Number(o.groups.d);
-
-      if (m < 1 || m > 12)
-        throw new Err(`invalid month in date string "${s}"`);
-
-      else if (d < 1 || d > 31 || d > D.lastDayOfMonth(y) (m))
-        throw new Err(`invalid day in date string "${s}"`);
-
-      return new Date(Date.parse(
-        `${o.groups.y}-${o.groups.m}-${o.groups.d}`));
-    }
-  }
-
-  throw new Err(`invalid ${locale} date string "${s}"`);
-};
-
-
-// parse the time string and add it to the date object
-
-D.fromTimeStr = d => s => {
-  for (const rx of R.iso.times) {
-    if (rx.test(s)) {
-      const o = s.match(rx),
-        h = Number(o.groups.h),
-        m = Number(o.groups.m),
-        s_ = o.groups.s ? Number(o.groups.s) : 0,
-        ms = o.groups.ms ? Number(o.groups.ms) : 0,
-        tzh = o.groups.tzh ? Number(o.groups.tzh) : 0,
-        tzm = o.groups.tzm ? Number(o.groups.tzm) : 0;
-
-      if (h > 23)
-        throw new Err(`invalid hours in de-DE time string "${s}"`);
-          
-      else if (m > 59)
-        throw new Err(`invalid minutes in time string "${s}"`);
-
-      else if (s_ > 59)
-        throw new Err(`invalid seconds in time string "${s}"`);
-
-      else if (tzh > 23)
-        throw new Err(`invalid timezone hours in de-DE time string "${s}"`);
-
-      else if (tzm > 59)
-        throw new Err(`invalid timezone minutes in time string "${s}"`);
-
-      d.setHours(h, m, s_, ms);
-      return d;
-    }
-  }
-
-  throw new Err(`invalid iso time string "${s}"`);
-};
-
-
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████ DIFFERENCE LIST ███████████████████████████████
@@ -5064,44 +4986,6 @@ export const Num = {}; // namespace
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-// parse number string
-
-Num.fromStr = ({locale, strict = true}) => s => {
-  let xs;
-
-  switch (locale) {
-    case "iso": xs = R.iso.nums; break;
-    case "de-DE": xs = R.i18n.deDE.nums; break;
-    default: throw new Err(`unknown locale "${locale}"`);
-  }
-
-  for (const rx of xs) {
-    if (rx.test(s)) {
-      const o = s.match(rx);
-
-      const presign = o.groups.sign === undefined
-        ? "" : o.groups.sign;
-
-      const postsign = o.groups.postsign === undefined
-        ? "" : o.groups.postsign;
-
-      const sign = presign ? presign : postsign,
-        int = o.groups.int.replaceAll(/[^\d]/g, "");
-
-      const frac = o.groups.frac === undefined
-        ? "" : o.groups.frac;
-
-      if (strict && int[0] === "0")
-        throw new Err(`invalid number string: "${s}"`);        
-
-      return Number(sign + int + "." + frac);
-    }
-  }
-
-  throw new Err(`invalid number string: "${s}"`);
-};
-
-
 //█████ Decimal Places ████████████████████████████████████████████████████████
 
 
@@ -5446,8 +5330,8 @@ Parser.satisfy = ({p, kind, reason}) => x => {
 };
 
 
-Parser.validValue = x => {
-  const kind = "valid value";
+Parser.value = x => {
+  const kind = "non-error value";
 
   if (x === undefined) return Parser.Invalid({
     value: x, kind, reason: "undefined"
@@ -5488,6 +5372,277 @@ Parser.pattern = ({rx, kind, reason}) => s => {
   if (rx.test(s)) return Parser.Valid({value: x, kind});
   else return Parser.Invalid({value: x, kind, reason});
 };
+
+
+// parse number string
+
+Parser.numStr = ({locale, strict = false, _throw = true}) => s => {
+  let xs;
+
+  switch (locale) {
+    case "iso": xs = R.iso.nums; break;
+    case "de-DE": xs = R.i18n.deDE.nums; break;
+    default: throw new Err(`unknown locale "${locale}"`);
+  }
+
+  for (const rx of xs) {
+    if (rx.test(s)) {
+      const o = s.match(rx);
+
+      const presign = o.groups.sign === undefined
+        ? "" : o.groups.sign;
+
+      const postsign = o.groups.postsign === undefined
+        ? "" : o.groups.postsign;
+
+      const sign = presign ? presign : postsign,
+        int = o.groups.int.replaceAll(/[^\d]/g, "");
+
+      const frac = o.groups.frac === undefined
+        ? "" : o.groups.frac;
+
+      if (strict && int[0] === "0") {
+        if (_throw) throw new Err(`leading zero "${s}"`);
+
+        else return Parser.Invalid({
+          value: s,
+          kind: "number string",
+          reason: "leading zero",
+        });
+      }
+
+      else return Parser.Valid({
+        value: Number(sign + int + "." + frac),
+        kind: "number string",
+        original: s,
+      });
+    }
+  }
+
+  if (_throw) throw new Err(`invalid number string: "${s}"`);
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "number string",
+    reason: "malformed number string",
+  });
+};
+
+
+// parse date string
+
+Parser.dateStr = ({locale, century = 20, _throw = true}) => s => {
+  let xs;
+
+  switch (locale) {
+    case "iso": xs = R.iso.dates; break;
+    case "de-DE": xs = R.i18n.deDE.dates; break;
+    default: throw new Err(`unknown locale "${locale}"`);
+  }
+
+  for (const rx of xs) {
+    if (rx.test(s)) {
+      const o = s.match(rx);
+
+      o.groups.y = o.groups.y.length === 2
+        ? century + o.groups.y
+        : o.groups.y;
+
+      const y = Number(o.groups.y),
+        m = Number(o.groups.m),
+        d = Number(o.groups.d);
+
+      if (m < 1 || m > 12) {
+        if (_throw) throw new Err(`invalid month "${s}"`);
+
+        else return Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid month",
+        });
+      }
+
+      else if (d < 1 || d > 31 || d > D.lastDayOfMonth(y) (m)) {
+        if (_throw) throw new Err(`invalid day in date string "${s}"`);
+
+        else return Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid day",
+        });
+      }
+
+      return Parser.Valid({
+        value: new Date(Date.parse(
+          `${o.groups.y}-${o.groups.m}-${o.groups.d}`)),
+
+        kind: "date string",
+        original: s,
+      });
+    }
+  }
+
+  if (_throw) throw new Err(`invalid ${locale} date string "${s}"`);
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "date string",
+    reason: "malformed date string",
+  });
+};
+
+
+// parse time string and add it to the provided date object
+
+Parser.timeStr = ({date = new Date("0000-01-01"), _throw = true}) => s => {
+  for (const rx of R.iso.times) {
+    if (rx.test(s)) {
+      const o = s.match(rx),
+        h = Number(o.groups.h),
+        m = Number(o.groups.m),
+        s_ = o.groups.s ? Number(o.groups.s) : 0,
+        ms = o.groups.ms ? Number(o.groups.ms) : 0,
+        tzh = o.groups.tzh ? Number(o.groups.tzh) : 0,
+        tzm = o.groups.tzm ? Number(o.groups.tzm) : 0;
+
+      if (h > 23) {
+        if (_throw) throw new Err(`invalid hours "${s}"`);
+
+        else return Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid hours",
+        });
+      }
+          
+      else if (m > 59) {
+        if (_throw) throw new Err(`invalid minutes "${s}"`);
+
+        else return Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid minutes",
+        });
+      }
+
+      else if (s_ > 59) {
+        if (_throw) throw new Err(`invalid seconds "${s}"`);
+
+        else return Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid seconds",
+        });
+      }
+
+      else if (tzh > 23) {
+        if (_throw) throw new Err(`invalid timezone hours "${s}"`);
+
+        else return Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid timezone hours",
+        });
+      }
+
+      else if (tzm > 59) {
+        if (_throw) throw new Err(`invalid timezone minutes "${s}"`);
+
+        else return Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid timezone minutes",
+        });
+      }
+
+      date.setHours(h, m, s_, ms);
+      
+      return Parser.Valid({
+        value: date,
+        kind: "time string",
+        original: s,
+      });
+    }
+  }
+
+  if (_throw) throw new Err(`invalid iso time string "${s}"`);
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "time string",
+    reason: "malformed time string",
+  });
+};
+
+
+Parser.iban = s => {
+  const codeLen = 22;
+
+  const iban = s.toUpperCase(),
+    code = iban.match(/^([A-Z]{2})(\d{2})([A-Z\d]+)$/);
+
+  let digits;
+
+  if (!code || iban.length !== codeLen) return false;
+
+  digits = (code[3] + code[1] + code[2]).replace(/[A-Z]/g, letter => {
+    return letter.charCodeAt(0) - 55;
+  });
+
+  let checksum = digits.slice(0, 2),
+    fragment;
+
+  for (let offset = 2; offset < digits.length; offset += 7) {
+    fragment = String(checksum) + digits.substring(offset, offset + 7);
+    checksum = parseInt(fragment, 10) % 97;
+  }
+
+  if (checksum === 1) return Parser.Valid({
+    value: s,
+    kind: "iban",
+  });
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "iban",
+    reason: "malformed iban",
+  });
+};
+
+
+Parser.bic = s => {
+  if (/^([A-Z]{6}[A-Z2-9][A-NP-Z1-9])(X{3}|[A-WY-Z0-9][A-Z0-9]{2})?$/.test(s)) {
+    return Parser.Valid({
+      value: s,
+      kind: "bic",
+    });
+  }
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "bic",
+    reason: "malformed bic",
+  });
+};
+
+
+// decimal string (without scientific notation)
+
+Parser.decStr = ({sep: {dec, thd}, places: [from, to]}) => s => {
+  R("^(?:+|-)?\\d+(\\.\\d{1,2})?$")
+
+  if (/[0-9.,\-+e]/.test(s)) return Parser.Valid({
+    value: s,
+    kind: "decimal string",
+  });
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "decimal string",
+    reason: "unexpected characters",
+  });
+};
+
 
 
 //█████ Number ████████████████████████████████████████████████████████████████
@@ -11882,143 +12037,94 @@ Node.Crypto.createKey256 = () => Crypto.randomBytes(32).toString("base64");
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-// TODO: dysfunctional - adapt to new async type
+/* Option object field explanation:
+
+• encoding
+
+utf8, ucs2, ascii, latin1, binary, base64, base64url, hex
+
+• flag
+
+w: open file for writing, file is created (if it does not exist) or truncated (if it exists)
+wx: like w but fails if path exists (exclusive write)
+a: open file for appending, file is created if it does not exist
+ax: like a but fails if path exists (exclusive append)
+w+: open file for reading and writing, file is created (if it does not exist) or truncated (if it exists)
+as: open file for appending, file is created if it does not exist, synchronous i/o mode
+a+: open file for appending and reading, file is created if it does not exist, synchronous i/o mode
+
+*/
 
 
-Node.FS = Cons => {
-  const o = {};
+Node.FS = {};
 
-  // file system that imposes error handling on the calling site
 
-  o.handle = reify(p => {
-    p.collectFiles = (rootPath, maxDepth, fileTypes) => {
-      return function go(acc, currentPath, depth) {
-        if (depth > maxDepth) return Cons.of();
+Node.FS.read = opt => path => Cont((res, rej) =>
+  FS.readFile(path, opt, (e, x) => e ? rej(new Err(e)) : res(x)));
 
-        return Cons.chain(p.scanDir({withFileTypes: true}) (currentPath)) (qs => {
-          if (intro(qs) === "Error") throw qs;
 
-          const xs = qs.map(q => {
-            const fullPath = Node.path.join(currentPath, q.name),
-              relativePath = Node.path.relative(rootPath, fullPath);
+Node.FS.readOpt = {encoding: "utf8"};
 
-            if (q.isFile()) {
-              const ys = q.name.split(/\./);
-              
-              if (ys.length > 1 && fileTypes.has(ys[ys.length - 1])) {
-                acc.push(relativePath);
-                return Cons.of();
-              }
 
-              else return Cons.of();
-            }
+Node.FS.write = opt => s => path => Cont((res, rej) =>
+  FS.writeFile(path, s, opt, e => e ? rej(new Err(e)) : res(s)));
 
-            else if (q.isDirectory()) return go(acc, fullPath, depth + 1);
-            else return Cons.of();
-          });
 
-          return Cons.map(_ =>
-            acc.map(path => Node.path.join(rootPath, path))) (Cons.allArr(xs));
-        });
-      } ([], rootPath, 0);
-    };
+Node.FS.writeOpt = {encoding: "utf8", flag: "wx"};
 
-    p.copy = src => dest => Cons(k =>
-      FS.copyFile(src, dest, e =>
-        e ? k(new Err(e)) : k(null)));
 
-    p.move = src => dest =>
-      Cons.chain(p.copy(src) (dest)) (e =>
-        e?.constructor?.name === "Exception" ? Cons.of(e) : p.unlink(src));
+Node.FS.scanDir = opt => path => Cont((res, rej) =>
+  FS.readdir(path, opt, (e, xs) => e ? rej(new Err(e)) : res(xs)));
 
-    p.read = opt => path => Cons(k =>
-      FS.readFile(path, opt, (e, x) =>
-        e ? k(new Err(e)) : k(x)));
 
-    p.scanDir = opt => path => Cons(k =>
-      FS.readdir(path, opt, (e, xs) =>
-        e ? k(new Err(e)) : k(xs)));
+Node.FS.scanOpt = {encoding: "utf8", withFileTypes: false, recursive: false};
 
-    p.stat = path => Cons(k =>
-      FS.stat(path, (e, p) =>
-        e ? k(new Err(e)) : k(p)));
 
-    p.unlink = path => Cons(k =>
-      FS.unlink(path, e =>
-        e ? k(new Err(e)) : k(null)));
+Node.FS.copy = src => dest => Cont((res, rej) =>
+  FS.copyFile(src, dest, e => e ? rej(new Err(e)) : res(null)));
 
-    p.write = opt => path => s => Cons(k =>
-      FS.writeFile(path, s, opt, e =>
-        e ? k(new Err(e)) : k(s)));
 
-    return p;
-  });
+Node.FS.unlink = path => Cont((res, rej) =>
+  FS.unlink(path, e => e ? rej(new Err(e)) : res(null)));
 
-  // file system that immediately throws on error
 
-  o.throw = reify(p => {
-    p.collectFiles = (rootPath, maxDepth, fileTypes) => {
-      return function go(acc, currentPath, depth) {
-        if (depth > maxDepth) return Cons.of();
+Node.FS.move = src => dest =>
+  Cont.chain(Node.FS.copy(src) (dest)) (x =>
+    Cont.chain(Node.FS.unlink(src)) (y => res(y)));
 
-        return Cons.chain(p.scanDir({withFileTypes: true}) (currentPath)) (qs => {
-          const xs = qs.map(q => {
-            const fullPath = Node.path.join(currentPath, q.name),
-              relativePath = Node.path.relative(rootPath, fullPath);
 
-            if (q.isFile()) {
-              const ys = q.name.split(/\./);
-              
-              if (ys.length > 1 && fileTypes.has(ys[ys.length - 1])) {
-                acc.push(relativePath);
-                return Cons.of();
-              }
+Node.FS.stat = path => Cont((res, rej) =>
+  FS.stat(path, (e, p) => e ? rej(new Err(e)) : res(p)));
 
-              else return Cons.of();
-            }
 
-            else if (q.isDirectory()) return go(acc, fullPath, depth + 1);
-            else return Cons.of();
-          });
+Node.FS.collectFiles = ({maxDepth, fileTypes}) => rootPath => {
+  return function go(acc, currentPath, depth) {
+    if (depth > maxDepth) return Cont.of();
 
-          return Cons.map(_ =>
-            acc.map(path => Node.path.join(rootPath, path))) (Cons.allArr(xs));
-        });
-      } ([], rootPath, 0);
-    };
+    return Cont.chain(Node.FS.scanDir({withFileTypes: true}) (currentPath)) (qs => {
+      const xs = qs.map(q => {
+        const fullPath = Node.path.join(currentPath, q.name),
+          relativePath = Node.path.relative(rootPath, fullPath);
 
-    p.copy = src => dest => Cons(k =>
-      FS.copyFile(src, dest, e =>
-        e ? _throw(e) : k(null)));
+        if (q.isFile()) {
+          const ys = q.name.split(/\./);
+          
+          if (ys.length > 1 && fileTypes.has(ys[ys.length - 1])) {
+            acc.push(relativePath);
+            return Cont.of();
+          }
 
-    p.move = src => dest =>
-      Cons.chain(p.copy(src) (dest)) (_ =>
-        p.unlink(src));
+          else return Cont.of();
+        }
 
-    p.read = opt => path => Cons(k =>
-      FS.readFile(path, opt, (e, x) =>
-        e ? _throw(e) : k(x)));
+        else if (q.isDirectory()) return go(acc, fullPath, depth + 1);
+        else return Cont.of();
+      });
 
-    p.scanDir = opt => path => Cons(k =>
-      FS.readdir(path, opt, (e, xs) =>
-        e ? _throw(e) : k(xs)));
-
-    p.stat = path => Cons(k =>
-      FS.stat(path, (e, p) =>
-        e ? _throw(e) : k(p)));
-
-    p.unlink = path => Cons(k =>
-      FS.unlink(path, e =>
-        e ? _throw(e) : k(null)));
-
-    p.write = opt => path => s => Cons(k =>
-      FS.writeFile(path, s, opt, e =>
-        e ? _throw(e) : k(s)));
-
-    return p;
-  });
-
-  return o;
+      return Cont.map(_ =>
+        acc.map(path => Node.path.join(rootPath, path))) (Cont.Ser.All.arr(xs));
+    });
+  } ([], rootPath, 0);
 };
 
 
