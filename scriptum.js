@@ -26,11 +26,6 @@ import Stream_ from "node:stream";
 //import * as I from "immutable";
 
 
-const scheduler = queueMicrotask ? queueMicrotask
-  : process?.nextTick ? process.nextTick
-  : null;
-
-
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████ ASPECTS ███████████████████████████████████
@@ -2508,13 +2503,13 @@ Cont.liftA = f => o => p => Cont.ap(Cont.map(f) (o)) (p);
 
 
 Cont.chain = o => f => Cont((res, rej) => {
-  scheduler(() => {
+  queueMicrotask(() => {
     o.resume(
       x => {
         try {
           const p = f(x);
 
-          scheduler(() => {
+          queueMicrotask(() => {
             try {p.resume(res, rej)}
             catch (e) {rej(e)}
           });
@@ -2538,7 +2533,7 @@ Cont.of = x => Cont((res, rej) => {
 // Applicative f => (a -> f b) -> (Cont a) -> f (Cont b)
 
 Cont.mapA = dict => f => o => Cont((res, rej) => {
-  scheduler(() => {
+  queueMicrotask(() => {
     ca.resume(
       x => {
         try {res(dict.map(Cont.of) (f(x)))}
@@ -2618,7 +2613,7 @@ Cont.Par.and = o => p => Cont((res, rej) => {
   const pair = Array(2);
   let i = 0;
 
-  scheduler(() => {
+  queueMicrotask(() => {
     [o, p].map((q, j) => {
       q.resume(
         x => {
@@ -2650,7 +2645,7 @@ Cont.Par.and = o => p => Cont((res, rej) => {
 Cont.Par.andRace = o => p => Cont((res, rej) => {
   let done = false;
 
-  scheduler(() => {
+  queueMicrotask(() => {
     [o, p].map((q, j) => {
       q.resume(
         x => {
@@ -5125,6 +5120,45 @@ export const O = {};
 /*█████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████ COMBINATORS █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
+
+
+/* Dynamic path traversal where keys can be functions that produce new keys
+depdending on arbitrary conditions, e.g. the last key. */
+
+O.get = ({ks, _default = null, _throw = false}) => o => {
+  let value = o;
+
+  for (const k of ks) {
+    let k2;
+
+    if (value == null) {
+      if (_throw) throw new Err("unknown path");
+      else return _default;
+    }
+
+    else if (typeof k === "function") {
+      k2 = k(value, o);
+      if (k2 === O.get.stopTraversal) return value;
+    }
+
+    else k2 = k;
+
+    if (typeof k2 !== "string" && typeof k2 !== "number") {
+
+      // re-evaluate function if k2 is function itself
+
+      if (k === k2 && typeof k === "function") return k2(value, o);
+      else if (_throw) throw new Err("invalid key");
+      else return _default;
+    }
+
+    else if (k2 in value) value = value[k2];
+    else if (_throw) throw new Err("unknown property");
+    else return _default;
+  }
+
+  return value;
+};
 
 
 /* Immutable and composable object path updates with structural sharing that
