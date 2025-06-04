@@ -502,10 +502,16 @@ export const comp2 = f => g => x => y => f(g(x) (y));
 export const pipe = g => f => x => f(g(x));
 
 
-export const compn = (...fs) => fs.reduce((acc, f) => comp(f) (acc), id);
+export const comps = (...fs) => fs.reduce((acc, f) => comp(f) (acc), id);
 
 
-export const pipen = (...fs) => fs.reduce((acc, f) => pipe(f) (acc), id);
+export const pipes = (...fs) => fs.reduce((acc, f) => pipe(f) (acc), id);
+
+
+export const compk = f => g => x => g(x) (f);
+
+
+export const compks = (...fs) => fs.reduceRight((acc, g) => x => g(x) (acc), id);
 
 
 export const lift = f => g => x => y => f(g(x)) (g(y));
@@ -5150,47 +5156,10 @@ export const O = {};
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Dynamic path traversal where keys can be functions that produce new keys
-depdending on arbitrary conditions, e.g. the last key. Allows short circuiting
-via a sentinel. */
+/* Traverse an object path dynamically while functions either produce the next
+key or decide to short circuit. See getters at the end of this section. */
 
-O.get = ({ks, _default = null, _throw = false}) => o => {
-  let value = o;
-
-  for (const k of ks) {
-    let k2;
-
-    if (value == null) {
-      if (_throw) throw new Err("unknown path");
-      else return _default;
-    }
-
-    else if (typeof k === "function") {
-      k2 = k(value, o);
-      if (k2 === O.get.stopTraversal) return value;
-    }
-
-    else k2 = k;
-
-    if (typeof k2 !== "string" && typeof k2 !== "number") {
-
-      // re-evaluate function if k2 is function itself
-
-      if (k === k2 && typeof k === "function") return k2(value, o);
-      else if (_throw) throw new Err("invalid key");
-      else return _default;
-    }
-
-    else if (k2 in value) value = value[k2];
-    else if (_throw) throw new Err("unknown property");
-    else return _default;
-  }
-
-  return value;
-};
-
-
-O.get.stopTraversal = Symbol("sentinel");
+O.get = compks;
 
 
 /* Immutable and composable object path updates with structural sharing that
@@ -5284,6 +5253,30 @@ O.fromIt = ix => {
 
 
 O.fromPairs = pairs => pairs.reduce((acc, [k, v]) => (acc[k] = v, acc), {});
+
+
+//█████ Getters ███████████████████████████████████████████████████████████████
+
+
+O.Getter = {};
+
+
+O.Getter.throw = prop => o => k => {
+  if (prop in o) return k(o[prop]);
+  else throw new Err(`unknown property "${prop}"`);
+};
+
+
+O.Getter.default = ({_default, prop}) => o => k => {
+  if (prop in o) return k(o[prop]);
+  else return _default;
+};
+
+
+O.Getter.check = tag => o => k => {
+  if (intro(o) === tag) return k(o);
+  else {debugger; throw new Err(`unexpected "${intro(o)}"`);}
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -5692,10 +5685,73 @@ Parser.bic = s => {
 };
 
 
-// decimal string (without scientific notation)
+// decimal number string (without scientific notation)
 
-Parser.decStr = ({sep: {dec, thd}, places: [from, to]}) => s => {
-  // TODO
+Parser.decStr = ({decSep, thdSep = "", places: [from, to = from]}) => s => {
+  const kind = "decimal number string";
+  let s2 = s, sign = "";
+
+  if (s.search("e") !== notFound) return Parser.Invalid({
+    value: s,
+    kind,
+    reason: "scientific notation",
+  });
+
+  else if (s[0] === "+" || s[0] === "-") {
+    sign = s[0];
+    s2 = s2.slice(1);
+  }
+
+  const [int, dec, ...rest] = s2.split(decSep),
+    segments = int.split(thdSep);
+
+  if (dec.length === 0) return Parser.Invalid({
+    value: s,
+    kind,
+    reason: "decimal point missing",
+  });
+
+  else if (rest.length > 0) return Parser.Invalid({
+    value: s,
+    kind,
+    reason: "several decimal points",
+  });
+
+  if (segments.some(seg => !/^\d+$/.test(seg))) return Parser.Invalid({
+    value: s,
+    kind,
+    reason: "malformed integer component",
+  });
+
+  else if (segments.slice(1).some(seg => seg.length !== 3)) return Parser.Invalid({
+    value: s,
+    kind,
+    reason: "malformed integer segment",
+  });
+
+  else if (segments[0] [0] === "0") return Parser.Invalid({
+    value: s,
+    kind,
+    reason: "unexpected leading zero",
+  });
+
+  else if (!/^\d+$/.test(dec)) return Parser.Invalid({
+    value: s,
+    kind,
+    reason: "malformed decimal component",
+  });
+
+  else if (dec.length < from || dec.length > to) return Parser.Invalid({
+    value: s,
+    kind,
+    reason: "wrong decimal places",
+  });
+
+  else return Parser.Valid({
+    value: Number(sign + segments.join("") + decSep + dec),
+    kind,
+    original: s,
+  });
 };
 
 
@@ -12110,9 +12166,7 @@ a: open file for appending, file is created if it does not exist
 ax: like a but fails if path exists (exclusive append)
 w+: open file for reading and writing, file is created (if it does not exist) or truncated (if it exists)
 as: open file for appending, file is created if it does not exist, synchronous i/o mode
-a+: open file for appending and reading, file is created if it does not exist, synchronous i/o mode
-
-*/
+a+: open file for appending and reading, file is created if it does not exist, synchronous i/o mode */
 
 
 Node.FS_ = {}; // custom file system namespace
