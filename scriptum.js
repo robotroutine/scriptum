@@ -47,6 +47,9 @@ export const $ = Symbol.toStringTag;
 export const $$ = Symbol("constructor");
 
 
+export const undef = undefined;
+
+
 export const Err = Error;
 
 
@@ -5156,8 +5159,7 @@ export const O = {};
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Traverse an object path dynamically while functions either produce the next
-key or decide to short circuit. See getters at the end of this section. */
+// dynamic object path resolution (see predefined getters below)
 
 O.get = compks;
 
@@ -5258,24 +5260,68 @@ O.fromPairs = pairs => pairs.reduce((acc, [k, v]) => (acc[k] = v, acc), {});
 //█████ Getters ███████████████████████████████████████████████████████████████
 
 
+/* Getters are almost ordinary functions only that they expect a continuation
+as their last argument that allow each individual getter to short circuit the
+process. Are meant to be composed with `O.get`. */
+
+
 O.Getter = {};
 
 
-O.Getter.throw = prop => o => k => {
+O.Getter.get = prop => o => k => {
   if (prop in o) return k(o[prop]);
-  else throw new Err(`unknown property "${prop}"`);
+  else {debugger; throw new Err(`unknown property "${prop}"`);}
 };
 
 
-O.Getter.default = ({_default, prop}) => o => k => {
-  if (prop in o) return k(o[prop]);
-  else return _default;
+O.Getter.try = ({or, prop}) => o => k => {
+  if (Object(o) !== o) throw new Err("non-object");
+  else if (prop in o) return k(o[prop]);
+  else return or;
 };
 
 
-O.Getter.check = tag => o => k => {
-  if (intro(o) === tag) return k(o);
-  else {debugger; throw new Err(`unexpected "${intro(o)}"`);}
+O.Getter.satisfy = ({p, msg}) => o => k => {
+  if (p(o)) return k(o);
+  else {throw new Err(msg);}
+};
+
+
+O.Getter.parse = parser => o => k => k(parser(o));
+
+
+O.Getter.examine = prop  => o => k => {
+  if (Object(o) === o && prop in o) return k(o[prop]);
+  else {debugger; throw o;}
+};
+
+
+// conjunction as higher order getter
+
+O.Getter.all = (...getters) => o => k => {
+  for (const getter of getters) {
+    o = getter(o) (id);
+    if (o === undefined) throw new Err("unknown property");
+  }
+
+  return k(o);
+};
+
+
+// disjunction as higher order getter
+
+O.Getter.any = (...getters) => o => k => {
+  for (const getter of getters) {
+    try {
+      o = getter(o) (id);
+      if (o === undefined) continue;
+      else return k(o);
+    }
+    
+    catch (_) {continue}    
+  }
+
+  throw new Err("unknown properties");
 };
 
 
@@ -5428,8 +5474,8 @@ Parser.value = x => {
 
 
 Parser.pattern = ({rx, kind, reason}) => s => {
-  if (rx.test(s)) return Parser.Valid({value: x, kind});
-  else return Parser.Invalid({value: x, kind, reason});
+  if (rx.test(s)) return Parser.Valid({value: s, kind});
+  else return Parser.Invalid({value: s, kind, reason});
 };
 
 
@@ -5685,6 +5731,21 @@ Parser.bic = s => {
 };
 
 
+Parser.nat = s => {
+  if (/^[1-9]\d*$/.test(s)) return Parser.Valid({
+    value: Number(s),
+    kind: "natural number",
+    original: s,
+  });
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "natural number",
+    reason: "malformed natural number",
+  });
+};
+
+
 // decimal number string (without scientific notation)
 
 Parser.decStr = ({decSep, thdSep = "", places: [from, to = from]}) => s => {
@@ -5917,6 +5978,20 @@ Parser.maxDec = max => n => {
   else return Parser.Valid({
     value: n,
     kind: "max precision",
+  });
+};
+
+
+//█████ Object Types ██████████████████████████████████████████████████████████
+
+
+Parser.isMember = s => x => {
+  if (s.has(x)) return Parser.Valid({value: x, kind: "member"});
+  
+  else return Parser.Inalid({
+    value: x,
+    kind: "member",
+    reason: "not a member",
   });
 };
 
