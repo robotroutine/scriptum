@@ -2497,8 +2497,7 @@ Cont.validate = p => o => Cont.chain(o) (x =>
   p(x) ? Cont.of(x) : Cont.reject(x));
 
 
-Cont.fromPromise = px => Cont((res, rej) =>
-  px.then(x => res(x)).catch(e => rej(e)));
+Cont.fromPromise = px => Cont((res, rej) => px.then(res).catch(rej));
 
 
 Cont.tryCatch = f => o => Cont((res, rej) => o.resume(id, e => res(f(e))));
@@ -2583,7 +2582,7 @@ Cont.mapA = dict => f => o => Cont((res, rej) => {
 });
 
 
-// Cont.seqA is equvalent to Cont.Ser.All.arr
+// Cont.seqA is equvalent to Cont.Serial.All.arr
 
 
 // kleisli composition
@@ -2605,18 +2604,18 @@ Cont.empty = dict => () => Cont((res, rej) => {
 //█████ Serial Evaluation █████████████████████████████████████████████████████
 
 
-Cont.Ser = {};
+Cont.Serial = {};
 
 
-Cont.Ser.and = o => p => Cont.chain(o) (x =>
+Cont.Serial.and = o => p => Cont.chain(o) (x =>
   Cont.chain(p) (y =>
     Cont.of([x, y])));
 
 
-Cont.Ser.All = {};
+Cont.Serial.All = {};
 
 
-Cont.Ser.All.arr = xs => {
+Cont.Serial.All.arr = xs => {
   return xs.reduce((acc, o) => {
     return Cont.chain(acc) (ys => {
       return Cont.chain(o) (x => {
@@ -2628,7 +2627,7 @@ Cont.Ser.All.arr = xs => {
 };
 
 
-Cont.Ser.All.obj = o => {
+Cont.Serial.All.obj = o => {
   return Object.keys(o).reduce((acc, key) => {
     return Cont.chain(acc) (p => {
       return Cont.chain(o[key]) (x => {
@@ -2643,10 +2642,10 @@ Cont.Ser.All.obj = o => {
 //█████ Parallel Evaluation ███████████████████████████████████████████████████
 
 
-Cont.Par = {};
+Cont.Parallel = {};
 
 
-Cont.Par.and = o => p => Cont((res, rej) => {
+Cont.Parallel.and = o => p => Cont((res, rej) => {
   const pair = Array(2);
   let i = 0;
 
@@ -2679,7 +2678,7 @@ Cont.Par.and = o => p => Cont((res, rej) => {
 });
 
 
-Cont.Par.andRace = o => p => Cont((res, rej) => {
+Cont.Parallel.andRace = o => p => Cont((res, rej) => {
   let done = false;
 
   queueMicrotask(() => {
@@ -2700,15 +2699,15 @@ Cont.Par.andRace = o => p => Cont((res, rej) => {
 });
 
 
-Cont.Par.all = xs => xs.reduce((acc, o) =>
-  Cont.map(pair => pair.flat()) (Cont.Par.and(acc) (o)), Cont.of([]));
+Cont.Parallel.all = xs => xs.reduce((acc, o) =>
+  Cont.map(pair => pair.flat()) (Cont.Parallel.and(acc) (o)), Cont.of([]));
 
 
-Cont.Par.never = Cont((res, rej) => null);
+Cont.Parallel.never = Cont((res, rej) => null);
 
 
-Cont.Par.race = xs => xs.reduce((acc, o) =>
-  Cont.Par.andRace(acc) (o), Cont.Par.never);
+Cont.Parallel.race = xs => xs.reduce((acc, o) =>
+  Cont.Parallel.andRace(acc) (o), Cont.Parallel.never);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -3713,102 +3712,67 @@ export const Ait = {};
 Ait.from = x => x[Symbol.asyncIterator] ();
 
 
-// alternate two async iterators
+//█████ Type Classes ██████████████████████████████████████████████████████████
 
-Ait.alternate = ix => async function* (iy) {
-  let doneFst = false, doneSnd = false;
 
-  while (true) {
-    let nextX = {done: true};
-
-    if (!doneFst) {
-      nextX = await ix.next();
-      if (nextX.done) doneFst = true;
-      else yield nextX.value;
-    }
-
-    let nextY = {done: true};
-
-    if (!doneSnd) {
-      nextY = await iy.next();
-      if (nextY.done) doneSnd = true;
-      else yield nextY.value;
-    }
-
-    if (doneFst && doneSnd) break;
-  }
+Ait.map = f => async function* (ix) {
+  for await (const x of ix) yield f(x);
 };
 
 
-// interpolate a string into an async iterator
-
-Ait.interpose = ({sep, trailing = true}) => async function* (ix) {
-  let isFirst = true, prevVal;
-
-  for await (const x of ix) {
-    if (!isFirst) {
-      yield prevVal;
-      yield sep;
-    }
-
-    prevVal = x;
-    isFirst = false;
-  }
-
-  if (!isFirst) {
-    yield prevVal;
-    if (trailing) yield sep;
-  }
+Ait.filter = p => async function* (ix) {
+  for await (const x of ix) if (p(x)) yield x;
 };
 
 
-// interpolate a string into an array
+// strict left-associative fold
 
-Ait.interposeArr = ({sep, trailing = true}) => async function* (xs) {
-  for (let i = 0; i < xs.length; i++) {
-    const isLast = i === xs.length - 1,
-      t = await xs[i];
-
-    yield t;
-
-    if (!isLast) yield sep;
-    else if (trailing) yield sep;
-  }
+Ait.foldl = f => acc => async function (ix) {
+  for await (const x of ix) acc = f(acc, x);
+  return acc;
 };
+
+
+Ait.append = ix => async function* (iy) {
+  for await (const x of ix) yield x;
+  for await (const y of iy) yield y;
+};
+
+
+Ait.empty = async function* () {} ();
 
 
 //█████ Chunking ██████████████████████████████████████████████████████████████
 
 
-/* Stream semantically meaningful data chunks. Example usage using streams:
+/* Stream semantically meaningful data chunks. Example usage utilizing streams:
 
-  const writable = fs.createWriteStream("./awords.txt");
+  const readable = fs.createReadStream("./words.txt"),
+    writable = fs.createWriteStream("./awords.txt");
 
-  const sx = Node.Stream.compose(
-    Ait.from(fs.createReadStream("./words.txt")),
+  composedIx = pipes(
+    Ait.from(readable),
     Ait.chunk({sep: /\r?\n/}),
     Ait.filter(line => line[0] === "a"),
     Ait.map(line => line + "\n"));
 
-  Node.Stream.pipeline(sx, writable, e => {
-    if (e) console.error(e);
-    else console.log("done");
-  });
+  Node.Stream.pipeline(
+    composedIx,
+    writable,
+    e => {...}
+  );
 
-Allows processing of vast amounts of data that doesn't fit in memory. */
+Allows processing of vast amounts of data that don't fit in memory. */
 
 Ait.chunk = ({sep, threshold = 65536, skipRest = false}) => ix => {
   let buf = "";
 
   return async function* () {
     for await (const x of ix) {
-      const s = buf + x.toString(),
-        chunks = s.split(sep);
+      const s = buf + x, chunks = s.split(sep);
 
       buf = chunks.pop() || "";
-
       if (buf.length > threshold) throw new Err("buffer overflow");
-
       for (const chunk of chunks) yield chunk;
     }
 
@@ -3879,34 +3843,71 @@ Ait.separatedChunks = ({num, remainder = false}) => {
 };
 
 
-//█████ Type Classes ██████████████████████████████████████████████████████████
+//█████ Combining █████████████████████████████████████████████████████████████
 
 
-Ait.map = f => async function* (ix) {
-  for await (const x of ix) yield f(x);
+// alternate two async iterators
+
+Ait.alternate = ix => async function* (iy) {
+  let doneFst = false, doneSnd = false;
+
+  while (true) {
+    let nextX = {done: true};
+
+    if (!doneFst) {
+      nextX = await ix.next();
+      if (nextX.done) doneFst = true;
+      else yield nextX.value;
+    }
+
+    let nextY = {done: true};
+
+    if (!doneSnd) {
+      nextY = await iy.next();
+      if (nextY.done) doneSnd = true;
+      else yield nextY.value;
+    }
+
+    if (doneFst && doneSnd) break;
+  }
 };
 
 
-Ait.filter = p => async function* (ix) {
-  for await (const x of ix) if (p(x)) yield x;
+// interpolate a string into an async iterator
+
+Ait.interpose = ({sep, trailing = true}) => async function* (ix) {
+  let isFirst = true, prevVal;
+
+  for await (const x of ix) {
+    if (!isFirst) {
+      yield prevVal;
+      yield sep;
+    }
+
+    prevVal = x;
+    isFirst = false;
+  }
+
+  if (!isFirst) {
+    yield prevVal;
+    if (trailing) yield sep;
+  }
 };
 
 
-// strict left-associative fold
+// interpolate a string into an array
 
-Ait.foldl = f => acc => async function (ix) {
-  for await (const x of ix) acc = f(acc, x);
-  return acc;
+Ait.interposeArr = ({sep, trailing = true}) => async function* (xs) {
+  for (let i = 0; i < xs.length; i++) {
+    const isLast = i === xs.length - 1,
+      t = await xs[i];
+
+    yield t;
+
+    if (!isLast) yield sep;
+    else if (trailing) yield sep;
+  }
 };
-
-
-Ait.append = ix => async function* (iy) {
-  for await (const x of ix) yield x;
-  for await (const y of iy) yield y;
-};
-
-
-Ait.empty = async function* () {} ();
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -5265,40 +5266,40 @@ as their last argument that allow each individual getter to short circuit the
 process. Are meant to be composed with `O.get`. */
 
 
-O.Getter = {};
+O.Get = {};
 
 
-O.Getter.get = prop => o => k => {
+O.Get.get = prop => o => k => {
   if (prop in o) return k(o[prop]);
-  else {debugger; throw new Err(`unknown property "${prop}"`);}
+  else throw new Err(`unknown property "${prop}"`);
 };
 
 
-O.Getter.try = ({or, prop}) => o => k => {
+O.Get.try = ({or, prop}) => o => k => {
   if (Object(o) !== o) throw new Err("non-object");
   else if (prop in o) return k(o[prop]);
   else return or;
 };
 
 
-O.Getter.satisfy = ({p, msg}) => o => k => {
+O.Get.satisfy = ({p, msg}) => o => k => {
   if (p(o)) return k(o);
   else {throw new Err(msg);}
 };
 
 
-O.Getter.parse = parser => o => k => k(parser(o));
+O.Get.parse = parser => o => k => k(parser(o));
 
 
-O.Getter.examine = prop  => o => k => {
+O.Get.examine = prop  => o => k => {
   if (Object(o) === o && prop in o) return k(o[prop]);
-  else {debugger; throw o;}
+  else {debugger; throw o}
 };
 
 
 // conjunction as higher order getter
 
-O.Getter.all = (...getters) => o => k => {
+O.Get.all = (...getters) => o => k => {
   for (const getter of getters) {
     o = getter(o) (id);
     if (o === undefined) throw new Err("unknown property");
@@ -5310,7 +5311,7 @@ O.Getter.all = (...getters) => o => k => {
 
 // disjunction as higher order getter
 
-O.Getter.any = (...getters) => o => k => {
+O.Get.any = (...getters) => o => k => {
   for (const getter of getters) {
     try {
       o = getter(o) (id);
@@ -12248,32 +12249,44 @@ Node.FS_ = {}; // custom file system namespace
 
 
 Node.FS_.read = opt => path => Cont((res, rej) =>
-  Node.FS.readFile(path, opt, (e, x) => e ? rej(new Err(e)) : res(x)));
+  Node.FS.readFile(path, opt, (e, x) => e ? rej(new Err(e.message)) : res(x)));
 
 
 Node.FS_.readOpt = {encoding: "utf8"};
 
 
 Node.FS_.write = opt => s => path => Cont((res, rej) =>
-  Node.FS.writeFile(path, s, opt, e => e ? rej(new Err(e)) : res(s)));
+  Node.FS.writeFile(path, s, opt, e => e ? rej(new Err(e.message)) : res(s)));
 
 
 Node.FS_.writeOpt = {encoding: "utf8", flag: "wx"};
 
 
+// scan relative paths
+
 Node.FS_.scanDir = opt => path => Cont((res, rej) =>
-  Node.FS.readdir(path, opt, (e, xs) => e ? rej(new Err(e)) : res(xs)));
+  Node.FS.readdir(path, opt, (e, xs) => e ? rej(new Err(e.message)) : res(xs)));
+
+
+// scan absolute paths
+
+Node.FS_.scanDirAbs = opt => path => Cont((res, rej) =>
+  fs.readdir(path, opt, (e, paths) => {
+    if (e) return rej(new Err(e.message));
+    else return res(paths.map(path2 => Node.Path.join(path, path2)));
+  })
+);
 
 
 Node.FS_.scanOpt = {encoding: "utf8", withFileTypes: false, recursive: false};
 
 
 Node.FS_.copy = src => dest => Cont((res, rej) =>
-  Node.FS.copyFile(src, dest, e => e ? rej(new Err(e)) : res(null)));
+  Node.FS.copyFile(src, dest, e => e ? rej(new Err(e.message)) : res(null)));
 
 
 Node.FS_.unlink = path => Cont((res, rej) =>
-  Node.FS.unlink(path, e => e ? rej(new Err(e)) : res(null)));
+  Node.FS.unlink(path, e => e ? rej(new Err(e.message)) : res(null)));
 
 
 Node.FS_.move = src => dest =>
@@ -12282,7 +12295,7 @@ Node.FS_.move = src => dest =>
 
 
 Node.FS_.stat = path => Cont((res, rej) =>
-  Node.FS.stat(path, (e, p) => e ? rej(new Err(e)) : res(p)));
+  Node.FS.stat(path, (e, p) => e ? rej(new Err(e.message)) : res(p)));
 
 
 Node.FS_.collectFiles = ({maxDepth, fileTypes}) => rootPath => {
@@ -12310,7 +12323,7 @@ Node.FS_.collectFiles = ({maxDepth, fileTypes}) => rootPath => {
       });
 
       return Cont.map(_ =>
-        acc.map(path => Node.Path.join(rootPath, path))) (Cont.Ser.All.arr(xs));
+        acc.map(path => Node.Path.join(rootPath, path))) (Cont.Serial.All.arr(xs));
     });
   } ([], rootPath, 0);
 };
