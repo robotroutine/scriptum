@@ -5288,12 +5288,21 @@ O.Get.satisfy = ({p, msg}) => o => k => {
 };
 
 
-O.Get.parse = parser => o => k => k(parser(o));
+// map a normal function
+
+O.Get.map = f => o => k => k(f(o));
 
 
 O.Get.examine = prop  => o => k => {
   if (Object(o) === o && prop in o) return k(o[prop]);
   else {debugger; throw o}
+};
+
+
+O.Get.intercept = o => k => {
+  debugger;
+  log(o);
+  return k(o);
 };
 
 
@@ -5333,13 +5342,12 @@ O.Get.any = (...getters) => o => k => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Parse, don't validate. This isn't yet another parser implementation but
-essentially a type that is meant to replace ture/false validations suffering
-from boolean blindness. A parser takes unstructured data and returns structured
-data or an error. The structured data can either be a definitively valid value
-or a maybe valid value with some confidence. The type can be handled as a row
-polaymorphic one, i.e. there is a set of required properties but you can add
-arbitrary ones. */
+/* This isn't yet another parser implementation but a type that is meant to
+replace ture/false validations suffering from boolean blindness. A parser takes
+unstructured data and tries to add structre to it. It returns structured data
+on success or the original data on error (or throws the error). Besides the
+valid/invalid dichotomy the type also can represent a maybe valid value where
+confidence quantifies the amount of indeterminism. */
 
 
 export const Parser = {};
@@ -5356,7 +5364,7 @@ Parser.Valid = ({value, kind, ...rest}) => ({
 
 Parser.Invalid = ({value, kind, reason, ...rest}) => ({
   [$]: "Parser",
-  [$$]: "Parser.Valid",
+  [$$]: "Parser.Invalid",
   value,
   kind,
   reason,
@@ -5372,6 +5380,713 @@ Parser.Maybe = ({value, kind, confidence, ...rest}) => ({
   confidence,
   ...rest
 });
+
+
+//█████ General ███████████████████████████████████████████████████████████████
+
+
+Parser.satisfy = ({p, kind, reason, _throw = false}) => x => {
+  if (p(x)) return Parser.Valid({value: x, kind});
+  else if (_throw) throw new Err(reason);
+  else return Parser.Invalid({value: x, kind, reason});
+};
+
+
+Parser.value = x => {
+  const kind = "non-error value";
+  let o;
+
+  if (x === undefined) o = Parser.Invalid({
+    value: x, kind, reason: "undefined"
+  });
+  
+  else if (x === null) o = Parser.Invalid({
+    value: x, kind, reason: "null"
+  });
+
+  else if (x !== x) o = Parser.Invalid({
+    value: x, kind, reason: "not a number"
+  });
+
+  else if (isNaN(x)) o = Parser.Invalid({
+    value: x, kind, reason: "not a date"
+  });
+
+  else if (typeof x === "number") {
+    if (!Number.isFinite(x)) o = Parser.Invalid({
+      value: x, kind, reason: "infinite number"
+    });
+
+    else if (!Number.isSafeInteger(x)) o = Parser.Invalid({
+      value: x, kind, reason: "unsafe integer"
+    });
+
+    else o = Parser.Valid({value: x, kind});
+  }
+
+  else o = Parser.Valid({value: x, kind});
+
+  if (o[$$] === "Parser.Valid") return o;
+  else if (_throw) throw new Err(o.reason);
+  else return o;
+};
+
+
+Parser.empty = x => {
+  const tag = intro(x), assum = "empty value",
+    kind = "empty value";
+
+  switch (tag) {
+    case "Array": {
+      if (x.length === 0) return Parser.Valid({
+        value: x,
+        kind,
+      });
+
+      break;
+    }
+
+    case "Bigint": {
+      if (x === 0n) return Parser.Valid({
+        value: x,
+        kind,
+      });
+
+      break;
+    }
+
+    case "Map":
+    case "Set":
+    case "WeakMap":
+    case "WeakSet": {
+      if (x.size === 0) return Parser.Valid({
+        value: x,
+        kind,
+      });
+
+      break;
+    }
+
+    case "Number": {
+      if (x === 0) return Parser.Valid({
+        value: x,
+        kind,
+      });
+
+      break;
+    }
+      
+    case "Object": {
+      if (Object.keys(x).length === 0) return Parser.Valid({
+        value: x,
+        kind,
+      });
+
+      break;
+    }
+      
+    case "String": {
+      if (x === "") return Parser.Valid({
+        value: x,
+        kind,
+      });
+
+      break;
+    }
+
+    default: throw new Err(`unexpected type "${tag}"`);
+  }
+
+  if (_throw) throw new Err("non-empty value");
+
+  else return Parser.Valid({
+    value: x,
+    kind,
+    reason: "non-empty value",
+  });
+};
+
+
+// for all ordered types or quantified properties like length/size
+
+Parser.min = ({min, _throw = false}) => n => {
+  if (n >= min) return Parser.Valid({
+    value: n,
+    kind: "min number",
+  });
+
+  else if (_throw) throw new Err(`below threshold "${s}"`);
+
+  else return Parser.Invalid({
+    value: n,
+    kind: "min number",
+    reason: "below threshold",
+  });
+};
+
+
+// for all ordered types or quantified properties like length/size
+
+Parser.max = ({max, _throw = false}) => n => {
+  if (n <= max) return Parser.Valid({
+    value: n,
+    kind: "max number",
+  });
+
+  else if (_throw) throw new Err(`above threshold "${s}"`);
+
+  else return Parser.Invalid({
+    value: n,
+    kind: "max number",
+    reason: "above threshold",
+  });
+};
+
+
+//█████ String ████████████████████████████████████████████████████████████████
+
+
+Parser.pattern = ({rx, kind, reason, _throw = false}) => s => {
+  if (rx.test(s)) return Parser.Valid({value: s, kind});
+  else if (_throw) throw new Err(reason);
+  else return Parser.Invalid({value: s, kind, reason});
+};
+
+
+// parse any number string
+
+Parser.num = ({locale, strict = false, _throw = false}) => s => {
+  let xs;
+
+  switch (locale) {
+    case "iso": xs = R.iso.nums; break;
+    case "deDE": xs = R.i18n.deDE.nums; break;
+    default: throw new Err(`unknown locale "${locale}"`);
+  }
+
+  for (const rx of xs) {
+    if (rx.test(s)) {
+      const o = s.match(rx);
+
+      const presign = o.groups.sign === undefined
+        ? "" : o.groups.sign;
+
+      const postsign = o.groups.postsign === undefined
+        ? "" : o.groups.postsign;
+
+      const sign = presign ? presign : postsign,
+        int = o.groups.int.replaceAll(/[^\d]/g, "");
+
+      const frac = o.groups.frac === undefined
+        ? "" : o.groups.frac;
+
+      if (strict && int[0] === "0") {
+        if (_throw) throw new Err(`leading zero "${s}"`);
+
+        else return Parser.Invalid({
+          value: s,
+          kind: "number string",
+          reason: "leading zero",
+        });
+      }
+
+      else return Parser.Valid({
+        value: Number(sign + int + "." + frac),
+        kind: "number string",
+        original: s,
+      });
+    }
+  }
+
+  if (_throw) throw new Err(`invalid number string: "${s}"`);
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "number string",
+    reason: "malformed number string",
+  });
+};
+
+
+// parse natural number string
+
+Parser.nat = ({inclZero, _throw = false}) => s => {
+  if (inclZero && /^\d+$/.test(s)) return Parser.Valid({
+    value: Number(s),
+    kind: "natural number",
+    original: s,
+  });
+
+  else if (!inclZero && /^[1-9]\d*$/.test(s)) return Parser.Valid({
+    value: Number(s),
+    kind: "natural number",
+    original: s,
+  });
+
+  else if (_throw) {debugger;throw new Err(`malformed natural number "${s}"`);}
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "natural number",
+    reason: "malformed natural number",
+  });
+};
+
+
+// parse decimal number string (without scientific notation)
+
+Parser.dec = ({places: [from, to = from], decSep = ".", thdSep = "", _throw = false}) => s => {
+  const kind = "decimal number string";
+  let s2 = s, sign = "", o;
+
+  if (s.search("e") !== notFound) o = Parser.Invalid({
+    value: s,
+    kind,
+    reason: "scientific notation",
+  });
+
+  else if (s[0] === "+" || s[0] === "-") {
+    sign = s[0];
+    s2 = s2.slice(1);
+  }
+
+  else {
+    const [int, dec, ...rest] = s2.split(decSep),
+      segments = thdSep ? int.split(thdSep) : [int];
+
+    if (dec.length === 0) o = Parser.Invalid({
+      value: s,
+      kind,
+      reason: "decimal point missing",
+    });
+
+    else if (rest.length > 0) o = Parser.Invalid({
+      value: s,
+      kind,
+      reason: "several decimal points",
+    });
+
+    if (segments.some(seg => !/^\d+$/.test(seg))) o = Parser.Invalid({
+      value: s,
+      kind,
+      reason: "malformed integer component",
+    });
+
+    else if (segments.slice(1).some(seg => seg.length !== 3)) o = Parser.Invalid({
+      value: s,
+      kind,
+      reason: "malformed integer segment",
+    });
+
+    else if (segments[0] [0] === "0") o = Parser.Invalid({
+      value: s,
+      kind,
+      reason: "unexpected leading zero",
+    });
+
+    else if (!/^\d+$/.test(dec)) o = Parser.Invalid({
+      value: s,
+      kind,
+      reason: "malformed decimal component",
+    });
+
+    else if (dec.length < from || dec.length > to) o = Parser.Invalid({
+      value: s,
+      kind,
+      reason: "wrong decimal places",
+    });
+
+    else o = Parser.Valid({
+      value: Number(sign + segments.join("") + decSep + dec),
+      kind,
+      original: s,
+    });
+  }
+
+  if (o[$$] === "Parser.Valid") return o;
+  else if (_throw) throw new Err(o.reason);
+  else return o;
+};
+
+
+// parse date string
+
+Parser.date = ({locale, century = 20, _throw = false}) => s => {
+  let xs, p;
+
+  switch (locale) {
+    case "iso": xs = R.iso.dates; break;
+    case "deDE": xs = R.i18n.deDE.dates; break;
+    default: throw new Err(`unknown locale "${locale}"`);
+  }
+
+  for (const rx of xs) {
+    if (rx.test(s)) {
+      const o = s.match(rx);
+
+      o.groups.y = o.groups.y.length === 2
+        ? century + o.groups.y
+        : o.groups.y;
+
+      const y = Number(o.groups.y),
+        m = Number(o.groups.m),
+        d = Number(o.groups.d);
+
+      if (m < 1 || m > 12) {
+        p = Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid month",
+        });
+      }
+
+      else if (d < 1 || d > 31 || d > D.lastDayOfMonth(y) (m)) {
+        p = Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid day",
+        });
+      }
+
+      else p = Parser.Valid({
+        value: new Date(Date.parse(
+          `${o.groups.y}-${o.groups.m}-${o.groups.d}`)),
+
+        kind: "date string",
+        original: s,
+      });
+
+      if (p[$$] === "Parser.Valid") return p;
+      else if (_throw) throw new Err(p.reason);
+      else return p;
+    }
+  }
+
+  if (_throw) throw new Err(`unknown date string "${s}"`);
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "date string",
+    reason: "unknown date string",
+  });
+};
+
+
+// parse time string and add it to the provided date object
+
+Parser.time = ({date = new Date("0000-01-01"), _throw = false}) => s => {
+  let p;
+
+  for (const rx of R.iso.times) {
+    if (rx.test(s)) {
+      const o = s.match(rx),
+        h = Number(o.groups.h),
+        m = Number(o.groups.m),
+        s_ = o.groups.s ? Number(o.groups.s) : 0,
+        ms = o.groups.ms ? Number(o.groups.ms) : 0,
+        tzh = o.groups.tzh ? Number(o.groups.tzh) : 0,
+        tzm = o.groups.tzm ? Number(o.groups.tzm) : 0;
+
+      if (h > 23) {
+        p = Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid hours",
+        });
+      }
+          
+      else if (m > 59) {
+        p = Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid minutes",
+        });
+      }
+
+      else if (s_ > 59) {
+        p = Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid seconds",
+        });
+      }
+
+      else if (tzh > 23) {
+        p = Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid timezone hours",
+        });
+      }
+
+      else if (tzm > 59) {
+        p = Parser.Invalid({
+          value: s,
+          kind: "date string",
+          reason: "invalid timezone minutes",
+        });
+      }
+
+      else {
+        date.setHours(h, m, s_, ms);
+        
+        p = Parser.Valid({
+          value: date,
+          kind: "time string",
+          original: s,
+        });
+      }
+
+      if (p[$$] === "Parser.Valid") return p;
+      else if (_throw) throw new Err(p.reason);
+      else return p;
+    }
+  }
+
+  if (_throw) throw new Err(`unknown time string "${s}"`);
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "time string",
+    reason: "unknown time string",
+  });
+};
+
+
+Parser.iban = ({_throw = false}) => s => {
+  const codeLen = 22;
+
+  const iban = s.toUpperCase(),
+    code = iban.match(/^([A-Z]{2})(\d{2})([A-Z\d]+)$/);
+
+  let digits;
+
+  if (!code || iban.length !== codeLen) return false;
+
+  digits = (code[3] + code[1] + code[2]).replace(/[A-Z]/g, letter => {
+    return letter.charCodeAt(0) - 55;
+  });
+
+  let checksum = digits.slice(0, 2),
+    fragment;
+
+  for (let offset = 2; offset < digits.length; offset += 7) {
+    fragment = String(checksum) + digits.substring(offset, offset + 7);
+    checksum = parseInt(fragment, 10) % 97;
+  }
+
+  if (checksum === 1) return Parser.Valid({
+    value: s,
+    kind: "iban",
+  });
+
+  else if (_throw) throw new Err(`malformed iban "${s}"`);
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "iban",
+    reason: "malformed iban",
+  });
+};
+
+
+Parser.bic = ({_throw = false}) => s => {
+  if (/^([A-Z]{6}[A-Z2-9][A-NP-Z1-9])(X{3}|[A-WY-Z0-9][A-Z0-9]{2})?$/.test(s)) {
+    return Parser.Valid({
+      value: s,
+      kind: "bic",
+    });
+  }
+
+  else if (_throw) throw new Err(`malformed bic "${s}"`);
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "bic",
+    reason: "malformed bic",
+  });
+};
+
+
+//█████ Number ████████████████████████████████████████████████████████████████
+
+
+Parser.Num = {};
+
+
+Parser.Num.num = ({_throw = false}) => n => {
+  let o;
+
+  if (typeof n !== "number") o = Parser.Invalid({
+    value: n,
+    kind: "number",
+    reason: "not of type number",
+  });
+
+  if (!Number.isFinite(n)) o = Parser.Invalid({
+    value: n,
+    kind: "number",
+    reason: "infinite number",
+  });
+
+  if (!Number.isSafeInteger(n)) o = Parser.Invalid({
+    value: n,
+    kind: "number",
+    reason: "number out of range",
+  });
+
+  else o = Parser.Valid({
+    value: n,
+    kind: "number",
+    reason: "not of type number",
+  });
+
+  if (o[$$] === "Parser.Valid") return o;
+  else if (_throw) throw new Err(o.reason);
+  else return o;
+};
+
+
+Parser.Num.int = ({_throw = false}) => n => {
+  const o = Parser.num(n);
+
+  if (o[$$] === "Parser.Valid") {
+    if (n % 1 === 0) return Parser.Valid({
+      value: n,
+      kind: "integer",
+    });
+    
+    else if (_throw) throw new Err(`decimal number "${s}"`);
+
+    else return Parser.Invalid({
+      value: n,
+      kind: "integer",
+      reason: "decimal number",
+    });
+  }
+
+  else return o;
+};
+
+
+Parser.Num.nat = ({_throw = false}) => n => {
+  const o = Parser.int(n);
+
+  if (o[$$] === "Parser.Valid") {
+    if (n === 0) return Parser.Invalid({
+      value: n,
+      kind: "natrual number",
+      reason: "zero received",
+    });
+
+    else if (n >= 0) return Parser.Valid({
+      value: n,
+      kind: "natrual number",
+    });
+    
+    else if (_throw) throw new Err(`negative number "${s}"`);
+
+    else return Parser.Invalid({
+      value: n,
+      kind: "natrual number",
+      reason: "negative number",
+    });
+  }
+
+  else return o;
+};
+
+
+Parser.Num.neg = ({_throw = false}) => n => {
+  const o = Parser.num(n);
+
+  if (o[$$] === "Parser.Valid") {
+    if (n < 0) return Parser.Valid({
+      value: n,
+      kind: "negative number",
+    });
+
+    else if (_throw) throw new Err(`positive number "${s}"`);
+
+    else return Parser.Invalid({
+      value: n,
+      kind: "negative number",
+      reason: "positive number",
+    });
+  }
+
+  else return o;
+};
+
+
+// minimal decimal places
+
+Parser.Num.minPlaces = ({min, _throw = false}) => n => {
+  const [, dec] = String(n).split(/\./);
+  
+  if (dec.length >= min) return Parser.Valid({
+    value: n,
+    kind: "min precision",
+  });
+
+  else if (_throw) throw new Err(`below threshold "${s}"`);
+
+  else return Parser.Invalid({
+    value: n,
+    kind: "min precision",
+    reason: "below threshold",
+  });
+};
+
+
+// maximal decimal places
+
+Parser.Num.maxPlaces = ({max, _throw = false}) => n => {
+  const [, dec] = String(n).split(/\./);
+  
+  if (dec.length >= min) return Parser.Valid({
+    value: n,
+    kind: "max precision",
+  });
+
+  else if (_throw) throw new Err(`above threshold "${s}"`);
+
+  else return Parser.Invalid({
+    value: n,
+    kind: "max precision",
+    reason: "above threshold",
+  });
+};
+
+
+//█████ Object Types ██████████████████████████████████████████████████████████
+
+
+Parser.isMember = ({lookup, _throw = false}) => x => {
+  if (lookup.has(x)) return Parser.Valid({value: x, kind: "member"});
+  else if (_throw) throw new Err("non-member");
+
+  else return Parser.Inalid({
+    value: x,
+    kind: "member",
+    reason: "non-member",
+  });
+};
+
+
+Parser.isNotMember = ({lookup, _throw = false}) => x => {
+  if (!lookup.has(x)) return Parser.Valid({value: x, kind: "non-member"});
+  else if (_throw) throw new Err("member");
+
+  else return Parser.Inalid({
+    value: x,
+    kind: "non-member",
+    reason: "member",
+  });
+};
+
+
+Parser.unique = Parser.isNotMember;
 
 
 //█████ Combinators ███████████████████████████████████████████████████████████
@@ -5420,580 +6135,6 @@ Parser.any = (...fs) => {
   }
 
   return o;
-};
-
-
-Parser.reject = reason => x => Parser.Invalid({
-  value: x,
-  kind: "reject",
-  reason,
-});
-
-
-Parser.satisfy = ({p, kind, reason}) => x => {
-  if (p(x)) return Parser.Valid({value: x, kind});
-  else return Parser.Invalid({value: x, kind, reason});
-};
-
-
-Parser.value = x => {
-  const kind = "non-error value";
-
-  if (x === undefined) return Parser.Invalid({
-    value: x, kind, reason: "undefined"
-  });
-  
-  else if (x === null) return Parser.Invalid({
-    value: x, kind, reason: "null"
-  });
-
-  else if (x !== x) return Parser.Invalid({
-    value: x, kind, reason: "not a number"
-  });
-
-  else if (isNaN(x)) return Parser.Invalid({
-    value: x, kind, reason: "not a date"
-  });
-
-  else if (typeof x === "number") {
-    if (!Number.isFinite(x)) return Parser.Invalid({
-      value: x, kind, reason: "infinite number"
-    });
-
-    else if (!Number.isSafeInteger(x)) return Parser.Invalid({
-      value: x, kind, reason: "unsafe integer"
-    });
-
-    else return Parser.Valid({value: x, kind});
-  }
-
-  else return Parser.Valid({value: x, kind});
-};
-
-
-//█████ String ████████████████████████████████████████████████████████████████
-
-
-Parser.pattern = ({rx, kind, reason}) => s => {
-  if (rx.test(s)) return Parser.Valid({value: s, kind});
-  else return Parser.Invalid({value: s, kind, reason});
-};
-
-
-// parse number string
-
-Parser.numStr = ({locale, strict = false, _throw = true}) => s => {
-  let xs;
-
-  switch (locale) {
-    case "iso": xs = R.iso.nums; break;
-    case "de-DE": xs = R.i18n.deDE.nums; break;
-    default: throw new Err(`unknown locale "${locale}"`);
-  }
-
-  for (const rx of xs) {
-    if (rx.test(s)) {
-      const o = s.match(rx);
-
-      const presign = o.groups.sign === undefined
-        ? "" : o.groups.sign;
-
-      const postsign = o.groups.postsign === undefined
-        ? "" : o.groups.postsign;
-
-      const sign = presign ? presign : postsign,
-        int = o.groups.int.replaceAll(/[^\d]/g, "");
-
-      const frac = o.groups.frac === undefined
-        ? "" : o.groups.frac;
-
-      if (strict && int[0] === "0") {
-        if (_throw) throw new Err(`leading zero "${s}"`);
-
-        else return Parser.Invalid({
-          value: s,
-          kind: "number string",
-          reason: "leading zero",
-        });
-      }
-
-      else return Parser.Valid({
-        value: Number(sign + int + "." + frac),
-        kind: "number string",
-        original: s,
-      });
-    }
-  }
-
-  if (_throw) throw new Err(`invalid number string: "${s}"`);
-
-  else return Parser.Invalid({
-    value: s,
-    kind: "number string",
-    reason: "malformed number string",
-  });
-};
-
-
-// parse date string
-
-Parser.dateStr = ({locale, century = 20, _throw = true}) => s => {
-  let xs;
-
-  switch (locale) {
-    case "iso": xs = R.iso.dates; break;
-    case "de-DE": xs = R.i18n.deDE.dates; break;
-    default: throw new Err(`unknown locale "${locale}"`);
-  }
-
-  for (const rx of xs) {
-    if (rx.test(s)) {
-      const o = s.match(rx);
-
-      o.groups.y = o.groups.y.length === 2
-        ? century + o.groups.y
-        : o.groups.y;
-
-      const y = Number(o.groups.y),
-        m = Number(o.groups.m),
-        d = Number(o.groups.d);
-
-      if (m < 1 || m > 12) {
-        if (_throw) throw new Err(`invalid month "${s}"`);
-
-        else return Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid month",
-        });
-      }
-
-      else if (d < 1 || d > 31 || d > D.lastDayOfMonth(y) (m)) {
-        if (_throw) throw new Err(`invalid day in date string "${s}"`);
-
-        else return Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid day",
-        });
-      }
-
-      return Parser.Valid({
-        value: new Date(Date.parse(
-          `${o.groups.y}-${o.groups.m}-${o.groups.d}`)),
-
-        kind: "date string",
-        original: s,
-      });
-    }
-  }
-
-  if (_throw) throw new Err(`invalid ${locale} date string "${s}"`);
-
-  else return Parser.Invalid({
-    value: s,
-    kind: "date string",
-    reason: "malformed date string",
-  });
-};
-
-
-// parse time string and add it to the provided date object
-
-Parser.timeStr = ({date = new Date("0000-01-01"), _throw = true}) => s => {
-  for (const rx of R.iso.times) {
-    if (rx.test(s)) {
-      const o = s.match(rx),
-        h = Number(o.groups.h),
-        m = Number(o.groups.m),
-        s_ = o.groups.s ? Number(o.groups.s) : 0,
-        ms = o.groups.ms ? Number(o.groups.ms) : 0,
-        tzh = o.groups.tzh ? Number(o.groups.tzh) : 0,
-        tzm = o.groups.tzm ? Number(o.groups.tzm) : 0;
-
-      if (h > 23) {
-        if (_throw) throw new Err(`invalid hours "${s}"`);
-
-        else return Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid hours",
-        });
-      }
-          
-      else if (m > 59) {
-        if (_throw) throw new Err(`invalid minutes "${s}"`);
-
-        else return Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid minutes",
-        });
-      }
-
-      else if (s_ > 59) {
-        if (_throw) throw new Err(`invalid seconds "${s}"`);
-
-        else return Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid seconds",
-        });
-      }
-
-      else if (tzh > 23) {
-        if (_throw) throw new Err(`invalid timezone hours "${s}"`);
-
-        else return Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid timezone hours",
-        });
-      }
-
-      else if (tzm > 59) {
-        if (_throw) throw new Err(`invalid timezone minutes "${s}"`);
-
-        else return Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid timezone minutes",
-        });
-      }
-
-      date.setHours(h, m, s_, ms);
-      
-      return Parser.Valid({
-        value: date,
-        kind: "time string",
-        original: s,
-      });
-    }
-  }
-
-  if (_throw) throw new Err(`invalid iso time string "${s}"`);
-
-  else return Parser.Invalid({
-    value: s,
-    kind: "time string",
-    reason: "malformed time string",
-  });
-};
-
-
-Parser.iban = s => {
-  const codeLen = 22;
-
-  const iban = s.toUpperCase(),
-    code = iban.match(/^([A-Z]{2})(\d{2})([A-Z\d]+)$/);
-
-  let digits;
-
-  if (!code || iban.length !== codeLen) return false;
-
-  digits = (code[3] + code[1] + code[2]).replace(/[A-Z]/g, letter => {
-    return letter.charCodeAt(0) - 55;
-  });
-
-  let checksum = digits.slice(0, 2),
-    fragment;
-
-  for (let offset = 2; offset < digits.length; offset += 7) {
-    fragment = String(checksum) + digits.substring(offset, offset + 7);
-    checksum = parseInt(fragment, 10) % 97;
-  }
-
-  if (checksum === 1) return Parser.Valid({
-    value: s,
-    kind: "iban",
-  });
-
-  else return Parser.Invalid({
-    value: s,
-    kind: "iban",
-    reason: "malformed iban",
-  });
-};
-
-
-Parser.bic = s => {
-  if (/^([A-Z]{6}[A-Z2-9][A-NP-Z1-9])(X{3}|[A-WY-Z0-9][A-Z0-9]{2})?$/.test(s)) {
-    return Parser.Valid({
-      value: s,
-      kind: "bic",
-    });
-  }
-
-  else return Parser.Invalid({
-    value: s,
-    kind: "bic",
-    reason: "malformed bic",
-  });
-};
-
-
-Parser.nat = s => {
-  if (/^[1-9]\d*$/.test(s)) return Parser.Valid({
-    value: Number(s),
-    kind: "natural number",
-    original: s,
-  });
-
-  else return Parser.Invalid({
-    value: s,
-    kind: "natural number",
-    reason: "malformed natural number",
-  });
-};
-
-
-// decimal number string (without scientific notation)
-
-Parser.decStr = ({decSep, thdSep = "", places: [from, to = from]}) => s => {
-  const kind = "decimal number string";
-  let s2 = s, sign = "";
-
-  if (s.search("e") !== notFound) return Parser.Invalid({
-    value: s,
-    kind,
-    reason: "scientific notation",
-  });
-
-  else if (s[0] === "+" || s[0] === "-") {
-    sign = s[0];
-    s2 = s2.slice(1);
-  }
-
-  const [int, dec, ...rest] = s2.split(decSep),
-    segments = int.split(thdSep);
-
-  if (dec.length === 0) return Parser.Invalid({
-    value: s,
-    kind,
-    reason: "decimal point missing",
-  });
-
-  else if (rest.length > 0) return Parser.Invalid({
-    value: s,
-    kind,
-    reason: "several decimal points",
-  });
-
-  if (segments.some(seg => !/^\d+$/.test(seg))) return Parser.Invalid({
-    value: s,
-    kind,
-    reason: "malformed integer component",
-  });
-
-  else if (segments.slice(1).some(seg => seg.length !== 3)) return Parser.Invalid({
-    value: s,
-    kind,
-    reason: "malformed integer segment",
-  });
-
-  else if (segments[0] [0] === "0") return Parser.Invalid({
-    value: s,
-    kind,
-    reason: "unexpected leading zero",
-  });
-
-  else if (!/^\d+$/.test(dec)) return Parser.Invalid({
-    value: s,
-    kind,
-    reason: "malformed decimal component",
-  });
-
-  else if (dec.length < from || dec.length > to) return Parser.Invalid({
-    value: s,
-    kind,
-    reason: "wrong decimal places",
-  });
-
-  else return Parser.Valid({
-    value: Number(sign + segments.join("") + decSep + dec),
-    kind,
-    original: s,
-  });
-};
-
-
-//█████ Number ████████████████████████████████████████████████████████████████
-
-
-Parser.num = n => {
-  if (typeof n !== "number") Parser.Invalid({
-    value: n,
-    kind: "number",
-    reason: "not of type number",
-  });
-
-  if (!Number.isFinite(n)) return Parser.Invalid({
-    value: n,
-    kind: "number",
-    reason: "infinite number",
-  });
-
-  if (!Number.isSafeInteger(n)) return Parser.Invalid({
-    value: n,
-    kind: "number",
-    reason: "number out of range",
-  });
-
-  else return Parser.Valid({
-    value: n,
-    kind: "number",
-    reason: "not of type number",
-  });
-};
-
-
-Parser.int = n => {
-  const o = Parser.num(n);
-
-  if (o[$$] === "Parser.Valid") {
-    if (n % 1 !== 0) return Parser.Invalid({
-      value: n,
-      kind: "integer",
-      reason: "decimal number received",
-    });
-    
-    else return Parser.Valid({
-      value: n,
-      kind: "integer",
-    });
-  }
-
-  else return o;
-};
-
-
-Parser.nat = n => {
-  const o = Parser.int(n);
-
-  if (o[$$] === "Parser.Valid") {
-    if (n === 0) return Parser.Invalid({
-      value: n,
-      kind: "natrual number",
-      reason: "zero received",
-    });
-
-    else if (n < 0) return Parser.Invalid({
-      value: n,
-      kind: "natrual number",
-      reason: "negative number received",
-    });
-    
-    else return Parser.Valid({
-      value: n,
-      kind: "natrual number",
-    });
-  }
-
-  else return o;
-};
-
-
-Parser.neg = n => {
-  const o = Parser.num(n);
-
-  if (o[$$] === "Parser.Valid") {
-    if (n === 0) return Parser.Invalid({
-      value: n,
-      kind: "negative number",
-      reason: "zero received",
-    });
-
-    else if (n > 0) return Parser.Invalid({
-      value: n,
-      kind: "negative number",
-      reason: "positive number received",
-    });
-    
-    else return Parser.Valid({
-      value: n,
-      kind: "negative number",
-    });
-  }
-
-  else return o;
-};
-
-
-Parser.min = min => n => {
-  if (n < min) return Parser.Invalid({
-    value: n,
-    kind: "min number",
-    reason: "below threshold",
-  });
-
-  else return Parser.Valid({
-    value: n,
-    kind: "min number",
-  });
-};
-
-
-Parser.max = max => n => {
-  if (n > max) return Parser.Invalid({
-    value: n,
-    kind: "max number",
-    reason: "above threshold",
-  });
-
-  else return Parser.Valid({
-    value: n,
-    kind: "max number",
-  });
-};
-
-
-// minimal decimal places
-
-Parser.minDec = min => n => {
-  const [, dec] = String(n).split(/\./);
-  
-  if (dec.length < min) return Parser.Invalid({
-    value: n,
-    kind: "min precision",
-    reason: "below threshold",
-  });
-
-  else return Parser.Valid({
-    value: n,
-    kind: "min precision",
-  });
-};
-
-
-// maximal decimal places
-
-Parser.maxDec = max => n => {
-  const [, dec] = String(n).split(/\./);
-  
-  if (dec.length < min) return Parser.Invalid({
-    value: n,
-    kind: "max precision",
-    reason: "above threshold",
-  });
-
-  else return Parser.Valid({
-    value: n,
-    kind: "max precision",
-  });
-};
-
-
-//█████ Object Types ██████████████████████████████████████████████████████████
-
-
-Parser.isMember = s => x => {
-  if (s.has(x)) return Parser.Valid({value: x, kind: "member"});
-  
-  else return Parser.Inalid({
-    value: x,
-    kind: "member",
-    reason: "not a member",
-  });
 };
 
 
@@ -10438,7 +10579,7 @@ S.Norm.latinise = ({inclAlpha}) => doc => {
 //█████ Ordering ██████████████████████████████████████████████████████████████
 
 
-/* Locale string format: "de-DE"
+/* Locale string format: "deDE"
 
 Collator option object properties (first one is default value):
 
@@ -10473,7 +10614,7 @@ S.ctorWith = ({locale, f}) => opt => (o, p) =>
   new Intl.Collator(locale, opt).compare(...f(o, p));
 
 
-S.ctorDe = S.ctor("de-DE");
+S.ctorDe = S.ctor("deDE");
 
 
 //█████ Casing ████████████████████████████████████████████████████████████████
@@ -12153,6 +12294,14 @@ Node.CLA.setEnv = o => {
 
 
 Node.Crypto_ = {}; // custom crypto namespace
+
+
+// create a random hex string
+
+Node.Crypto_.hexStr = n => Node.Crypto.randomBytes(n).toString("hex");
+
+
+//█████ Symetric Encription ███████████████████████████████████████████████████
 
 
 /* Encrypt with 256-bit private key. If this key is derived from a user password,
