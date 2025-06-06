@@ -6543,37 +6543,116 @@ R.searchFirstWith = p => rx => s => {
 R.searchLast = rx => s => {
   const xs = s.matchAll(rx);
   if (xs.length === 0) return [];
-  else return [xs[xs.length - 1]];
+  else return [xs[xs.length - 1].index];
 };
 
 
 R.searchLastWith = p => rx => s => {
   const xs = R.matchAllWith({p, rx}) (s);
   if (xs.length === 0) return [];
-  else return [xs[xs.length - 1]];
+  else return [xs[xs.length - 1].index];
 };
 
+
+// negative indices are processed relative to the end
 
 R.searchNth = (rx, i) => s => {
   const xs = s.matchAll(rx);
   if (i - 1 >= xs.length) return [];
-  else return [xs[i - 1]];
+  else if (i >= 0) return [xs[i - 1].index];
+  else return [xs.slice(i) [0].index];
 };
 
+
+// negative indices are processed relative to the end
 
 R.searchNthWith = p => (rx, i) => s => {
   const xs = R.matchAllWith({p, rx}) (s);
   if (i - 1 >= xs.length) return [];
-  else return [xs[i - 1]];
+  else if (i >= 0) return [xs[i - 1].index];
+  else return [xs.slice(i) [0].index];
+};
+
+
+//█████ Matching ██████████████████████████████████████████████████████████████
+
+
+// strict variant
+
+R.matchAll = rx => s => Array.from(s.matchAll(rx));
+
+
+R.matchAllWith = ({p, rx}) => s => Array.from(s.matchAll(rx)).filter(r => {
+  const [match, ...xs] = r,
+    o = r.groups,
+    i = r.index;
+
+  return p({match, xs, i, o, s});
+});
+
+
+
+R.matchFirst = rx => s => {
+  if (rx.flags.search("g") !== notFound)
+    throw new Err("unexpected global flag");
+
+  const r = s.match(rx);
+  if (r === null) return [];
+  else return [r];
+};
+
+
+R.matchFirstWith = ({p, rx}) => s => {
+  for (const r of s.matchAll(rx)) {
+    const [match, ...xs] = r,
+      o = r.groups,
+      i = r.index;
+
+    if (p({match, xs, i, o, s})) return [r];
+  }
+
+  return [];
+};
+
+
+R.matchLast = rx => s => Array.from(s.matchAll(rx)).slice(-1);
+
+
+R.matchLastWith = ({p, rx}) => s =>
+  R.matchAllWith({p, rx}) (s).slice(-1);
+
+
+// negative indices are processed relative to the end
+
+R.matchNth = ({i, rx}) => s => {
+  const xs = Array.from(s.matchAll(rx));
+  if (i - 1 >= xs.length) return [];
+  else if (i >= 0) return [xs[i - 1]];
+  else return [xs.slice(i) [0]];
+};
+
+
+// negative indices are processed relative to the end
+
+R.matchNthWith = ({p, i, rx}) => s => {
+  const xs = R.matchAllWith({p, rx}) (s),
+    o = xs[i];
+
+  if (i - 1 >= xs.length) return [];
+  else if (i >= 0) return [xs[i - 1]];
+  else return [xs.slice(i) [0]];
 };
 
 
 //█████ Splitting █████████████████████████████████████████████████████████████
 
 
-/* Split a string at the specified indices. If the supplied argument is an array
-of matches, the separators themselves are excluded from the result. If it is an
-array of indices, no substrings are removed during splitting. */
+/* Split a string at the specified positions. If the supplied positions are
+encoded as an array of matches created by a matching function, the separators
+themselves are excluded from the result. If it is encoded as an array of indices
+created by a searching function, separators are included. You can create a split
+first or split last semantics simply by creating the positional argument using
+the corresponding matching or searching function. */
 
 R.split = xs => s => {
   if (typeof xs[0] === "number") {
@@ -6616,7 +6695,7 @@ R.split = xs => s => {
 };
 
 
-// variant that additionally passes each split to a function
+// variant that additionally passes each splitted substring to a function
 
 R.splitWith = ({f, xs}) => s => {
   if (typeof xs[0] === "number") {
@@ -6658,20 +6737,6 @@ R.splitWith = ({f, xs}) => s => {
   }
 };
 
-
-// variant that splits only once
-
-R.split1 = x => s => {
-  if (typeof x === "number") {
-    acc.push(s.slice(0, i));
-    acc.push(s.slice(i));
-  }
-
-  else {
-    acc.push(s.slice(0, o.index));
-    acc.push(s.slice(o.index + o[0].length));
-  }
-};
 
 
 /* Split a string depending on character class transitions defined by regular
@@ -6737,76 +6802,6 @@ R.splitAllTrans = R.splitTrans("v") (
   R.classes.space.sep,
   R.classes.crnl.sep,
   "(?<=\\p{Ll})(?=\\p{Lu})|(?<=\\p{Lu})(?=\\p{Ll})"); // "fooBar" -> ["foo", "B", "ar"]
-
-
-//█████ Matching ██████████████████████████████████████████████████████████████
-
-
-// strict variant
-
-R.matchAll = rx => s => Array.from(s.matchAll(rx));
-
-
-R.matchAllWith = ({p, rx}) => s => Array.from(s.matchAll(rx)).filter(r => {
-  const [match, ...xs] = r,
-    o = r.groups,
-    i = r.index;
-
-  return p({match, xs, i, o, s});
-});
-
-
-
-R.matchFirst = rx => s => {
-  if (rx.flags.search("g") !== notFound)
-    throw new Err("unexpected global flag");
-
-  const r = s.match(rx);
-  if (r === null) return [];
-  else return [r];
-};
-
-
-R.matchFirstWith = ({p, rx}) => s => {
-  for (const r of s.matchAll(rx)) {
-    const [match, ...xs] = r,
-      o = r.groups,
-      i = r.index;
-
-    if (p({match, xs, i, o, s})) return [r];
-  }
-
-  return [];
-};
-
-
-R.matchLast = rx => s => Array.from(s.matchAll(rx)).slice(-1);
-
-
-R.matchLastWith = ({p, rx}) => s =>
-  R.matchAllWith({p, rx}) (s).slice(-1);
-
-
-// considers negative indices like native slice does
-
-R.matchNth = ({i, rx}) => s => {
-  const xs = Array.from(s.matchAll(rx));
-  if (i - 1 >= xs.length) return [];
-  else if (i >= 0) return [xs[i - 1]];
-  else return [xs.slice(i) [0]];
-};
-
-
-// considers negative indices like native slice does
-
-R.matchNthWith = ({p, i, rx}) => s => {
-  const xs = R.matchAllWith({p, rx}) (s),
-    o = xs[i];
-
-  if (i - 1 >= xs.length) return [];
-  else if (i >= 0) return [xs[i - 1]];
-  else return [xs.slice(i) [0]];
-};
 
 
 //█████ Replacing █████████████████████████████████████████████████████████████
