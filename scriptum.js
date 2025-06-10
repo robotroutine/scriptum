@@ -2484,7 +2484,7 @@ export const Cont = resume => ({
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-Cont.forever = o => Cont.chain(o) (_ => Cont.forever(o));
+Cont.fromPromise = px => Cont((res, rej) => px.then(res).catch(rej));
 
 
 Cont.reject = e => Cont((_res, rej) => {
@@ -2493,17 +2493,20 @@ Cont.reject = e => Cont((_res, rej) => {
 });
 
 
-Cont.validate = p => o => Cont.chain(o) (x =>
-  p(x) ? Cont.of(x) : Cont.reject(x));
+Cont.forever = o => Cont.chain(o) (_ => Cont.forever(o));
 
 
-Cont.fromPromise = px => Cont((res, rej) => px.then(res).catch(rej));
+Cont.never = Cont((res, rej) => null);
 
 
 Cont.tryCatch = f => o => Cont((res, rej) => o.resume(id, e => res(f(e))));
 
 
 Cont.tryThrow = o => Cont((res, rej) => o.resume(id, e => {throw e}));
+
+
+Cont.validate = p => o => Cont.chain(o) (x =>
+  p(x) ? Cont.of(x) : Cont.reject(x));
 
 
 // final function guaranteed to be called regardless of success or failure
@@ -2699,15 +2702,23 @@ Cont.Parallel.andRace = o => p => Cont((res, rej) => {
 });
 
 
-Cont.Parallel.all = xs => xs.reduce((acc, o) =>
+Cont.Parallel.All = {};
+
+
+Cont.Parallel.All.arr = xs => xs.reduce((acc, o) =>
   Cont.map(pair => pair.flat()) (Cont.Parallel.and(acc) (o)), Cont.of([]));
 
 
-Cont.Parallel.never = Cont((res, rej) => null);
+Cont.Parallel.All.obj = o => Object.entries(o).reduce((acc, [k, v]) => {
+  return Cont.map(pair => {
+    pair[0] [k] = pair[1];
+    return acc;
+  }) (Cont.Parallel.and(acc) (v));
+}, Cont.of({}));
 
 
-Cont.Parallel.race = xs => xs.reduce((acc, o) =>
-  Cont.Parallel.andRace(acc) (o), Cont.Parallel.never);
+Cont.Parallel.All.race = xs => xs.reduce((acc, o) =>
+  Cont.Parallel.andRace(acc) (o), Cont.never);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -6782,9 +6793,9 @@ R.splitNonAlnumTrans = R.splitTrans("v") (
   R.classes.crnl.sep);
 
 
-// split almost all
+// split all but letter casing transitions
 
-R.splitAlmostAllTrans = R.splitTrans("v") (
+R.splitAllTrans = R.splitTrans("v") (
   R.classes.num.sep,
   R.classes.punct.sep,
   R.classes.sym.sep,
@@ -6795,7 +6806,7 @@ R.splitAlmostAllTrans = R.splitTrans("v") (
 
 // split all
 
-R.splitAllTrans = R.splitTrans("v") (
+R.splitAllTrans_ = R.splitTrans("v") (
   R.classes.num.sep,
   R.classes.punct.sep,
   R.classes.sym.sep,
@@ -7222,12 +7233,15 @@ R.General.generalize = (...classes) => s => {
 };
 
 
-//█████ Context ███████████████████████████████████████████████████████████████
+//█████ Contextualization █████████████████████████████████████████████████████
 
 
 /* Remerge tokens that form meaningful compositions. Some of these contexts are
 localized, i.e. require a list of locales that should be considered. Meant to
 be used after splitting strings into tokens. */
+
+
+// TODO: revise + predefined composition
 
 
 R.Context = {};
@@ -7306,9 +7320,9 @@ R.Context.hyphen = tokens => {
 };
 
 
-// takes a set of abbreviations
+// assume that every occurrence of a period might be part of an abbreviation
 
-R.Context.period = abbrs => tokens => {
+R.Context.period = tokens => {
   const xs = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -7338,12 +7352,11 @@ R.Context.period = abbrs => tokens => {
       && / */.test(next))
         xs[last] += curr;
 
-    // eg.
+    // eg. (might indicate an abbreviation or end of sentence)
 
     else if (/ */.test(prev2)
       && /\p{L}/v.test(prev)
-      && / */.test(next)
-      && abbrs.has(prev + curr))
+      && / */.test(next))
         xs[last] += curr;
 
     // 0.1
@@ -7946,6 +7959,8 @@ R.Context.amount = tokens => {
 };
 
 
+// composed abbreviation
+
 R.Context.abbrs = tokens => {
   const xs = [];
 
@@ -8008,7 +8023,28 @@ R.Context.protocol = tokens => {
 };
 
 
-// TODO: predefined composition
+R.Context.pipeAll = pipes(
+  R.Context.hyphen,
+  R.Context.apo,
+  R.Context.period,
+  R.Context.slash,
+  R.Context.comma,
+  R.Context.colon,
+  R.Context.quota,
+  R.Context.percent,
+  R.Context.ampersand,
+  R.Context.currency,
+  R.Context.plus,
+  R.Context.at,
+  R.Context.asterisk,
+  R.Context.underscore,
+  R.Context.para,
+  R.Context.degree,
+  R.Context.ellipsis,
+  R.Context.amount,
+  R.Context.abbrs,
+  R.Context.protocol
+);
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -11205,6 +11241,31 @@ S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
 };
 
 
+// for the time being, ignore imperative case
+
+S.Word.parseSentType = s => {
+  const last = s[s.length - 1];
+  let type = "";
+
+  if (last === ".") type = "declarative";
+  else if (/!{1,}$/.test(s)) type = "exclamatory";
+  else if (/[?!]{2,}$/.test(s)) type = "interrogative";
+  else if (last === "?") type = "interrogative";
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "sentence type",
+    reason: "partial sentence",
+  });
+
+  return Parser.Valid({
+    value: s,
+    kind: "sentence type",
+    type,
+  });
+};
+
+
 //█████ Lemmatization █████████████████████████████████████████████████████████
 
 
@@ -11311,6 +11372,7 @@ S.Word.Lemma.adj = locale => adj => {
 
 
 S.Word.Lemma.adv = locale => adv => {
+  const candidates = [adv];
 
   // only comparative/superlative
 
@@ -11869,61 +11931,6 @@ export class Tree {
 
 export const Alg = {};
 
-/* TODO
-
-1.  **Vectors:**
-2.  **Matrices:**
-3.  **Vector Spaces:**
-4.  **Linear Independence & Span:**
-5.  **Basis:**
-6.  **Matrix Multiplication (and Vector-Matrix, Matrix-Vector):**
-7.  **Element-wise Operations (Hadamard Product):**
-8.  **Transpose:**
-9.  **Dot Product (Inner Product):**
-10. **Normed Vector Spaces (Norms):**
-      **L1 Norm (Manhattan):** Used in LASSO regularization for sparsity, feature selection.
-      **L2 Norm (Euclidean):** Used in Ridge regularization, standard distance metric, loss functions (MSE).
-      **Frobenius Norm:** Matrix norm used in regularization, matrix factorization objectives.
-11. **Inner Product Spaces:**
-      **Projections:** Projecting data onto lower-dimensional subspaces (PCA, Linear Regression).
-      **Orthogonality:** Finding uncorrelated bases (PCA), simplifying calculations. Used in QR decomposition, Gram-Schmidt.
-      **Kernel Methods (SVMs):** Kernels often implicitly compute inner products in high-dimensional spaces.
-12. **Orthogonality / Orthonormal Bases:**
-13. **Systems of Linear Equations (Ax = b):**
-14. **Linear Least Squares:**
-15. **Matrix Inverse:**
-16. **Pseudo-inverse (Moore-Penrose):**
-17. **Eigenvalue Decomposition (EVD) (for square matrices):**
-      **Principal Component Analysis (PCA):** Eigenvalues/eigenvectors of the covariance matrix reveal directions of maximum variance (principal components).
-      **Eigenvalues:** Scalars representing scaling factors.
-      **Eigenvectors:** Vectors remaining in the same direction after transformation (scaled by eigenvalue).
-      **Eigenspace:** The space spanned by eigenvectors corresponding to the same eigenvalue.
-18. **Singular Value Decomposition (SVD) (for any matrix):**
-      **PCA Implementation:** Can be computed via SVD of the data matrix.
-      **Dimensionality Reduction / Matrix Approximation:** Low-rank approximation by keeping top singular values/vectors.
-      **Calculating Pseudo-inverse.**
-      **Latent Semantic Analysis (LSA)** in NLP.
-      **Recommender systems (matrix factorization).
-19. **QR Decomposition / Factorization:**
-      **Gram–Schmidt Process:** A method to compute QR, conceptually important for understanding orthogonalization (though modified versions are often used for stability).
-      **Householder Transformation:** A numerically stable method (reflections) used to compute QR decomposition.
-20. **Cholesky Decomposition (for positive definite symmetric matrices):**
-21. **Positive Definite / Semidefinite Matrices:**
-22. **Tensors:**
-23. **Tensor Algebra:**
-24. **Outer Product:**
-25. **Woodbury Matrix Identity:**
-
-**Concepts Less Directly Emphasized in Typical ML Applications:**
-
-ignore:
-
-* Matrix Equivalence/Congruence/Similarity/Consimilarity
-* Row Echelon Form / Elementary Row Operations
-* Determinant
-* Topological Vector Space, Pseudo-Euclidean Space, Orientation, Symplectic Structure
-*/
-
 
 /*█████████████████████████████████████████████████████████████████████████████
 █████████████████████████████████ COMBINATORS █████████████████████████████████
@@ -12051,7 +12058,7 @@ Alg.avgFracs = (o, p) => {
 };
 
 
-//█████ Model Growth ██████████████████████████████████████████████████████████
+//█████ Exponential Growth ████████████████████████████████████████████████████
 
 
 /* Caluclate exponential growth. Max input is used to normalize the input range.
