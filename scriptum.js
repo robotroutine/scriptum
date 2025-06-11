@@ -2711,8 +2711,9 @@ Cont.Parallel.All.arr = xs => xs.reduce((acc, o) =>
 
 Cont.Parallel.All.obj = o => Object.entries(o).reduce((acc, [k, v]) => {
   return Cont.map(pair => {
-    pair[0] [k] = pair[1];
-    return acc;
+    const acc2 = pair[0];
+    acc2[k] = pair[1];
+    return acc2;
   }) (Cont.Parallel.and(acc) (v));
 }, Cont.of({}));
 
@@ -7241,9 +7242,6 @@ localized, i.e. require a list of locales that should be considered. Meant to
 be used after splitting strings into tokens. */
 
 
-// TODO: revise + predefined composition
-
-
 R.Context = {};
 
 
@@ -7272,10 +7270,8 @@ R.Context.hyphen = tokens => {
 
     // foo-\nbar (at the end of line)
 
-    else if (/\p{L}/v.test(prev)
-      && /\r?\n/.test(next)
-      && /\p{L}/v.test(next2))
-        xs[last] += next2;
+    else if (/\p{L}/v.test(prev) && /\r?\n/.test(next) && /\p{L}/v.test(next2))
+      xs[last] += next2;
 
     // 3-foo
 
@@ -7307,10 +7303,9 @@ R.Context.hyphen = tokens => {
 
     // 50-100 (range or nominal number)
 
-    else if (/\d/.test(prev)
-      && /\d/.test(next)) {
-        xs[last] += curr + next;
-        i++;
+    else if (/\d/.test(prev) && /\d/.test(next)) {
+      xs[last] += curr + next;
+      i++;
     }
 
     else xs.push(curr);
@@ -7319,8 +7314,6 @@ R.Context.hyphen = tokens => {
   return xs;
 };
 
-
-// assume that every occurrence of a period might be part of an abbreviation
 
 R.Context.period = tokens => {
   const xs = [];
@@ -7338,26 +7331,22 @@ R.Context.period = tokens => {
       continue;
     }
 
-    // e.g.
+    // e.g. (periods in between letters)
 
-    else if (/\p{L}/v.test(prev)
-      && /\p{L}/v.test(next)
-      && next2 === ".") {
-        xs[last] += curr + next;
-        i++;
+    else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
+      xs[last] += curr + next;
+      i++;
     }
 
-    else if (prev2 === "."
-      && /\p{L}/v.test(prev)
-      && / */.test(next))
-        xs[last] += curr;
+    // e.g. (last period)
 
-    // eg. (might indicate an abbreviation or end of sentence)
+    else if (/ */.test(prev2) && /\p{L}/v.test(prev) && / */.test(next))
+      xs[last] += curr;
 
-    else if (/ */.test(prev2)
-      && /\p{L}/v.test(prev)
-      && / */.test(next))
-        xs[last] += curr;
+    // foo. (end of sentence or abbreviation)
+
+    else if (/ */.test(prev2) && /\p{L}/v.test(prev) && / */.test(next))
+      xs[last] += curr;
 
     // 0.1
 
@@ -7391,17 +7380,13 @@ R.Context.apo = (...locales) => tokens => {
 
     // foo' (colloquial abbreviation)
 
-    else if (/\p{L}/v.test(prev)
-      && / */.test(next)
-      && locales.includes("deDE"))
-        xs[last] += curr;
+    else if (/\p{L}/v.test(prev) && / */.test(next) && locales.includes("deDE"))
+      xs[last] += curr;
 
     // 'foo (colloquial abbreviation)
 
-    else if (/ */.test(prev)
-      && /\p{L}/v.test(next)
-      && locales.includes("deDE"))
-        xs[last] += curr;
+    else if (/ */.test(prev) && /\p{L}/v.test(next) && locales.includes("deDE"))
+      xs[last] += curr;
 
     // Foo'bar (Netwon'sche)
 
@@ -7483,11 +7468,9 @@ R.Context.comma = (...locales) => tokens => {
 
     // 0,1 (decimal number or enumeration)
 
-    else if (/\d/.test(prev)
-      && /\d/.test(next)
-      && locales.includes("deDE")) {
-        xs[last] += curr + next;
-        i++;
+    else if (/\d/.test(prev) && /\d/.test(next) && locales.includes("deDE")) {
+      xs[last] += curr + next;
+      i++;
     }
 
     else xs.push(curr);
@@ -7941,16 +7924,6 @@ R.Context.amount = tokens => {
 
     else if (/\d/.test(prev))
       xs[last] += curr;
-
-    // Foo.-Bar.
-
-    else if (/\p{L}/v.test(prev)
-      && curr === ".-"
-      && /\p{L}/v.test(next)
-      && next2 === ".") {
-        xs[last] += curr + next + next2;
-        i += 2;
-    }
 
     else xs.push(curr);
   }
