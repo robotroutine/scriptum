@@ -7237,8 +7237,8 @@ R.General.generalize = (...classes) => s => {
 //█████ Contextualization █████████████████████████████████████████████████████
 
 
-/* Remerge tokens that form meaningful compositions. Some of these contexts are
-localized, i.e. require a list of locales that should be considered. Meant to
+/* Contextualize tokens that form meaningful compositions. Some of these contexts
+are localized, i.e. require a list of locales that should be considered. Meant to
 be used after splitting strings into tokens. */
 
 
@@ -7246,10 +7246,10 @@ R.Context = {};
 
 
 R.Context.hyphen = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7311,62 +7311,78 @@ R.Context.hyphen = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.period = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
       next = i + 1 >= tokens.length ? "" : tokens[i + 1],
       next2 = i + 2 >= tokens.length ? "" : tokens[i + 2];
 
-    if (curr !== ".") {
-      xs.push(curr);
-      continue;
+    if (curr === ".") {
+
+      // e.g. (periods in between letters)
+
+      else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
+        xs[last] += curr + next;
+        i++;
+      }
+
+      // e.g. (last period)
+
+      else if (/ */.test(prev2) && /\p{L}/v.test(prev) && / */.test(next))
+        xs[last] += curr;
+
+      // foo. (end of sentence or abbreviation)
+
+      else if (/ */.test(prev2) && /\p{L}/v.test(prev) && / */.test(next))
+        xs[last] += curr;
+
+      // 0.1
+
+      else if (/\d/.test(prev) && /\d/.test(next)) {
+        xs[last] += curr + next;
+        i++;
+      }
+
+      else xs.push(curr);
     }
 
-    // e.g. (periods in between letters)
+    else if (curr === ".-") {
 
-    else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-      xs[last] += curr + next;
-      i++;
-    }
+      // Foo.-Bar.
 
-    // e.g. (last period)
+      if (/\p{L}/v.test(prev)
+        && /\p{L}/v.test(next)
+        && next2 === ".") {
+          xs[last] += curr + next + next2;
+          i += 2;
+      }
 
-    else if (/ */.test(prev2) && /\p{L}/v.test(prev) && / */.test(next))
-      xs[last] += curr;
-
-    // foo. (end of sentence or abbreviation)
-
-    else if (/ */.test(prev2) && /\p{L}/v.test(prev) && / */.test(next))
-      xs[last] += curr;
-
-    // 0.1
-
-    else if (/\d/.test(prev) && /\d/.test(next)) {
-      xs[last] += curr + next;
-      i++;
+      else xs.push(curr);
     }
 
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.apo = (...locales) => tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7402,15 +7418,16 @@ R.Context.apo = (...locales) => tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.slash = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7446,15 +7463,16 @@ R.Context.slash = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.comma = (...locales) => tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7476,15 +7494,16 @@ R.Context.comma = (...locales) => tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.colon = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7516,15 +7535,16 @@ R.Context.colon = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.quota = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7544,15 +7564,16 @@ R.Context.quota = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.percent = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7572,15 +7593,16 @@ R.Context.percent = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.ampersand = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7613,15 +7635,16 @@ R.Context.ampersand = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.currency = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7656,15 +7679,16 @@ R.Context.currency = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.plus = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7693,15 +7717,16 @@ R.Context.plus = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.at = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7723,15 +7748,16 @@ R.Context.at = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.asterisk = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7753,15 +7779,16 @@ R.Context.asterisk = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.underscore = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7783,15 +7810,16 @@ R.Context.underscore = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.para = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7813,15 +7841,16 @@ R.Context.para = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.degree = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7848,15 +7877,16 @@ R.Context.degree = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.ellipsis = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7897,15 +7927,16 @@ R.Context.ellipsis = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.amount = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7928,49 +7959,16 @@ R.Context.amount = tokens => {
     else xs.push(curr);
   }
 
-  return xs;
-};
-
-
-// composed abbreviation
-
-R.Context.abbrs = tokens => {
-  const xs = [];
-
-  for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
-      prev2 = i <= 1 ? "" : tokens[i - 2],
-      prev = i === 0 ? "" : tokens[i - 1],
-      curr = tokens[i],
-      next = i + 1 >= tokens.length ? "" : tokens[i + 1],
-      next2 = i + 2 >= tokens.length ? "" : tokens[i + 2];
-
-    if (curr !== ".-") {
-      xs.push(curr);
-      continue;
-    }
-
-    // Foo.-Bar.
-
-    else if (/\p{L}/v.test(prev)
-      && /\p{L}/v.test(next)
-      && next2 === ".") {
-        xs[last] += curr + next + next2;
-        i += 2;
-    }
-
-    else xs.push(curr);
-  }
-
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
 
 R.Context.protocol = tokens => {
-  const xs = [];
+  const xs = [""];
 
   for (let i = 0; i < tokens.length; i++) {
-    const last = xs.length >= 1 ? xs.length - 1 : null,
+    const last = xs.length - 1,
       prev2 = i <= 1 ? "" : tokens[i - 2],
       prev = i === 0 ? "" : tokens[i - 1],
       curr = tokens[i],
@@ -7992,9 +7990,12 @@ R.Context.protocol = tokens => {
     else xs.push(curr);
   }
 
+  if (xs[0] === "") xs.shift();
   return xs;
 };
 
+
+// default composition
 
 R.Context.pipeAll = pipes(
   R.Context.hyphen,
@@ -8015,7 +8016,6 @@ R.Context.pipeAll = pipes(
   R.Context.degree,
   R.Context.ellipsis,
   R.Context.amount,
-  R.Context.abbrs,
   R.Context.protocol
 );
 
@@ -12422,27 +12422,36 @@ Node.FS_.stat = path => Cont((res, rej) =>
   Node.FS.stat(path, (e, p) => e ? rej(new Err(e.message)) : res(p)));
 
 
-Node.FS_.collectFiles = ({maxDepth, fileTypes}) => rootPath => {
+Node.FS_.collectFiles = ({dirs: {maxDepth, blackList = new Set(), whiteList = new Set()}, files: {types = new Set(), patterns = []}}) => rootPath => {
   return function go(acc, currentPath, depth) {
     if (depth > maxDepth) return Cont.of();
 
-    return Cont.chain(Node.FS_.scanDir({withFileTypes: true}) (currentPath)) (qs => {
-      const xs = qs.map(q => {
-        const fullPath = Node.Path.join(currentPath, q.name),
+    return Cont.chain(Node.FS_.scanDir({withFileTypes: true}) (currentPath)) (os => {
+      const xs = os.map(o => {
+        const fullPath = Node.Path.join(currentPath, o.name),
           relativePath = Node.Path.relative(rootPath, fullPath);
 
-        if (q.isFile()) {
-          const ys = q.name.split(/\./);
+        if (o.isFile()) {
+          const ys = o.name.split(/\./);
           
-          if (ys.length > 1 && fileTypes.has(ys[ys.length - 1])) {
-            acc.push(relativePath);
+          if (ys.length > 1 && types.has(ys[ys.length - 1])) {
+            if (patterns.length === 0) acc.push(relativePath);
+
+            else if (patterns.some(pattern => pattern.test(o.name)))
+              acc.push(relativePath)
+
             return Cont.of();
           }
 
           else return Cont.of();
         }
 
-        else if (q.isDirectory()) return go(acc, fullPath, depth + 1);
+        else if (o.isDirectory()) {
+          if (blackList.has(o.name)) return Cont.of();
+          else if (whiteList.size && !whiteList.has(o.name)) return Cont.of();
+          else return go(acc, fullPath, depth + 1);
+        }
+
         else return Cont.of();
       });
 
