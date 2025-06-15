@@ -1499,6 +1499,23 @@ A.values = function* (m) {
 };
 
 
+// interpolate a string into an array
+
+A.interpolate = ({sep, trailing = false}) => xs => {
+  const ys = [];
+
+  for (let i = 0; i < xs.length; i++) {
+    const isLast = i === xs.length - 1;
+    ys.push(xs[i]);
+
+    if (!isLast) ys.push(sep);
+    else if (trailing) ys.push(sep);
+  }
+
+  return ys;
+};
+
+
 // set a focus on an array without altering the underlying array
 
 A.focus = ({from, to}) => xs => {
@@ -3216,22 +3233,51 @@ It.alternate = ix => function* (iy) {
 };
 
 
-// interpolate a string into a stream
+// alternate two iterators
 
-It.interpose = s => function* (ix) {
-  for (const t of ix) {
-    yield t;
-    yield s;
+It.alternate = ix => function* (iy) {
+  let fst = false, snd = false;
+
+  while (true) {
+    let o = {done: true};
+
+    if (!fst) {
+      o = ix.next();
+      if (o.done) fst = true;
+      else yield o.value;
+    }
+
+    let p = {done: true};
+
+    if (!snd) {
+      p = iy.next();
+      if (p.done) snd = true;
+      else yield p.value;
+    }
+
+    if (fst && snd) break;
   }
 };
 
 
-// interpolate a string into an array
+// interpolate a string into an async iterator
 
-It.interposeArr = s => function* (xs) {
-  for (let i = 0; i < xs.length; i++) {
-    yield xs[i];
-    yield s;
+It.interpolate = ({sep, trailing = false}) => function* (ix) {
+  let isFirst = true, prev;
+
+  for (const x of ix) {
+    if (!isFirst) {
+      yield prev;
+      yield sep;
+    }
+
+    prev = x;
+    isFirst = false;
+  }
+
+  if (!isFirst) {
+    yield prev;
+    if (trailing) yield sep;
   }
 };
 
@@ -3861,63 +3907,48 @@ Ait.separatedChunks = ({num, remainder = false}) => {
 // alternate two async iterators
 
 Ait.alternate = ix => async function* (iy) {
-  let doneFst = false, doneSnd = false;
+  let fst = false, snd = false;
 
   while (true) {
-    let nextX = {done: true};
+    let o = {done: true};
 
-    if (!doneFst) {
-      nextX = await ix.next();
-      if (nextX.done) doneFst = true;
-      else yield nextX.value;
+    if (!fst) {
+      o = await ix.next();
+      if (o.done) fst = true;
+      else yield o.value;
     }
 
-    let nextY = {done: true};
+    let p = {done: true};
 
-    if (!doneSnd) {
-      nextY = await iy.next();
-      if (nextY.done) doneSnd = true;
-      else yield nextY.value;
+    if (!snd) {
+      p = await iy.next();
+      if (p.done) snd = true;
+      else yield p.value;
     }
 
-    if (doneFst && doneSnd) break;
+    if (fst && snd) break;
   }
 };
 
 
 // interpolate a string into an async iterator
 
-Ait.interpose = ({sep, trailing = true}) => async function* (ix) {
-  let isFirst = true, prevVal;
+Ait.interpolate = ({sep, trailing = false}) => async function* (ix) {
+  let isFirst = true, prev;
 
   for await (const x of ix) {
     if (!isFirst) {
-      yield prevVal;
+      yield prev;
       yield sep;
     }
 
-    prevVal = x;
+    prev = x;
     isFirst = false;
   }
 
   if (!isFirst) {
-    yield prevVal;
+    yield prev;
     if (trailing) yield sep;
-  }
-};
-
-
-// interpolate a string into an array
-
-Ait.interposeArr = ({sep, trailing = true}) => async function* (xs) {
-  for (let i = 0; i < xs.length; i++) {
-    const isLast = i === xs.length - 1,
-      t = await xs[i];
-
-    yield t;
-
-    if (!isLast) yield sep;
-    else if (trailing) yield sep;
   }
 };
 
@@ -4288,6 +4319,27 @@ Object.defineProperty(_Map.deDE, "nominalAlterations", {
 
     delete this.nominalAlteration;
     this.nominalAlteration = m;
+    return m;
+  },
+
+  configurable: true
+});
+
+
+Object.defineProperty(_Map.deDE, "nobleTitles", {
+  get() {
+    const m = new Map([
+      ["von", {pre: "", suf: ""}],
+      ["der", {pre: "von", suf: ""}],
+      ["zu", {pre: "", suf: ""}],
+      ["und", {pre: "von", suf: "zu"}],
+      ["zur", {pre: "", suf: ""}],
+      ["von der", {pre: "", suf: ""}],
+      ["von und zu", {pre: "", suf: ""}],
+    ]);
+
+    delete this.nobleTitles;
+    this.nobleTitles = m;
     return m;
   },
 
@@ -5270,6 +5322,12 @@ O.fromIt = ix => {
 O.fromPairs = pairs => pairs.reduce((acc, [k, v]) => (acc[k] = v, acc), {});
 
 
+O.fromTuple = (...ks) => tuple => tuple.reduce((acc, x, i) => {
+  acc[ks[i]] = x;
+  return acc;
+}, {});
+
+
 //█████ Getters ███████████████████████████████████████████████████████████████
 
 
@@ -6204,7 +6262,7 @@ R.giu = rx => new RegExp(rx, "giu");
 
 // count more complex substring patterns
 
-R.count = rx => s => Array.from(s.matchAll(rx)).length;
+R.countPattern = rx => s => Array.from(s.matchAll(rx)).length;
 
 
 // remove repetitive characters
@@ -6801,8 +6859,7 @@ R.splitAllTrans = R.splitTrans("v") (
   R.classes.punct.sep,
   R.classes.sym.sep,
   R.classes.space.sep,
-  R.classes.crnl.sep,
-  "(?<=\\p{Ll})(?=\\p{Lu})"); // "fooBar" -> ["foo", "Bar"]
+  R.classes.crnl.sep);
 
 
 // split all
@@ -7273,7 +7330,7 @@ R.Context.hyphen = tokens => {
       // foo-bar
 
       else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7282,7 +7339,7 @@ R.Context.hyphen = tokens => {
       // foo-\nbar (at the end of line)
 
       else if (/\p{L}/v.test(prev) && /\r?\n/.test(next) && /\p{L}/v.test(next2)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         xs.push(next); // shift the newline
         buf += last + next2;
         changed = true;
@@ -7292,7 +7349,7 @@ R.Context.hyphen = tokens => {
       // 3-foo
 
       else if (/\p{N}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7309,7 +7366,7 @@ R.Context.hyphen = tokens => {
       // foo- (prefix abbreviation)
 
       else if (/\p{L}/v.test(prev) && /^ *$/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         xs.push(last + curr);
         changed = true;
         i++;
@@ -7326,7 +7383,7 @@ R.Context.hyphen = tokens => {
       // 50-100 (range or nominal number)
 
       else if (/\d/.test(prev) && /\d/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7381,7 +7438,7 @@ R.Context.period = tokens => {
       // e.g. (periods in between letters)
 
       else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7400,7 +7457,7 @@ R.Context.period = tokens => {
       // e.g. (last period of abbreviation or end of sentence)
 
       else if (/\p{L}/v.test(prev) && /^ *$/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr;
         changed = true;
       }
@@ -7408,7 +7465,7 @@ R.Context.period = tokens => {
       // 0.1 (dicimal number or thousand separator)
 
       else if (/\d/.test(prev) && /\d/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7463,7 +7520,7 @@ R.Context.apo = tokens => {
       // foo' (colloquial abbreviation)
 
       else if (/\p{L}/v.test(prev) && /^ *$/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr;
         changed = true;
       }
@@ -7482,7 +7539,7 @@ R.Context.apo = tokens => {
         && /\p{L}/v.test(prev)
         && /\p{L}/v.test(next)
         && /^ *$/.test(next2)) {
-          const last = xs.pop();
+          const last = xs.pop() || "";
           buf += last + curr + next;
           changed = true;
           i++;
@@ -7537,7 +7594,7 @@ R.Context.slash = tokens => {
       // foo/bar (enumeration)
 
       else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7546,7 +7603,7 @@ R.Context.slash = tokens => {
       // 1/3 (fraction or enumeration)
 
       else if (/\d/.test(prev) && /\d/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7555,7 +7612,7 @@ R.Context.slash = tokens => {
       // 3/day (per)
 
       else if (/\d/.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7610,7 +7667,7 @@ R.Context.comma = tokens => {
       // 0,1 (decimal number, thousand separator or enumeration)
 
       else if (/\d/.test(prev) && /\d/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7665,7 +7722,7 @@ R.Context.colon = tokens => {
       // Lehrer:innen (gender notation)
 
       else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7674,7 +7731,7 @@ R.Context.colon = tokens => {
       // 1:3 (ratio)
 
       else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7729,7 +7786,7 @@ R.Context.quota = tokens => {
       // 19" (inches)
 
       else if (/\d/.test(prev) && /[^\d]/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr;
         changed = true;
       }
@@ -7783,7 +7840,7 @@ R.Context.percent = tokens => {
       // 100%
 
       else if (/\d/.test(prev) && /[^\d]/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr;
         changed = true;
       }
@@ -7837,7 +7894,7 @@ R.Context.ampersand = tokens => {
       // Foo&Bar
 
       else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7850,7 +7907,7 @@ R.Context.ampersand = tokens => {
         && next === " "
         && /\p{L}/v.test(next2)) {
           xs.pop(); // remove space
-          const last = xs.pop();
+          const last = xs.pop() || "";
           xs[xs.length - 1] += last + " " + curr + next + next2
           changed = true;
           i += 2;
@@ -7905,7 +7962,7 @@ R.Context.currency = tokens => {
       // 10¤
 
       else if (/\d/.test(prev)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr;
         changed = true;
       }
@@ -7922,7 +7979,7 @@ R.Context.currency = tokens => {
       
       else if (/\d/.test(prev2) && prev === " ") {
         xs.pop(); // remove space
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + " " + curr;
         changed = true;
       }
@@ -7984,7 +8041,7 @@ R.Context.plus = tokens => {
       // 10+11 (addition or enumeration)
 
       else if (/\d/.test(prev) && /\d/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -7997,7 +8054,7 @@ R.Context.plus = tokens => {
         && next === " "
         && /\d/.test(next2)) {
           xs.pop(); // remove space
-          const last = xs.pop();
+          const last = xs.pop() || "";
           buf += last + " " + curr + next;
           changed = true;
           i++;
@@ -8052,7 +8109,7 @@ R.Context.at = tokens => {
       // info@mail.com
 
       else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -8107,7 +8164,7 @@ R.Context.asterisk = tokens => {
       // Lehrer*innen
 
       else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -8162,7 +8219,7 @@ R.Context.underscore = tokens => {
       // Lehrer_innen
 
       else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -8271,7 +8328,7 @@ R.Context.degree = tokens => {
       // 100°C
 
       else if (/\d/.test(prev) && next === "C") {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -8280,7 +8337,7 @@ R.Context.degree = tokens => {
       // 100°F
 
       else if (/\d/.test(prev) && next === "F") {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -8289,7 +8346,7 @@ R.Context.degree = tokens => {
       // 100°
 
       else if (/\d/.test(prev) && /[^\d]/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr;
         changed = true;
       }
@@ -8343,7 +8400,7 @@ R.Context.ellipsis = tokens => {
       // foo..bar or foo...bar
 
       else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -8352,7 +8409,7 @@ R.Context.ellipsis = tokens => {
       // 1..10 or 1...10
 
       else if (/\d/.test(prev) && /\d/.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -8361,7 +8418,7 @@ R.Context.ellipsis = tokens => {
       // foo.. or foo...
 
       else if (/\p{L}/.test(prev)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr;
         changed = true;
       }
@@ -8426,7 +8483,7 @@ R.Context.amount = tokens => {
       // 1.- or 1,- or 1.-- or 1,--
 
       else if (/\d/.test(prev)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr;
         changed = true;
       }
@@ -8436,7 +8493,7 @@ R.Context.amount = tokens => {
       else if (/\p{L}/v.test(prev)
         && /\p{L}/v.test(next)
         && next2 === ".") {
-          const last = xs.pop();
+          const last = xs.pop() || "";
           buf += last + curr + next + next2;
           changed = true;
           i += 2;
@@ -8491,7 +8548,7 @@ R.Context.protocol = tokens => {
       // http://www
 
       else if (/\p{L}/v.test(prev) && /\p{L}/v.test(next)) {
-        const last = xs.pop();
+        const last = xs.pop() || "";
         buf += last + curr + next;
         changed = true;
         i++;
@@ -8520,7 +8577,7 @@ R.Context.protocol = tokens => {
 
 // assumes correct letter casing
 
-R.Context.properName = tokens => {
+R.Context.properName = ({locale, inclNoble = false}) => tokens => {
   const xs = [];
   let buf = "", changed;
 
@@ -8557,12 +8614,68 @@ R.Context.properName = tokens => {
 
       // Foo Bar, Foo Bar Bat, Foo-Bar Bat, Foo Bar-Bat, Foo O'Bar
 
-      else if (/^\p{Lu}.+\p{Ll}$/v.test(curr)
+      else if (/^\p{Lu}.*\p{Ll}$/v.test(curr)
         && next === " "
         && /^\p{Lu}.+\p{Ll}$/v.test(next2)) {
           buf += curr + next + next2;
           changed = true;
           i += 2;
+      }
+
+      // Foo of Bar, F. of Bar
+
+      else if (inclNoble && _Map[locale].nobleTitles.has(curr)) {
+        const affixes = _Map[locale].nobleTitles.get(curr),
+          compos = [curr],
+          offset = [0, 0];
+
+        let valid = true;
+debugger;
+        if (affixes.pre) {
+          if (tokens[i - 1] === " "
+            && tokens[i - 2] === affixes.pre) {
+              compos.unshift(affixes.pre);
+              offset[0] -= 2;
+          }
+        }
+
+        if (affixes.suf) {
+          if (tokens[i + 1] === " "
+            && tokens[i + 2] === affixes.suf) {
+              compos.push(affixes.suf);
+              offset[1] += 2;
+          }
+        }
+
+        if (tokens[i + offset[0] - 1] !== " ") valid = false;
+        else if (tokens[i + offset[1] + 1] !== " ") valid = false;
+        else if (!/^\p{Lu}.*(?:\p{Ll}|\.)$/v.test(tokens[i + offset[0] - 2])) valid = false;
+        else if (!/^\p{Lu}.*\p{Ll}$/v.test(tokens[i + offset[1] + 2])) valid = false;
+          
+        if (valid) {
+          if (offset[0] < 0) {
+            xs.pop(); // remove space
+            xs.pop(); // remove prefix
+            buf += compos.join(" ");
+          }
+
+          else {
+            xs.pop(); // remove space
+            const last = xs.pop(); // remove prefix
+            buf += last + " " + compos.join(" ");
+          }
+
+          changed = true;
+          i += offset[1];
+        }
+
+        else if (buf !== "") {
+          xs.push(buf);
+          xs.push(curr);
+          buf = "";
+        }
+
+        else xs.push(curr);
       }
 
       else if (buf !== "") {
@@ -11178,38 +11291,58 @@ S.Norm.latinise = ({inclAlpha}) => doc => {
 
 Collator option object properties (first one is default value):
 
-  * usage = "sort"/"search"
-  * collation = false/true
-  * numeric = false/true
-  * caseFirst = false/true
-  * sensitivity = "variant"/"base"/"accent"/"case"
-  * ignorePunctuation = false/true
+  • usage = "sort"/"search"
+  • collation = locale specific
+  • numeric = false/true (sort like a number)
+  • caseFirst = false/true
+  • sensitivity = "variant"/"case"/"accent"/"base"
+  • ignorePunctuation = false/true
 
-If case insensitive string comparison is required, set the `sensitivity`
-property in the option argument to `"accent"`, */
+Sensitivity modes:
 
-
-// ascending order
-
-S.ctor = locale => opt =>
-  new Intl.Collator(locale, opt).compare;
+  • variant: normal
+  • case: a !== A
+  • accent: a === A, a !== ä
+  • base: a === Ä */
 
 
-// descending order
+// collator
 
-S.ctorDesc = locale => opt => (p, o) =>
-  new Intl.Collator(locale, opt).compare(o, p);
-
-
-S.ctorObj = ({locale, k}) => opt => (o, p) =>
-  new Intl.Collator(locale, opt).compare(o[k], p[k]);
+S.Ctor = {};
 
 
-S.ctorWith = ({locale, f}) => opt => (o, p) =>
-  new Intl.Collator(locale, opt).compare(...f(o, p));
+// options
+
+S.Ctor.acc = locale => ({
+  locale,
+  usage: "search",
+  sensitivity: "accent"
+});
 
 
-S.ctorDe = S.ctor("deDE");
+S.Ctor.base = locale => ({
+  locale,
+  usage: "search",
+  sensitivity: "accent",
+});
+
+
+// ascending order (switch arguments for descending order)
+
+S.Ctor.cmp = opt =>
+  new Intl.Collator(opt.locale, opt).compare;
+
+
+// pass key as option property k
+
+S.Ctor.cmpObj = opt => (o, p) =>
+  new Intl.Collator(opt.locale, opt).compare(o[opt.k], p[opt.k]);
+
+
+// pass binary function as option property f
+
+S.Ctor.cmpWith = opt => (o, p) =>
+  new Intl.Collator(opt.locale, opt).compare(...opt.f(o, p));
 
 
 //█████ Casing ████████████████████████████████████████████████████████████████
@@ -11423,15 +11556,15 @@ S.Word.parseAbbr = ({locale, abbrs, trigrams, context}) => abbr => {
 
   else {
     const score = 0,
-      standAlonePeriods = R.count(/(?<!\.)\.(?!\.)/g) (abbr),
+      standAlonePeriods = R.countPattern(/(?<!\.)\.(?!\.)/g) (abbr),
       totalPeriods = S.countChar(".") (abbr),
-      caps = R.count(/\p{Lu}/gv) (abbr2),
+      caps = R.countPattern(/\p{Lu}/gv) (abbr2),
       firstCap = /^\p{Lu}/.test(abbr2);
 
-    const standAloneVowels = R.count(RegExp(
+    const standAloneVowels = R.countPattern(RegExp(
       `${R.classes.latin1.lcl.s}+|${R.classes.latin1.ucl.s}+`, "g")) (abbr2);
 
-    const vowels = R.count(RegExp(`${R.classes.latin1.vowels.s}`, "g")) (abbr2);
+    const vowels = R.countPattern(RegExp(`${R.classes.latin1.vowels.s}`, "g")) (abbr2);
 
     // filter ellipsis
 
