@@ -13207,76 +13207,62 @@ Node.FS_.collectFiles = ({dirs: {maxDepth, blacklist = new Set(), whitelist = ne
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-// TODO: dysfunctional - adapt to new async type
+Node.SQL = {};
 
 
-Node.SQL = Cons => {
-  const o = {};
-
-  // meta is additional data passed to the query
-
-  o.Query = product("SqlQuery", "sq") ("meta", "query");
+//█████ Types █████████████████████████████████████████████████████████████████
 
 
-  o.Result = product("SqlResult", "sr") ("data", "fields");
+Node.SQL.sqlQuery = ({query, meta = null}) => ({
+  [$]: "SqlQuery",
+  [$$]: "SqlQuery",
+  meta,
+  query,
+});
 
 
-  o.createCredentials = ({host, port, name, charset = "utf8mb4"}) => ({
-    host,
-    port,
-    user: process.dbUser,
-    password: process.env.dbPassword,
-    database: name,
-    charset
+Node.SQL.sqlResult = ({data, fields}) => ({
+  [$]: "SqlResult",
+  [$$]: "SqlResult",
+  data,
+  fields,
+});
+
+
+//█████ Combinators ███████████████████████████████████████████████████████████
+
+
+Node.SQL.createCredentials = ({host, port, name, charset = "utf8mb4"}) => ({
+  host,
+  port,
+  user: process.env.dbUser,
+  password: process.env.dbPassword,
+  database: name,
+  charset,
+});
+
+
+Node.SQL.createResource = credentials => mysql.createConnection(credentials);
+
+
+Node.SQL.connect = ressource =>
+  Cons((res, rej) =>
+    ressource.connect(e => e
+      ? rej(new Err(e)) : res(ressource)));
+
+
+Node.SQL.disconnect = ressource =>
+  Cons((res, rej) =>
+    ressource.end(e => e
+      ? rej(new Err(e)) : res(true)));
+
+
+Node.SQL.query = connection => sql => Cons((res, rej) => {
+  return connection.query(sql, (e, data, fields) => {
+    if (e) return rej(new Err(e));
+    else return res({data, fields});
   });
-
-
-  o.createResource = credentials => mysql.createConnection(credentials);
-
-
-  o.handle = reify(p => {
-    p.connect = res =>
-      Cons(k =>
-        res.connect(e => e
-          ? k(new Err(e)) : k(res))),
-
-
-    o.disconnect = res =>
-      Cons(k =>
-        res.end(e => e
-          ? k(new Err(e)) : k(true))),
-
-
-    o.query = con => tx => Cons(k => {
-      return con.query(tx.sq.query, (e, data, fields) => {
-        if (e) return k(new Err(e));
-        else return k(Sql.Result(data, fields));
-      });
-    });
-  });
-
-
-  o.throw = reify(p => {
-    p.connect = res =>
-      Cons(k =>
-        res.connect(e => e
-          ? _throw(e) : k(res))),
-
-
-    o.disconnect = res =>
-      Cons(k =>
-        res.end(e => e
-          ? _throw(e) : k(true))),
-
-
-    o.query = con => tx => Cons(k => {
-      return con.query(tx.sq.query, (e, data, fields) => {
-        if (e) throw e;
-        else return k(Sql.Result(data, fields));
-      });
-    });
-  });
-};
+});
 
 
 /*█████████████████████████████████████████████████████████████████████████████
