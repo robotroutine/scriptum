@@ -1381,10 +1381,10 @@ A.push = x => xs => (xs.push(x), xs);
 A.pushr = xs => x => (xs.push(x), xs);
 
 
-A.pushn = ys => xs => (xs.push.apply(xs, ys), xs);
-
-
-A.pushnr = xs => ys => (xs.push.apply(xs, ys), xs);
+A.pushn = ys => xs => {
+  for (const y of ys) xs.push(y);
+  return xs;
+};
 
 
 A.unshift = x => xs => (xs.unshift(x), xs);
@@ -1394,9 +1394,6 @@ A.unshiftr = xs => x => (xs.unshift(x), xs);
 
 
 A.unshiftn = ys => xs => (xs.unshift.apply(xs, ys), xs);
-
-
-A.unshiftnr = xs => ys => (xs.unshift.apply(xs, ys), xs);
 
 
 A.pop = xs => [xs.length === 0 ? null : xs.pop(), xs];
@@ -9319,6 +9316,30 @@ S.splitAscii = s => {
 
     return acc;
   }, [""]);
+};
+
+
+S.splitName = s => {
+  if (/,/.test(s)) {
+    const [lastName, firstName] = s.split(/, +/),
+      [firstName2, ...middleNames] = firstName.split(/[ \-]/),
+      lastNames = lastName.split(/[ \-]/);
+
+    return {firstName: firstName2, middleNames, lastNames};
+  }
+
+  else {
+    const compos = s.split(/ +/);
+
+    const compos2 = compos.slice(0, -1).reduce((acc, compo) =>
+      A.pushn(compo.split(/-/)) (acc), []);
+    
+    const firstName = compos2[0],
+      middleNames = compos2.slice(1),
+      lastNames = compos[compos.length - 1].split(/-/);
+
+    return {firstName, middleNames, lastNames};
+  }
 };
 
 
