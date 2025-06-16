@@ -6587,7 +6587,7 @@ R.searchAll = rx => s =>
   Array.from(s.matchAll(rx)).map(ix => ix.index);
 
 
-R.searchAllWith = p => rx => s =>
+R.searchAllWith = ({p, rx}) => s =>
   R.matchAllWith({p, rx}) (s).map(ix => ix.index);
 
 
@@ -6602,7 +6602,7 @@ R.searchFirst = rx => s => {
 };
 
 
-R.searchFirstWith = p => rx => s => {
+R.searchFirstWith = ({p, rx}) => s => {
   for (const ix of s.matchAll(rx))
     if (p(ix)) return [ix.index];
 
@@ -6617,7 +6617,7 @@ R.searchLast = rx => s => {
 };
 
 
-R.searchLastWith = p => rx => s => {
+R.searchLastWith = ({p, rx}) => s => {
   const xs = R.matchAllWith({p, rx}) (s);
   if (xs.length === 0) return [];
   else return [xs[xs.length - 1].index];
@@ -6626,7 +6626,7 @@ R.searchLastWith = p => rx => s => {
 
 // negative indices are processed relative to the end
 
-R.searchNth = (rx, n) => s => {
+R.searchNth = ({n, rx}) => s => {
   const xs = s.matchAll(rx);
   if (n - 1 >= xs.length) return [];
   else if (n >= 0) return [xs[n - 1].index];
@@ -6636,11 +6636,19 @@ R.searchNth = (rx, n) => s => {
 
 // negative indices are processed relative to the end
 
-R.searchNthWith = p => (rx, n) => s => {
+R.searchNthWith = p => ({n, rx}) => s => {
   const xs = R.matchAllWith({p, rx}) (s);
   if (n - 1 >= xs.length) return [];
   else if (n >= 0) return [xs[n - 1].index];
   else return [xs.slice(n) [0].index];
+};
+
+
+// negative indices are processed relative to the end
+
+R.searchNth = ({n, rx}) => s => {
+  const xs = s.matchAll(rx);
+  return xs.slice(0, n);
 };
 
 
