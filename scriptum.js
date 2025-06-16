@@ -5693,7 +5693,7 @@ Parser.nat = ({inclZero, _throw = false}) => s => {
     original: s,
   });
 
-  else if (_throw) {debugger;throw new Err(`malformed natural number "${s}"`);}
+  else if (_throw) throw new Err(`malformed natural number "${s}"`);
 
   else return Parser.Invalid({
     value: s,
@@ -6626,21 +6626,21 @@ R.searchLastWith = p => rx => s => {
 
 // negative indices are processed relative to the end
 
-R.searchNth = (rx, i) => s => {
+R.searchNth = (rx, n) => s => {
   const xs = s.matchAll(rx);
-  if (i - 1 >= xs.length) return [];
-  else if (i >= 0) return [xs[i - 1].index];
-  else return [xs.slice(i) [0].index];
+  if (n - 1 >= xs.length) return [];
+  else if (n >= 0) return [xs[n - 1].index];
+  else return [xs.slice(n) [0].index];
 };
 
 
 // negative indices are processed relative to the end
 
-R.searchNthWith = p => (rx, i) => s => {
+R.searchNthWith = p => (rx, n) => s => {
   const xs = R.matchAllWith({p, rx}) (s);
-  if (i - 1 >= xs.length) return [];
-  else if (i >= 0) return [xs[i - 1].index];
-  else return [xs.slice(i) [0].index];
+  if (n - 1 >= xs.length) return [];
+  else if (n >= 0) return [xs[n - 1].index];
+  else return [xs.slice(n) [0].index];
 };
 
 
@@ -6694,23 +6694,29 @@ R.matchLastWith = ({p, rx}) => s =>
 
 // negative indices are processed relative to the end
 
-R.matchNth = ({i, rx}) => s => {
+R.matchNth = ({n, rx}) => s => {
   const xs = Array.from(s.matchAll(rx));
-  if (i - 1 >= xs.length) return [];
-  else if (i >= 0) return [xs[i - 1]];
-  else return [xs.slice(i) [0]];
+  if (n - 1 >= xs.length) return [];
+  else if (n >= 0) return [xs[n - 1]];
+  else return [xs.slice(n) [0]];
 };
 
 
 // negative indices are processed relative to the end
 
-R.matchNthWith = ({p, i, rx}) => s => {
+R.matchNthWith = ({p, n, rx}) => s => {
   const xs = R.matchAllWith({p, rx}) (s),
-    o = xs[i];
+  if (n - 1 >= xs.length) return [];
+  else if (n >= 0) return [xs[n - 1]];
+  else return [xs.slice(n) [0]];
+};
 
-  if (i - 1 >= xs.length) return [];
-  else if (i >= 0) return [xs[i - 1]];
-  else return [xs.slice(i) [0]];
+
+// negative indices are processed relative to the end
+
+R.matchUntil = ({n, rx}) => s => {
+  const xs = Array.from(s.matchAll(rx));
+  return xs.slice(0, n)
 };
 
 
@@ -7067,57 +7073,38 @@ R.replaceLastBy = ({p, f, rx}) => s => {
 
 // considers negative indices like native slice does
 
-R.replaceNth = ({i, sub, rx}) => s => {
+R.replaceNth = ({n, sub, rx}) => s => {
   if (rx.flags.search("g") === notFound)
     throw new Err("missing global flag");
 
   const xs = Array.from(s.matchAll(rx));
 
-  if (i - 1 >= xs.length) return s;
+  if (n - 1 >= xs.length) return s;
 
   else {
-    const match = i < 0 ? xs.slice(i) [0] : xs[i - 1],
-      i2 = match.index;
+    const match = n < 0 ? xs.slice(n) [0] : xs[n - 1],
+      n2 = match.index;
 
-    return s.slice(0, i2) + sub + s.slice(i2 + match.length);
+    return s.slice(0, n2) + sub + s.slice(n2 + match.length);
   }
 };
 
 
 // considers negative indices like native slice does
 
-R.replaceNthWith = ({i, f, rx}) => s => {
+R.replaceNthWith = ({n, f, rx}) => s => {
   const xs = Array.from(s.matchAll(rx));
 
-  if (i - 1 >= xs.length) return s;
+  if (n - 1 >= xs.length) return s;
 
   else {
-    const r = i < 0 ? xs.slice(i) [0] : xs[i - 1],
+    const r = n < 0 ? xs.slice(n) [0] : xs[n - 1],
       [match, ...ys] = r,
       o = r.groups,
-      i2 = r.index;
+      n2 = r.index;
 
-    const sub = f({match, xs: ys, i: i2, o, s});
-    return s.slice(0, i2) + sub + s.slice(i2 + match.length);
-  }
-};
-
-
-// considers negative indices like native slice does
-
-R.replaceNthBy = ({i, f, rx}) => s => {
-  const xs = R.matchAllWith({p, rx}) (s);
-
-  if (i - 1 >= xs.length) return s;
-
-  else {
-    const r = i < 0 ? xs.slice(i) [0] : xs[i - 1],
-      [match, ...ys] = r,
-      o = r.groups,
-      i2 = r.index;
-
-    const sub = f({match, xs: ys, i: i2, o, s});
-    return s.slice(0, i2) + sub + s.slice(i2 + match.length);
+    const sub = f({match, xs: ys, i: n2, o, s});
+    return s.slice(0, n2) + sub + s.slice(n2 + match.length);
   }
 };
 
@@ -8630,7 +8617,7 @@ R.Context.properName = ({locale, inclNoble = false}) => tokens => {
           offset = [0, 0];
 
         let valid = true;
-debugger;
+
         if (affixes.pre) {
           if (tokens[i - 1] === " "
             && tokens[i - 2] === affixes.pre) {
