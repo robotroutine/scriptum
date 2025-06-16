@@ -6710,7 +6710,7 @@ R.matchNth = ({n, rx}) => s => {
 // negative indices are processed relative to the end
 
 R.matchNthWith = ({p, n, rx}) => s => {
-  const xs = R.matchAllWith({p, rx}) (s),
+  const xs = R.matchAllWith({p, rx}) (s);
   if (n - 1 >= xs.length) return [];
   else if (n >= 0) return [xs[n - 1]];
   else return [xs.slice(n) [0]];
@@ -12994,10 +12994,10 @@ Node.CLA.scan = ({mandatory, optional = {}}) => {
 
 
 Node.CLA.setEnv = o => {
-  Object.keys(o).forEach(k => {
-    if (k in process.env) console.warn(`overwrite property "${k}"`);
-    process.env[k] = o[k];
-  });
+  for (const k of O.keys(o)) {
+    if (k in process.env) throw new Err(`overwrite existing property "${k}"`);
+    else process.env[k] = o[k];
+  }
 
   return o;
 };
@@ -13216,48 +13216,56 @@ Node.SQL = {};
 Node.SQL.sqlQuery = ({query, meta = null}) => ({
   [$]: "SqlQuery",
   [$$]: "SqlQuery",
-  meta,
   query,
+  meta,
 });
 
 
-Node.SQL.sqlResult = ({data, fields}) => ({
+Node.SQL.sqlResult = ({data, fields, query, meta}) => ({
   [$]: "SqlResult",
   [$$]: "SqlResult",
   data,
   fields,
+  query,
+  meta,
 });
 
 
 //█████ Combinators ███████████████████████████████████████████████████████████
 
 
-Node.SQL.createCredentials = ({host, port, name, charset = "utf8mb4"}) => ({
-  host,
-  port,
-  user: process.env.dbUser,
-  password: process.env.dbPassword,
-  database: name,
-  charset,
-});
+Node.SQL.createCredentials = ({host, port, name, charset = "utf8mb4"}) => {
+  const db = JSON.parse(process.env.db);
+
+  return {
+    host,
+    port,
+    user: db.user,
+    password: db.password,
+    database: name,
+    charset,
+  };
+};
 
 
-Node.SQL.createResource = credentials => mysql.createConnection(credentials);
+// requires the mysql package dependency
+
+Node.SQL.createResource = mysql => credentials => mysql.createConnection(credentials);
 
 
 Node.SQL.connect = ressource =>
-  Cons((res, rej) =>
+  Cont((res, rej) =>
     ressource.connect(e => e
       ? rej(new Err(e)) : res(ressource)));
 
 
 Node.SQL.disconnect = ressource =>
-  Cons((res, rej) =>
+  Cont((res, rej) =>
     ressource.end(e => e
       ? rej(new Err(e)) : res(true)));
 
 
-Node.SQL.query = connection => sql => Cons((res, rej) => {
+Node.SQL.query = connection => sql => Cont((res, rej) => {
   return connection.query(sql, (e, data, fields) => {
     if (e) return rej(new Err(e));
     else return res({data, fields});
