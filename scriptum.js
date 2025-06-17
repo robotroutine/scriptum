@@ -2051,7 +2051,7 @@ A.splitAt = p => xs => {
 };
 
 
-A.tuplewise = ({size, padding = null, overlap = false}) => xs => {
+A.ngram = ({size, padding = null, overlap = false}) => xs => {
   const ys = [];
 
   for (let i = 0; i < xs.length; overlap ? i++ : i += size) {
@@ -2071,10 +2071,10 @@ A.tuplewise = ({size, padding = null, overlap = false}) => xs => {
 };
 
 
-A.bigram = A.tuplewise({size: 2, overlap: true});
+A.bigram = A.ngram({size: 2, overlap: true});
 
 
-A.trigram = A.tuplewise({size: 3, overlap: true});
+A.trigram = A.ngram({size: 3, overlap: true});
 
 
 //█████ Combinations, Subsets, Subsequences ███████████████████████████████████
@@ -9321,7 +9321,7 @@ S.splitAscii = s => {
 
 S.splitName = s => {
 
-  // aslo split edge case "A.B. Foo" to ["A.", "B.", "Foo"]
+  // aslo split edge case "A.B.Foo" to ["A.", "B.", "Foo"]
 
   if (/,/.test(s)) {
     const [lastName, firstName] = s.split(/, +/),
@@ -11369,34 +11369,12 @@ S.Ctor.cmpWith = opt => (o, p) =>
 
 // capitalize a word and its potential word components
 
-S.capitalize = word => {
-  const xs = word.split("-");
+S.capitalize = nouns => {
+  const lowercasedName = nouns.toLowerCase();
 
-  for (let i = 0; i < xs.length; i++) {
-    if (xs[i] === "") continue;
-    else if (xs[i - 1] === "") xs[i] = xs[i].toLowerCase();
-    else xs[i] = xs[i] [0].toUpperCase() + xs[i].slice(1).toLowerCase();
-
-    const ys = xs[i].split(".");
-
-    for (let i2 = 0; i2 < ys.length; i2++) {
-      if (ys[i2] === "") continue;
-      ys[i2] = ys[i2] [0].toUpperCase() + ys[i2].slice(1);
-    }
-
-    xs[i] = ys.join(".");
-
-    if (/\p{L}+'\p{L}{2,}/v.test(xs[i])) {
-      const zs = xs[i].split("'");
-
-      for (let i2 = 0; i2 < zs.length; i2++)
-        zs[i2] = zs[i2] [0].toUpperCase() + zs[i2].slice(1);
-
-      xs[i] = zs.join("'");
-    }
-  }
-
-  return xs.join("-");
+  return lowercasedName.replace(/(^|[\s'-\.])(\w)/g, (match, separator, char) => {
+    return separator + char.toUpperCase();
+  });
 };
 
 
