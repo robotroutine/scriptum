@@ -9320,9 +9320,12 @@ S.splitAscii = s => {
 
 
 S.splitName = s => {
+
+  // aslo split edge case "A.B. Foo" to ["A.", "B.", "Foo"]
+
   if (/,/.test(s)) {
     const [lastName, firstName] = s.split(/, +/),
-      [firstName2, ...middleNames] = firstName.split(/[ \-]/),
+      [firstName2, ...middleNames] = firstName.split(/[ \-]|(?<=\.)(?=\p{L})/v),
       lastNames = lastName.split(/[ \-]/);
 
     return {firstName: firstName2, middleNames, lastNames};
@@ -9332,7 +9335,7 @@ S.splitName = s => {
     const compos = s.split(/ +/);
 
     const compos2 = compos.slice(0, -1).reduce((acc, compo) =>
-      A.pushn(compo.split(/-/)) (acc), []);
+      A.pushn(compo.split(/-|(?<=\.)(?=\p{L})/v)) (acc), []);
     
     const firstName = compos2[0],
       middleNames = compos2.slice(1),
@@ -13233,6 +13236,8 @@ Node.SQL.sqlResult = ({data, fields, query, meta}) => ({
 
 //█████ Combinators ███████████████████████████████████████████████████████████
 
+
+// require serialized {"user": "...", "password": "..."} at `process.env.db`
 
 Node.SQL.createCredentials = ({host, port, name, charset = "utf8mb4"}) => {
   const db = JSON.parse(process.env.db);
