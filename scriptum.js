@@ -1523,7 +1523,7 @@ A.retrieveDupes = xs => {
     else uniqs.add(x);
   }
 
-  return Array.from(dupes):
+  return Array.from(dupes);
 };
 
 
@@ -9347,17 +9347,32 @@ S.splitAscii = s => {
 };
 
 
-S.splitName = s => {
+S.splitName = titles => s => {
+  const titles2 = [];
 
-  // aslo split edge case "A.B.Foo" to ["A.", "B.", "Foo"]
+  for (const title of titles) {
+    if (R.iv(`\\b${R.escape(title)}( |\\b)`).test(s)) {
+      s = s.replaceAll(R(`\\b${R.escape(title)}( |\\b)`, "giv"), "");
+      titles2.push(title);
+    }
+  }
+
+  // "Bar, Foo" format
 
   if (/,/.test(s)) {
     const [lastName, firstName] = s.split(/, +/),
       [firstName2, ...middleNames] = firstName.split(/[ \-]|(?<=\.)(?=\p{L})/v),
       lastNames = lastName.split(/[ \-]/);
 
-    return {firstName: firstName2, middleNames, lastNames};
+    return {
+      title: titles2.join(" "),
+      firstName: firstName2,
+      middleNames,
+      lastNames
+    };
   }
+
+  // "Foo Bar" format
 
   else {
     const compos = s.split(/ +/);
@@ -9369,12 +9384,39 @@ S.splitName = s => {
       middleNames = compos2.slice(1),
       lastNames = compos[compos.length - 1].split(/-/);
 
-    return {firstName, middleNames, lastNames};
+    return {
+      title: titles2.join(" "),
+      firstName,
+      middleNames,
+      lastNames
+    };
   }
 };
 
 
-S.splitMergedWords = s => s => s.split(/(?<=\p{Ll})(?=\p{Lu})/v).join(" ");
+S.splitMergedWords = exceptions => s => {
+  const xs = s.split(" ").reduce((acc, s2) =>
+    A.pushn(s2.split(/(?<=\p{Ll})(?=\p{Lu})/v)) (acc), []);
+
+  const ys = [];
+
+  for (let i = 0; i < xs.length; i++) {
+    for (const exception of exceptions) {
+      if (R.v(`\\b${R.escape(exception)}$`).test(xs[i])) {
+        if (i < xs.length - 1) {
+          ys.push(xs[i] + xs[i + 1]);
+          i++;
+        }
+
+        else ys.push(xs[i]);
+      }
+
+      else ys.push(xs[i]);
+    }
+  }
+
+  return ys.join(" ");
+};
 
 
 //█████ Retrieval █████████████████████████████████████████████████████████████
