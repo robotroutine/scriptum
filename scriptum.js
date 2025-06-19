@@ -7182,10 +7182,16 @@ R.sliceTo = search => s => {
 /* Create a more general bound than `\b` by combining additional character
 classes like `[x-z]` or "\w" or even "ß" in a disjunctive manner. */
 
+
 R.preBound = flags => (...classes) => {
   const bound = "(?<=^|" + classes.join("|") + ")";
   return R(bound, flags);
 };
+
+
+// default prefix bound
+
+R.preBound_ = R.preBound("v") ("[^\\p{L}]");
 
 
 R.sufBound = flags => (...classes) => {
@@ -7194,10 +7200,20 @@ R.sufBound = flags => (...classes) => {
 };
 
 
+// default suffix bound
+
+R.sufBound_ = R.sufBound("v") ("[^\\p{L}]");
+
+
 R.inBound = flags => (...classes) => {
   const bound = "(?:" + classes.join("|") + ")";
   return R(bound, flags);
 };
+
+
+// default infix bound
+
+R.inBound_ = R.preBound("v") ("[^\\p{L}]");
 
 
 //█████ Generalizing ██████████████████████████████████████████████████████████
@@ -9349,8 +9365,12 @@ S.splitName = titles => s => {
   const titles2 = [];
 
   for (const title of titles) {
-    if (R.iv(`\\b${R.escape(title)}( |\\b)`).test(s)) {
-      s = s.replaceAll(R(`\\b${R.escape(title)}( |\\b)`, "giv"), "");
+    const rx = R.giv(
+      `${R.preBound_.source}${R.escape(title)}( |${R.sufBound_.source})`
+    );
+
+    if (rx.test(s)) {
+      s = s.replaceAll(rx, "");
       titles2.push(title);
     }
   }
@@ -9363,7 +9383,7 @@ S.splitName = titles => s => {
       lastNames = lastName.split(/[ \-]/);
 
     return {
-      title: titles2.join(" "),
+      titles: titles2,
       firstName: firstName2,
       middleNames,
       lastNames
@@ -9383,7 +9403,7 @@ S.splitName = titles => s => {
       lastNames = compos[compos.length - 1].split(/-/);
 
     return {
-      title: titles2.join(" "),
+      titles: titles2,
       firstName,
       middleNames,
       lastNames
