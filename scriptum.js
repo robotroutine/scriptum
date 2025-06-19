@@ -6323,6 +6323,9 @@ R.normalize = s => s
   .replaceAll(/<nl\/>/g, "\n");
 
 
+R.concat = rx => ry => R(rx.source + ry.source, rx.flag + ry.flags);
+
+
 //█████ Common Patterns ███████████████████████████████████████████████████████
 
 
@@ -7179,28 +7182,22 @@ R.sliceTo = search => s => {
 /* Create a more general bound than `\b` by combining additional character
 classes like `[x-z]` or "\w" or even "ß" in a disjunctive manner. */
 
-R.bound = flags => (...classes) => {
-  const bound = "(?<=\\b|" + classes.join("|") + ")";
+R.preBound = flags => (...classes) => {
+  const bound = "(?<=^|" + classes.join("|") + ")";
   return R(bound, flags);
 };
 
 
-// prepend a bound on the left side of a regular expression
-
-R.prependBound = bound => rx =>
-  R(bound.source + rx.source, bound.flags + rx.flags);
-
-
-// append a bound on the right side of a regular expression
-
-R.appendBound = bound => rx =>
-  R(rx.source + bound.source, bound.flags + rx.flags);
+R.sufBound = flags => (...classes) => {
+  const bound = "(?=$|" + classes.join("|") + ")";
+  return R(bound, flags);
+};
 
 
-// append/prepend a bound on both sides of a regular expression
-
-R.concatBound = bound => rx =>
-  R(bound.source + rx.source + bound.source, bound.flags + rx.flags);
+R.inBound = flags => (...classes) => {
+  const bound = "(?:" + classes.join("|") + ")";
+  return R(bound, flags);
+};
 
 
 //█████ Generalizing ██████████████████████████████████████████████████████████
