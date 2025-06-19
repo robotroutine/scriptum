@@ -7176,30 +7176,31 @@ R.sliceTo = search => s => {
 //█████ Word Boundaries ███████████████████████████████████████████████████████
 
 
-/* Create a more general word boundary pattern (`\b`) by combining the passed
-subpattern with its left/right character classes and create a regular expression
-from it. */
+/* Create a more general bound than `\b` by combining additional character
+classes like `[x-z]` or "\w" or even "ß" in a disjunctive manner. */
 
-R.bound = ({left, right}) => rx => {
-  const flags = left.flags + right.flags + rx.flags;
-  return R(`(?<=^|[${left}])${rx.source}(?=$|[${right}])`, flags);
+R.bound = flags => (...classes) => {
+  const bound = "(?<=\\b|" + classes.join("|") + ")";
+  return R(bound, flags);
 };
 
 
-// create only a left boundary
+// prepend a bound on the left side of a regular expression
 
-R.leftBound = left => rx => {
-  const flags = left.flags + rx.flags;
-  return R(`(?<=^|[${left}])${rx.source}`, flags);
-};
+R.prependBound = bound => rx =>
+  R(bound.source + rx.source, bound.flags + rx.flags);
 
 
-// create only a right boundary
+// append a bound on the right side of a regular expression
 
-R.rightBound = right => rx => {
-  const flags = right.flags + rx.flags;
-  return R(`${rx.source}(?=$|[${right}])`, flags);
-};
+R.appendBound = bound => rx =>
+  R(rx.source + bound.source, bound.flags + rx.flags);
+
+
+// append/prepend a bound on both sides of a regular expression
+
+R.concatBound = bound => rx =>
+  R(bound.source + rx.source + bound.source, bound.flags + rx.flags);
 
 
 //█████ Generalizing ██████████████████████████████████████████████████████████
