@@ -1513,6 +1513,20 @@ A.interpolate = ({sep, trailing = false}) => xs => {
 };
 
 
+// retrieve duplicate values
+
+A.retrieveDupes = xs => {
+  const uniqs = new Set(), dupes = new Set();
+
+  for (const x of xs) {
+    if (uniqs.has(x)) dupes.add(x);
+    else uniqs.add(x);
+  }
+
+  return Array.from(dupes):
+};
+
+
 // set a focus on an array without altering the underlying array
 
 A.focus = ({from, to}) => xs => {
@@ -5920,40 +5934,54 @@ Parser.time = ({date = new Date("0000-01-01"), _throw = false}) => s => {
 };
 
 
-Parser.iban = ({_throw = false}) => s => {
-  const codeLen = 22;
+Parser.iban = ({locale, _throw = false}) => s => {
+  switch (locale) {
+    case "deDE": {
+      const codeLen = 22;
 
-  const iban = s.toUpperCase(),
-    code = iban.match(/^([A-Z]{2})(\d{2})([A-Z\d]+)$/);
+      const iban = s.toUpperCase(),
+        code = iban.match(/^([A-Z]{2})(\d{2})([A-Z\d]+)$/);
 
-  let digits;
+      let digits;
 
-  if (!code || iban.length !== codeLen) return false;
+      if (!code || iban.length !== codeLen) {
+        if (_throw) throw new Err(`malformed iban "${s}"`);
 
-  digits = (code[3] + code[1] + code[2]).replace(/[A-Z]/g, letter => {
-    return letter.charCodeAt(0) - 55;
-  });
+        else return Parser.Invalid({
+          value: s,
+          kind: "iban",
+          reason: "malformed iban",
+        });
+      }
 
-  let checksum = digits.slice(0, 2),
-    fragment;
+      digits = (code[3] + code[1] + code[2]).replace(/[A-Z]/g, letter => {
+        return letter.charCodeAt(0) - 55;
+      });
 
-  for (let offset = 2; offset < digits.length; offset += 7) {
-    fragment = String(checksum) + digits.substring(offset, offset + 7);
-    checksum = parseInt(fragment, 10) % 97;
+      let checksum = digits.slice(0, 2),
+        fragment;
+
+      for (let offset = 2; offset < digits.length; offset += 7) {
+        fragment = String(checksum) + digits.substring(offset, offset + 7);
+        checksum = parseInt(fragment, 10) % 97;
+      }
+
+      if (checksum === 1) return Parser.Valid({
+        value: s,
+        kind: "iban",
+      });
+
+      else if (_throw) throw new Err(`malformed iban "${s}"`);
+
+      else return Parser.Invalid({
+        value: s,
+        kind: "iban",
+        reason: "malformed iban",
+      });
+    }
+
+    default: throw new Err(`not supported locale "${locale}"`);
   }
-
-  if (checksum === 1) return Parser.Valid({
-    value: s,
-    kind: "iban",
-  });
-
-  else if (_throw) throw new Err(`malformed iban "${s}"`);
-
-  else return Parser.Invalid({
-    value: s,
-    kind: "iban",
-    reason: "malformed iban",
-  });
 };
 
 
@@ -9101,6 +9129,12 @@ S.stripAllButNum = s => s.replaceAll(/[^\p{N}]/gv, "");
 S.catWith = s => (...xs) => xs.join(s);
 
 
+S.cat = S.catWith("");
+
+
+S.cat_ = S.catWith(" ");
+
+
 // try to truncate a string without breaking its tokens
 
 S.trunc = maxLen => s => {
@@ -9142,12 +9176,6 @@ S.trunc2 = maxLen => s => {
 
   return [s.slice(0, maxLen), s.slice(maxLen)];
 };
-
-
-S.cat = S.catWith("");
-
-
-S.cat_ = S.catWith(" ");
 
 
 /* Plain applicator but with a telling name. Intended use:
@@ -9337,13 +9365,16 @@ S.splitName = s => {
     const compos2 = compos.slice(0, -1).reduce((acc, compo) =>
       A.pushn(compo.split(/-|(?<=\.)(?=\p{L})/v)) (acc), []);
     
-    const firstName = compos2[0],
+    const firstName = compos2.length ? compos2[0] : "",
       middleNames = compos2.slice(1),
       lastNames = compos[compos.length - 1].split(/-/);
 
     return {firstName, middleNames, lastNames};
   }
 };
+
+
+S.splitMergedWords = s => s => s.split(/(?<=\p{Ll})(?=\p{Lu})/v).join(" ");
 
 
 //█████ Retrieval █████████████████████████████████████████████████████████████
