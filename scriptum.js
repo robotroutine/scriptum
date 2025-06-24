@@ -9412,28 +9412,33 @@ S.splitName = titles => s => {
 };
 
 
-S.splitMergedWords = exceptions => s => {
-  const xs = s.split(" ").reduce((acc, s2) =>
-    A.pushn(s2.split(/(?<=\p{Ll})(?=\p{Lu})/v)) (acc), []);
+S.splitMergedWord = (...exceptions) => s => {
+  const xs = s.split(/(?<=\p{Ll})(?=\p{Lu})/v);
 
-  const ys = [];
+  if (xs.length === 1) return s;
 
-  for (let i = 0; i < xs.length; i++) {
-    for (const exception of exceptions) {
-      if (R.v(`\\b${R.escape(exception)}$`).test(xs[i])) {
-        if (i < xs.length - 1) {
-          ys.push(xs[i] + xs[i + 1]);
-          i++;
+  else if (exceptions.length) {
+    const ys = [];
+
+    for (let i = 0; i < xs.length; i++) {
+      for (const exception of exceptions) {
+        if (R.v(`\\b${R.escape(exception)}$`).test(xs[i])) {
+          if (i < xs.length - 1) {
+            ys.push(xs[i] + xs[i + 1]);
+            i++;
+          }
+
+          else ys.push(xs[i]);
         }
 
         else ys.push(xs[i]);
       }
-
-      else ys.push(xs[i]);
     }
+
+    return ys.join(" ");
   }
 
-  return ys.join(" ");
+  else return xs.join(" ");
 };
 
 
