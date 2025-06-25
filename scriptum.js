@@ -7183,37 +7183,20 @@ R.sliceTo = search => s => {
 classes like `[x-z]` or "\w" or even "ß" in a disjunctive manner. */
 
 
-R.preBound = flags => (...classes) => {
-  const bound = "(?<=^|" + classes.join("|") + ")";
-  return R(bound, flags);
-};
+R.preBound = (...classes) => `(?<=^|${classes.join("|")})`;
 
 
-// default prefix bound
+// default prefix bound (like "\b" but inlcuding special letters and excluding "_")
 
-R.preBound_ = R.preBound("v") ("[^\\p{L}]");
-
-
-R.sufBound = flags => (...classes) => {
-  const bound = "(?=$|" + classes.join("|") + ")";
-  return R(bound, flags);
-};
+R.preBound_ = R.preBound("[^\\p{L}\\d]");
 
 
-// default suffix bound
-
-R.sufBound_ = R.sufBound("v") ("[^\\p{L}]");
+R.sufBound = (...classes) => `(?=$|${classes.join("|")})`;
 
 
-R.inBound = flags => (...classes) => {
-  const bound = "(?:" + classes.join("|") + ")";
-  return R(bound, flags);
-};
+// default suffix bound (like "\b" but inlcuding special letters and excluding "_")
 
-
-// default infix bound
-
-R.inBound_ = R.preBound("v") ("[^\\p{L}]");
+R.sufBound_ = R.sufBound("[^\\p{L}\\d]");
 
 
 //█████ Generalizing ██████████████████████████████████████████████████████████
@@ -9235,6 +9218,46 @@ S.countSubstr = t => s => {
 //█████ Replacing █████████████████████████████████████████████████████████████
 
 
+S.replaceAt = ({sub, is}) => s => {
+  const xs = s.split("");
+  for (let i = 0; i < is.length; i++) xs[is[i]] = sub;
+  return xs.join("");
+};
+
+
+S.replaceAtAccum = ({sub, is}) => s => {
+  const xs = [s];
+
+  for (let i = 0; i < is.length; i++) {
+    const ys = s.split("");
+    ys[is[i]] = sub;
+    xs.push(ys.join(""));
+  }
+
+  return xs;
+};
+
+
+S.updateAt = ({f, is}) => s => {
+  const xs = s.split("");
+  for (let i = 0; i < is.length; i++) xs[is[i]] = f(xs[is[i]]);
+  return xs.join("");
+};
+
+
+S.updateAtAccum = ({f, is}) => s => {
+  const xs = [s];
+
+  for (let i = 0; i < is.length; i++) {
+    const ys = s.split("");
+    ys[is[i]] = f(ys[is[i]]);
+    xs.push(ys.join(""));
+  }
+
+  return xs;
+};
+
+
 S.replaceChar = (c, sub) => s => {
   let t = "";
   
@@ -9263,13 +9286,13 @@ S.replaceCharAccum = (c, sub) => s => {
 };
 
 
-S.replaceSub = (c, sub) => s => {
+S.replaceSub = (sub, sub2) => s => {
   let r = "", j = 0;
 
-  for (let i = s.indexOf(c, j); i !== -1; i = s.indexOf(c, j)) {
+  for (let i = s.indexOf(sub, j); i !== -1; i = s.indexOf(sub, j)) {
     r += s.substring(j, i);
-    r += sub;
-    j = i + c.length;
+    r += sub2;
+    j = i + sub.length;
   }
 
   r += s.substring(j);
@@ -9361,12 +9384,12 @@ S.splitAscii = s => {
 };
 
 
-S.splitName = titles => s => {
+S.splitName = (...titles) => s => {
   const titles2 = [];
 
   for (const title of titles) {
     const rx = R.giv(
-      `${R.preBound_.source}${R.escape(title)}( |${R.sufBound_.source})`
+      `${R.preBound_}${R.escape(title)}( |${R.sufBound_})`
     );
 
     if (rx.test(s)) {
@@ -9422,7 +9445,7 @@ S.splitMergedWord = (...exceptions) => s => {
 
     for (let i = 0; i < xs.length; i++) {
       for (const exception of exceptions) {
-        if (R.v(`\\b${R.escape(exception)}$`).test(xs[i])) {
+        if (R.v(`${R.preBound_}${R.escape(exception)}$`).test(xs[i])) {
           if (i < xs.length - 1) {
             ys.push(xs[i] + xs[i + 1]);
             i++;
@@ -11463,42 +11486,67 @@ S.Ctor.cmpWith = opt => (o, p) =>
 //█████ Casing ████████████████████████████████████████████████████████████████
 
 
-// capitalize a word and its potential word components
+// convert a word into title case form while considering word components
 
-S.capitalize = nouns => {
-  const lowercasedName = nouns.toLowerCase();
+S.capitalize = (...exceptions) => word => {
+  const lcWord = word.toLowerCase();
 
-  return lowercasedName.replace(/(^|[\s'-\.])(\w)/g, (match, separator, char) => {
+  const word2 = lcWord.replace(/(^|['-\.])(\w)/gu, (match, separator, char) => {
     return separator + char.toUpperCase();
   });
+
+  const is = exceptions.reduce((acc, exception) => {
+    const i = word2.search(R.v(`${R.preBound_}${exception}(?=\\p{L})`))
+    if (i === notFound) return acc;
+    else return A.push(i + exception.length) (acc);
+  }, []);
+
+  return is.reduce((acc, i) =>
+    S.updateAt({f: c => c.toUpperCase(), is: [i]}) (acc), word2);
+};
+
+
+// convert allcaps into title case form while considering word components
+
+S.capitalizeAcronym = (...exceptions) => word => {
+  const casing = S.determineCasing(...exceptions) (word);
+  if (casing === "acronym") return S.capitalize(...exceptions);
+  else return word;
 };
 
 
 /* Possible casings:
 
   • lower-case: foo
-  • sentence-case: Foo
+  • title-case: Foo
   • camel-case: fooBar or FooBar
   • acronym: FOO
   • arbitrary-case: FOOBar */
 
-S.determineCasing = word => {
+S.determineCasing = (...exceptions) => word => {
   const lc = word.toLowerCase(),
-    uc = s.toUpperCase();
+    uc = word.toUpperCase();
 
   if (lc === word) return "lower-case";
   else if (uc === word) return "acronym";
   
   else {
-    const guess = "";
+    let guess = "";
 
     for (let i = 0; i < word.length; i++) {
       if (lc[i] !== word[i]) {
-        if (i === 0) guess = "sentence-case";
-        else if (s[i - 1] === "-") continue;
-        else if (s[i - 1] === ".") continue;
-        else if (s[i - 1] === "'") continue;
-        else if (s[i - 1] === word[i - 1]) guess = "camel-case";
+        if (i === 0) guess = "title-case";
+        else if (word[i - 1] === "-") continue;
+        else if (word[i - 1] === ".") continue;
+        else if (word[i - 1] === "'") continue;
+        
+        else if (lc[i - 1] === word[i - 1]) {
+          const isException = exceptions.some(exception =>
+            word.slice(i - 2).startsWith(exception));
+
+          if (isException) continue;
+          else guess = "camel-case";
+        }
         
         else {
           guess = "arbitrary-case";
