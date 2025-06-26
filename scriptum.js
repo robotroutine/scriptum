@@ -65,6 +65,13 @@ export const posInf = Number.POSITIVE_INFINITY;
 export const negInf = Number.NEGATIVE_INFINITY;
 
 
+export const ordering = {
+  lt: -1,
+  eq: 0,
+  gt: 1
+};
+
+
 /*█████████████████████████████████████████████████████████████████████████████
 ██████████████████████████████████ DEBUGGING ██████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
@@ -9387,6 +9394,11 @@ S.splitAscii = s => {
 S.splitName = (...titles) => s => {
   const titles2 = [];
 
+  // fix egde case "F.Bar"
+
+  if (/\p{L}\.\p{L}/v.test(s))
+    s = s.replaceAll(/(?<=\p{L})\.(?=\p{L})/gv, ". ");
+
   for (const title of titles) {
     const rx = R.giv(
       `${R.preBound_}${R.escape(title)}( |${R.sufBound_})`
@@ -9401,7 +9413,7 @@ S.splitName = (...titles) => s => {
   // "Bar, Foo" format
 
   if (/,/.test(s)) {
-    const [lastName, firstName] = s.split(/, +/),
+    const [lastName, firstName] = s.split(/, */),
       [firstName2, ...middleNames] = firstName.split(/[ \-]|(?<=\.)(?=\p{L})/v),
       lastNames = lastName.split(/[ \-]/);
 
@@ -9438,7 +9450,7 @@ S.splitName = (...titles) => s => {
 S.splitMergedWord = (...exceptions) => s => {
   const xs = s.split(/(?<=\p{Ll})(?=\p{Lu})/v);
 
-  if (xs.length === 1) return s;
+  if (xs.length === 1) return xs;
 
   else if (exceptions.length) {
     const ys = [];
@@ -9458,10 +9470,10 @@ S.splitMergedWord = (...exceptions) => s => {
       }
     }
 
-    return ys.join(" ");
+    return ys;
   }
 
-  else return xs.join(" ");
+  else return xs;
 };
 
 
@@ -11451,36 +11463,41 @@ S.Ctor = {};
 
 // options
 
-S.Ctor.acc = locale => ({
-  locale,
+
+S.Ctor.case = {
+  usage: "search",
+  sensitivity: "case"
+};
+
+
+S.Ctor.accent = {
   usage: "search",
   sensitivity: "accent"
-});
+};
 
 
-S.Ctor.base = locale => ({
-  locale,
+S.Ctor.base = {
   usage: "search",
-  sensitivity: "accent",
-});
+  sensitivity: "base",
+};
 
 
 // ascending order (switch arguments for descending order)
 
-S.Ctor.cmp = opt =>
-  new Intl.Collator(opt.locale, opt).compare;
+S.Ctor.cmp = (locale, opt) =>
+  new Intl.Collator(locale.slice(0, 2), opt).compare;
 
 
 // pass key as option property k
 
-S.Ctor.cmpObj = opt => (o, p) =>
-  new Intl.Collator(opt.locale, opt).compare(o[opt.k], p[opt.k]);
+S.Ctor.cmpObj = (locale, opt) => (o, p) =>
+  new Intl.Collator(locale.slice(0, 2), opt).compare(o[opt.k], p[opt.k]);
 
 
 // pass binary function as option property f
 
-S.Ctor.cmpWith = opt => (o, p) =>
-  new Intl.Collator(opt.locale, opt).compare(...opt.f(o, p));
+S.Ctor.cmpWith = (locale, opt) => (o, p) =>
+  new Intl.Collator(locale.slice(0, 2), opt).compare(...opt.f(o, p));
 
 
 //█████ Casing ████████████████████████████████████████████████████████████████
