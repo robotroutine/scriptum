@@ -3841,18 +3841,20 @@ Ait.empty = async function* () {} ();
 Allows processing of vast amounts of data that don't fit in memory. */
 
 Ait.chunk = ({sep, threshold = 65536, skipRest = false}) => ix => {
+  const decoder = new StringDecoder("utf8");
   let buf = "";
 
   return async function* () {
     for await (const x of ix) {
-      const s = buf + x, chunks = s.split(sep);
+      const s = buf + decoder.write(x), chunks = s.split(sep);
 
       buf = chunks.pop() || "";
       if (buf.length > threshold) throw new Err("buffer overflow");
       for (const chunk of chunks) yield chunk;
     }
 
-    if (buf.length > 0 && !skipRest) yield buf;
+    const rest = buf + decoder.end();
+    if (rest.length > 0 && !skipRest) yield rest;
   } ();
 };
 
@@ -3967,6 +3969,67 @@ Ait.interpolate = ({sep, trailing = false}) => async function* (ix) {
   if (!isFirst) {
     yield prev;
     if (trailing) yield sep;
+  }
+};
+
+
+//█████ Chunk-Wise Traversal ██████████████████████████████████████████████████
+
+
+/* Take a path and read the respective file chunk by chunk from a readable
+stream, parse each chunk and yield each parsing result to a downstream process.
+Works with promises internally but returns an asynchronous continuation type as
+its result. */
+
+Ait.streamFile = ({chunk: {read, parse}, rootPath = ""}) => path => {
+  async function* go() {
+    const stream = fs.createReadStream(rootPath + path, {encoding: "utf8"}),
+      ix = read(Ait.from(stream));
+
+    try {  
+      for await (const chunk of ix) yield parse(chunk);
+    }
+
+    catch (e) {
+      stream.destroy()
+      throw e;
+    }
+  };
+
+  return Cont.fromPromise(go());
+};
+
+
+/* Take a writable stream and an async iterator and write the yielded chunks to
+a file using a the stream. Function is meant to be used with `Ait.streamFile`. */
+
+Ait.writeFile = stream => async ix => {
+  try {
+    for await (const chunk of ix) {
+
+      // backpressure
+
+      if (!stream.write(chunk))
+        await new Promise(resolve => stream.once("drain", resolve));
+    }
+
+    stream.end();
+  }
+
+  catch (e) {
+    stream.destroy(e);
+    throw e;
+  }
+};
+
+
+/* Merge individual files to a single virtual file by asynchronously yielding
+each file stream one by one. */
+
+Ait.mergeFiles = async function* (paths) {
+  for (const path of paths) {
+    const stream = createReadStream(path);
+    yield* stream;
   }
 };
 
@@ -6008,6 +6071,13 @@ Parser.bic = ({_throw = false}) => s => {
     reason: "malformed bic",
   });
 };
+
+
+/* TODO:
+  * email
+  * phone (cellular, landline)
+  * po-box
+  * street
 
 
 //█████ Number ████████████████████████████████████████████████████████████████
@@ -11806,60 +11876,6 @@ S.Word.parseAbbr = ({locale, abbrs, trigrams, context}) => abbr => {
 };
 
 
-/* Parse part of speech. A part of speech category is assigned by the degree
-of conformity of the word's trigrams with the distribution of trigrams of a
-category. Another factor is the order of word types in the context of the given
-word, provided their part of speech is already known. */
-
-S.Word.parsePos = trigramsPerPos => word => {
-  const queryTrigram = S.trigram(word);
-
-  const score = {
-    noun: 0,
-    verb: 0,
-    adj: 0,
-  };
-
-  for (const [pos, trigrams] of O.entries(trigramsPerPos)) {
-    for (const triple of queryTrigram) {
-      if (!(pos in score)) throw new Err(`unexpcted pos "${pos}"`);
-      else if (trigrams.has(triple)) score[pos] += trigrams.get(triple);
-    }
-  }
-
-  // normalization
-
-  score.noun *= trigramsPerPos.noun.size;
-  score.verb *= trigramsPerPos.verb.size;
-  score.adj *= trigramsPerPos.adj.size;
-
-  const pairs = Object.entries(score)
-    .sort((pair, pair2) => pair2[1] - pair[1]);
-
-  const result = [];
-
-  for (let i = 0; i < pairs.length; i++) {
-    if (i === pairs.length - 1) result.push(Parser.Maybe({
-      value: pairs[i] [0],
-      kind: "pos",
-      confidence: pairs[i] [1],
-      delta: 0,
-    }));
-
-    else result.push(Parser.Maybe({
-      value: pairs[i] [0],
-      kind: "pos",
-      confidence: pairs[i] [1],
-      delta: pairs[i] [1] - pairs[i + 1] [1],
-    }));
-  }
-
-  // TODO: incorporate context (pos order)
-
-  return result;
-};
-
-
 /* Split compound nouns, verbs, adjectives, and numerals unsing a corpus of
 well-known words. */
 
@@ -13355,7 +13371,7 @@ Node.SQL = {};
 //█████ Types █████████████████████████████████████████████████████████████████
 
 
-Node.SQL.sqlQuery = ({query, meta = null}) => ({
+Node.SQL.sqlQuery = ({query, meta = {}}) => ({
   [$]: "SqlQuery",
   [$$]: "SqlQuery",
   query,
