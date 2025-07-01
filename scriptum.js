@@ -3973,7 +3973,7 @@ Ait.interpolate = ({sep, trailing = false}) => async function* (ix) {
 };
 
 
-//█████ Chunk-Wise Traversal ██████████████████████████████████████████████████
+//█████ Stream Files ██████████████████████████████████████████████████████████
 
 
 /* Take a path and read the respective file chunk by chunk from a readable
@@ -4001,7 +4001,7 @@ Ait.streamFile = ({chunk: {read, parse}, rootPath = ""}) => path => {
 
 
 /* Take a writable stream and an async iterator and write the yielded chunks to
-a file using a the stream. Function is meant to be used with `Ait.streamFile`. */
+a file using the stream. The function is meant to be used with `Ait.streamFile`. */
 
 Ait.writeFile = stream => async ix => {
   try {
@@ -12808,15 +12808,24 @@ export const Alg = {};
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-// calculate the exponent for a given base and result x
+// create a log function for a given base
 
-Alg.logx = base => x => Math.log(x) / Math.log(base);
+Alg.logx = base => x => {
+  if (x === 0) return -Infinity;
+  else return Math.log(x) / Math.log(base);
+};
 
 
 Alg.log2 = Alg.logx(2);
 
 
 Alg.log3 = Alg.logx(3);
+
+
+Alg.xLogY = (x, y) => {
+  if (x === 0 || y === 0) return 0;
+  else return x * Math.log(y);
+};
 
 
 //█████ Fractions █████████████████████████████████████████████████████████████
@@ -13031,6 +13040,42 @@ Alg.manhattan = (xs, ys) => {
   let n = 0;
   for (let i = 0; i < xs.length; i++) n += Math.abs(xs[i] - ys[i]);
   return n;
+};
+
+
+//█████ Co-Occurrence █████████████████████████████████████████████████████████
+
+
+/* Logarithmic likelihood ratio: find candidates for significant co-occurrences
+(filtering). */
+
+Alg.llr = (k1, n1, k2, n2) => {
+  const k = k1 + k2,
+    n = n1 + n2,
+    p1 = k1 / n1,
+    p2 = k2 / n2,
+    p = k / n,
+    entropy1 = xLogY(k1, p1) + xLogY(n1 - k1, 1 - p1),
+    entropy2 = xLogY(k2, p2) + xLogY(n2 - k2, 1 - p2),
+    entropy12 = xLogY(k, p) + xLogY(n - k, 1 - p);
+
+  return 2 * ((entropy1 + entropy2) - entropy12);
+};
+
+
+/* Positive poitwise mutual information: rank candidates with significant
+co-occurrences (ranking). */
+
+Alg.ppmi = (countX, countY, countXY, total_events) => {
+  if (countXY === 0) return 0;
+  else if (countX === 0 || countY === 0 || total_events === 0) return 0;
+
+  const ratioX = countX / total_events,
+    ratioY = countY / total_events,
+    ratioXY = countXY / total_events,
+    pmi = Alg.log2(ratioXY / (ratioX * ratioY));
+
+  return Math.max(0, pmi);
 };
 
 
@@ -13371,7 +13416,7 @@ Node.SQL = {};
 //█████ Types █████████████████████████████████████████████████████████████████
 
 
-Node.SQL.sqlQuery = ({query, meta = {}}) => ({
+Node.SQL.SqlQuery = ({query, meta = {}}) => ({
   [$]: "SqlQuery",
   [$$]: "SqlQuery",
   query,
@@ -13379,7 +13424,7 @@ Node.SQL.sqlQuery = ({query, meta = {}}) => ({
 });
 
 
-Node.SQL.sqlResult = ({data, fields, query, meta}) => ({
+Node.SQL.SqlResult = ({data, fields, query, meta}) => ({
   [$]: "SqlResult",
   [$$]: "SqlResult",
   data,
@@ -13425,10 +13470,10 @@ Node.SQL.disconnect = ressource =>
       ? rej(new Err(e)) : res(true)));
 
 
-Node.SQL.query = connection => sql => Cont((res, rej) => {
-  return connection.query(sql, (e, data, fields) => {
+Node.SQL.query = connection => ({query, meta}) => Cont((res, rej) => {
+  return connection.query(query, (e, data, fields) => {
     if (e) return rej(new Err(e));
-    else return res({data, fields});
+    else return res(Node.SQL.SqlResult({data, fields, query, meta}));
   });
 });
 
