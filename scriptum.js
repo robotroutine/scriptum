@@ -23,6 +23,8 @@ import Crypto_ from "node:crypto";
 import FS_ from "node:fs";
 import Path_ from "node:path";
 import Stream_ from "node:stream";
+import {StringDecoder} from "node:string_decoder";
+
 //import * as I from "immutable";
 
 
@@ -3803,9 +3805,19 @@ Ait.filter = p => async function* (ix) {
 
 // strict left-associative fold
 
-Ait.foldl = f => acc => async function (ix) {
+Ait.foldl = f => acc => async ix => {
   for await (const x of ix) acc = f(acc, x);
   return acc;
+};
+
+
+// non-strict left-associative fold
+
+Ait.accuml = f => acc => async function* (ix) {
+  for await (const x of ix) {
+    acc = f(acc, x);
+    yield (acc);
+  }
 };
 
 
@@ -3976,34 +3988,45 @@ Ait.interpolate = ({sep, trailing = false}) => async function* (ix) {
 //█████ Stream Files ██████████████████████████████████████████████████████████
 
 
-/* Take a path and read the respective file chunk by chunk from a readable
-stream, parse each chunk and yield each parsing result to a downstream process.
-Works with promises internally but returns an asynchronous continuation type as
-its result. */
+// asynchronously delegate a file stream to a downstream process
 
-Ait.streamFile = ({chunk: {read, parse}, rootPath = ""}) => path => {
-  async function* go() {
-    const stream = fs.createReadStream(rootPath + path, {encoding: "utf8"}),
-      ix = read(Ait.from(stream));
+Ait.streamFile = async function* (path) {
+  const stream = Node.FS.createReadStream(path, {encoding: "utf8"});
+  
+  try {
+    yield* stream;
+  }
 
-    try {  
-      for await (const chunk of ix) yield parse(chunk);
-    }
-
-    catch (e) {
-      stream.destroy()
-      throw e;
-    }
-  };
-
-  return Cont.fromPromise(go());
+  catch (e) {
+    stream.destroy(e);
+    throw e;
+  }
 };
 
 
-/* Take a writable stream and an async iterator and write the yielded chunks to
-a file using the stream. The function is meant to be used with `Ait.streamFile`. */
+/* Asynchronously delegate a virtual file stream that is composed of multiple
+individual file streams to a downstream process in a sequential manner. */
 
-Ait.writeFile = stream => async ix => {
+Ait.streamFiles = async function* (paths) {
+  for (const path of paths) {
+    const stream = Node.FS.createReadStream(path, {encoding: "utf8"});
+
+    try {
+      yield* stream;
+    }
+
+    catch (e) {
+      stream.destroy(e);
+      throw e;
+    }
+  }
+};
+
+
+/* Take a writable stream and an async iterator and write the yielded chunks of
+the latter to a file specified by the stream. */
+
+Ait.writeStream = stream => async ix => {
   try {
     for await (const chunk of ix) {
 
@@ -4019,17 +4042,6 @@ Ait.writeFile = stream => async ix => {
   catch (e) {
     stream.destroy(e);
     throw e;
-  }
-};
-
-
-/* Merge individual files to a single virtual file by asynchronously yielding
-each file stream one by one. */
-
-Ait.mergeFiles = async function* (paths) {
-  for (const path of paths) {
-    const stream = createReadStream(path);
-    yield* stream;
   }
 };
 
