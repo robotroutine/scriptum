@@ -6090,6 +6090,282 @@ Parser.bic = ({_throw = false}) => s => {
   * phone (cellular, landline)
   * po-box
   * street
+*/
+
+
+//█████ String ████████████████████████████████████████████████████████████████
+
+
+/* Well-formed words may include the follwing character:
+
+  * lower-case letters
+  * upper-case letters only at the beginning and after a special char
+  * the following special chars: -.'& (but not consecutive)
+  * digits only at the beginning and only separated by hyphen */
+
+Parser.word = s => {
+  let mode = "", offset = 0;
+
+  if (/\d/.test(s[0])) {
+    offset++;
+
+    for (let i = 1; i < s.length; i++) {
+      if (!/\d/.test(s[i])) {
+        if (s[i] === "."
+          || s[i] === "'"
+          || s[i] === "&") {
+            return Parser.Invalid({
+              value: s,
+              kind: "word",
+              reason: "#· sequence",
+            });
+        }
+
+        else break;
+      }
+
+      else if (i + 1 === s.length) return Parser.Invalid({
+        value: s,
+        kind: "word",
+        reason: "number word",
+      });
+
+      else offset++;
+    }
+  }
+
+  if (offset > 0 && s[offset] !== "-") return Parser.Invalid({
+    value: s,
+    kind: "word",
+    reason: "#L sequence",
+  });
+
+  if (s[offset] === "-") {
+    offset++;
+
+    if (s[offset] === "-"
+      || s[offset] === "."
+      || s[offset] === "'"
+      || s[offset] === "&") {
+        return Parser.Invalid({
+          value: s,
+          kind: "word",
+          reason: "·· sequence",
+        });
+    }
+  }
+
+  if (/\p{L}/v.test(s[offset])) {
+    for (let i = offset + 1; i < s.length; i++) {
+      if (/\p{Ll}/v.test(s[i])) mode = "";
+      
+      else if (/\p{Lu}/v.test(s[i])) {
+        if (i === 0) mode = "";
+
+        else if (mode === "") return Parser.Invalid({
+          value: s,
+          kind: "word",
+          reason: "aA sequence",
+        });
+
+        else mode = "";
+      }
+      
+      else if (/\d/.test(s[i])) return Parser.Invalid({
+        value: s,
+        kind: "word",
+        reason: "L# sequence",
+      });
+      
+      else if (s[i] === "-"
+        || s[i] === "."
+        || s[i] === "'"
+        || s[i] === "&") {
+          if (mode !== "") return Parser.Invalid({
+            value: s,
+            kind: "word",
+            reason: "·· sequence",
+          });
+
+          else mode = s[i];
+          continue;
+      }
+
+      else return Parser.Invalid({
+        value: s,
+        kind: "word",
+        reason: `invalid char "${s[i]}"`,
+      });
+    }
+
+    return Parser.Valid({
+      value: s,
+      kind: "word",
+    });
+  }
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "word",
+    reason: `invalid char "${s[i]}"`,
+  });
+};
+
+
+/* Take a set of well-known abbreviations and the right string context of the
+given word and determine whether it is an abbreviation. The combinator is not
+meant to detecting acronyms. */
+
+// TODO: consider trigram deviation from generic word corpus
+
+Parser.abbr = ({locale, abbrs, context}) => s => {
+  const s2 = S.replaceChar(".", "") (s);
+
+  // well-known abbreviation
+
+  if (abbrs.has(s2)) return Parser.Valid({value: s, kind: "abbr"});
+
+  // check whether it is a normal, written out word
+
+  else {
+    const score = 0,
+      standAlonePeriods = R.countPattern(/(?<!\.)\.(?!\.)/g) (s),
+      totalPeriods = S.countChar(".") (s),
+      caps = R.countPattern(/\p{Lu}/gv) (s2),
+      firstCap = /^\p{Lu}/.test(s2);
+
+    const standAloneVowels = R.countPattern(RegExp(
+      `${R.classes.latin1.lcl.s}+|${R.classes.latin1.ucl.s}+`, "g")) (s2);
+
+    const vowels = R.countPattern(RegExp(`${R.classes.latin1.vowels.s}`, "g")) (s2);
+
+    // filter ellipsis
+
+    if (standAlonePeriods === 0 && totalPeriods > 0) return Parser.Invalid({
+      value: s, kind: "abbr", reason: "ellipsis"
+    });
+
+    // several stand-alone periods within a term
+
+    else if (standAlonePeriods > 1) return Parser.Maybe({
+      value: s, kind: "abbr", confidence: 1
+    });
+
+    // no vowels
+
+    else if (vowels === 0) return Parser.Maybe({
+      value: s, kind: "abbr", confidence: 1
+    });
+
+    // only vowels
+
+    else if (vowels === s2.length) return Parser.Maybe({
+      value: s, kind: "abbr", confidence: 1
+    });
+
+    // lower-case first letter followed by capitalized ones
+
+    else if (!firstCap && caps > 0) return Parser.Maybe({
+      value: s, kind: "abbr", confidence: 1
+    });
+
+    // context (followed by comma)
+
+    else if (context && /^ *,/.test(context)) return Parser.Maybe({
+      value: s, kind: "abbr", confidence: 1
+    });
+
+    // context (followed by lower-case word)
+
+    else if (context && /^ +\p{Ll}/v.test(context))return Parser.Maybe({
+      value: s, kind: "abbr", confidence: 1
+    });
+
+    else {
+
+      // score derived from the default abbreviation length
+
+      const lenScore = S[locale].avgWordLen - (s2.length);
+
+      // score derived from upper-case letters (all-caps get low score)
+
+      const capScore = caps === s2.length ? 1 : caps;
+
+      // score derived from deviation against default vowel-consonant ratio
+
+      const vowelRatio = S[locale].vowelConsonantRatio
+        - (standAloneVowels / (s2.length - standAloneVowels));
+
+      const vowelRatioScore = vowelRatio > 0 ? vowelRatio * 10 : vowelRatio;
+
+      // score derived from last letter being a consonant
+
+      const finalConsonantScore = R.g(R.classes.latin1.vowels.s)
+        .test(s2[s2.length - 1]) ? 0 : 1;
+
+      const finalScore = Alg.expGrowth({maxInput: 10}) (
+        lenScore
+        + capScore
+        + vowelRatioScore
+        + finalConsonantScore);
+
+      return Parser.Maybe({
+        value: s, kind: "abbr", confidence: finalScore
+      });
+    }
+  }
+};
+
+
+// recognize UNHCR or R&D
+
+Parser.acronym = s => {
+  if (s.search(/^\p{Lu}+$/v) !== notFound) return Parser.Valid({
+    value: s,
+    kind: "acronym",
+  });
+
+  else if (s.search(/^\p{Lu}&\p{Lu}$/v) !== notFound) return Parser.Valid({
+    value: s,
+    kind: "acronym",
+  });
+
+  else if (s.search(/^\p{L}&\p{L}$/v) !== notFound) return Parser.Valid({
+    value: s,
+    kind: "acronym",
+  });
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "acronym",
+    reason: "includes lower-case letters",
+  });
+};
+
+
+// TODO: consider imperative mood
+
+Parser.sentenceType = s => {
+  const last = s[s.length - 1];
+  let type = "";
+
+  if (last === ".") type = "declarative";
+  else if (/!{1,}$/.test(s)) type = "exclamatory";
+  else if (/[?!]{2,}$/.test(s)) type = "interrogative";
+  else if (last === "?") type = "interrogative";
+
+  else return Parser.Invalid({
+    value: s,
+    kind: "sentence type",
+    reason: "partial sentence",
+  });
+
+  return Parser.Valid({
+    value: s,
+    kind: "sentence type",
+    type,
+  });
+};
 
 
 //█████ Number ████████████████████████████████████████████████████████████████
@@ -9529,6 +9805,8 @@ S.splitName = (...titles) => s => {
 };
 
 
+// split merged words like FooBar into Foo and Bar
+
 S.splitMergedWord = (...exceptions) => s => {
   const xs = s.split(/(?<=\p{Ll})(?=\p{Lu})/v);
 
@@ -9556,6 +9834,242 @@ S.splitMergedWord = (...exceptions) => s => {
   }
 
   else return xs;
+};
+
+
+/* Split compound nouns, verbs, adjectives, and numerals unsing a corpus of
+well-known words. */
+
+S.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
+  const reconstructInfix = (prefix, infix, suffix, interfixes, elisions, decompositions) => {
+    if (interfixes.has(infix)) {
+      decompositions.push({
+        prefix: prefix.word,
+        infix: "",
+        suffix: suffix.word,
+        remainder: ""
+      });
+    }
+
+    else {
+      const infixes = [infix];
+
+      // remove left or right and left/right interfixes
+
+      for (const interfix of interfixes) {
+        infixes.forEach(infix2 => {
+          if(infix2.startsWith(interfix) && infix2.length > interfix.length) {
+            infixes.push(infix2.slice(interfix.length));
+
+            if(infix2.endsWith(interfix) && infix2.length > 2 * interfix.length)
+              infixes.push(infix2.slice(interfix.length, -interfix.length));
+          }
+
+          if(infix2.endsWith(interfix) && infix2.length > interfix.length)
+            infixes.push(infix2.slice(0, -interfix.length));
+        });
+      }
+
+      // add composita elision
+
+      infixes.forEach(infix2 => {
+        for (const elision of elisions) {
+          infixes.push(infix2 + elision);
+        }
+      });
+
+      // reconstruct infix
+
+      for (const infix2 of infixes) {
+        const infixCandidates = S.Retrieve.query({corpus}) (infix2);
+        let wellKnownInfix = false;
+
+        for (const infixCandidate of infixCandidates) {
+          const infixCandidate2 = S.fromNgram(corpus.bigrams[infixCandidate.index]),
+            infixEval = _eval.pipeAll(S.Diff.query(infix2) (infixCandidate2));
+
+          if (A.sum(infixEval[0].penalty) <= 1) {
+            decompositions.push({
+              prefix: prefix.word,
+              infix: infixCandidate2,
+              suffix: suffix.word,
+              remainder: ""
+            });
+            
+            wellKnownInfix = true;
+          }
+        }
+
+        if (!wellKnownInfix) {
+          decompositions.push({
+            prefix: prefix.word,
+            infix: "",
+            suffix: suffix.word,
+            remainder: infix
+          });
+        }
+      }
+    }
+  };
+
+  const _eval = new S.Diff.Eval(locale);
+
+  const prefixes = [], suffixes = [];
+
+  const candidates = S.Retrieve.query(
+    {corpus, lenDiff: [1.2, null]}) (queryWord);
+
+  // retrieve prefixes/suffixes
+
+  for (const candidate of candidates) {
+    for (let i = -2; i <= 2; i++) {
+      const corpusWord = S.fromNgram(corpus.bigrams[candidate.index]),
+        queryPrefix = queryWord.slice(0, corpusWord.length + i),
+        querySuffix = queryWord.slice(-(corpusWord.length + i)),
+        prefixEval = _eval.pipeAll(S.Diff.query(queryPrefix) (corpusWord)),
+        suffixEval = _eval.pipeAll(S.Diff.query(querySuffix) (corpusWord)),
+        prefixPenalty = prefixEval.length ? A.sum(prefixEval[0].penalty) : posInf,
+        suffixPenalty = suffixEval.length ? A.sum(suffixEval[0].penalty) : posInf;
+
+      if (prefixPenalty < 10) {
+        const offset = queryPrefix.length - corpusWord.length;
+        prefixes.push({word: corpusWord, offset});
+      }
+
+      if (suffixPenalty < 10) {
+        const offset = querySuffix.length - corpusWord.length;
+        suffixes.push({word: corpusWord, offset});
+      }
+    }
+  }
+
+  // derive infix from prefix/suffix pair
+
+  const decompositions = [];
+
+  if (prefixes.length ^ suffixes.length) {
+    if (prefixes.length) prefixes.forEach(prefix => {
+      decompositions.push({
+        prefix: prefix.word,
+        infix: "",
+        suffix: "",
+        remainder: queryWord.slice(prefix.word.length + prefix.offset)
+      });
+    });
+
+    else suffixes.forEach(suffix => {
+      decompositions.push({
+        prefix: "",
+        infix: "",
+        suffix: suffix.word,
+        remainder: queryWord.slice(0, -(suffix.word.length + suffix.offset))
+      });
+    });
+  }
+
+  else for (const prefix of prefixes) {
+    for (const suffix of suffixes) {
+      const prefixLen = prefix.word.length + prefix.offset,
+        suffixLen = suffix.word.length + suffix.offset;
+
+      if (prefixLen + suffixLen < queryWord.length) {
+        let infix = queryWord;
+
+        infix = infix.slice(prefixLen);
+        infix = infix.slice(0, -suffixLen);
+
+        // check for interfixes
+
+        if (pos === "noun") {
+          reconstructInfix(
+            prefix,
+            infix,
+            suffix,
+            _Set[locale].nominalInterfixes,
+            _Set[locale].compoundElisions,
+            decompositions);
+        }
+
+        else if (pos === "verb") {
+          reconstructInfix(
+            prefix,
+            infix,
+            suffix,
+            _Set[locale].verbalInterfixes,
+            _Set[locale].compoundElisions,
+            decompositions);
+        }
+
+        else if (pos === "adj") {
+          reconstructInfix(
+            prefix,
+            infix,
+            suffix,
+            _Set[locale].adjectivalInterfixes,
+            _Set[locale].compoundElisions,
+            decompositions);
+        }
+
+        else if (pos === "num") {
+          reconstructInfix(
+            prefix,
+            infix,
+            suffix,
+            _Set[locale].numeralInterfixes,
+            _Set[locale].compoundElisions,
+            decompositions);
+        }
+      }
+
+      else if (prefixLen + suffixLen === queryWord.length) {
+        decompositions.push({
+          prefix: prefix.word,
+          infix: "",
+          suffix: suffix.word,
+          remainder: ""
+        });
+      }
+
+      else {
+        decompositions.push({
+          prefix: prefix.word,
+          infix: "",
+          suffix: "",
+          remainder: queryWord.slice(prefixLen)
+        });
+
+        decompositions.push({
+          prefix: "",
+          infix: "",
+          suffix: suffix.word,
+          remainder: queryWord.slice(0, -suffixLen)
+        });
+      }
+    }
+  }
+
+  if (decompositions.length === 0) return decompositions;
+  else if (decompositions.length === 1) return decompositions;
+
+  // select result set
+
+  else {
+
+    // dedupe decompositions
+
+    const m = decompositions.reduce((acc, o) => {
+      const k = `${o.prefix}/${o.infix}/${o.suffix}`;
+      if (!acc.has(k)) acc.set(k, o);
+      return acc;
+    }, new Map);
+
+    const xs = Array.from(m).map(([, o]) => o);
+
+    const pair = A.partition(o => o.remainder.length === 0) (xs);
+
+    if (pair[0].length) return pair[0];
+    else return pair[1];
+  }
 };
 
 
@@ -11659,496 +12173,6 @@ S.determineCasing = (...exceptions) => word => {
 };
 
 
-//█████ Word ██████████████████████████████████████████████████████████████████
-
-
-S.Word = {};
-
-
-/* Well-formed words may include the follwing character:
-
-  * lower-case letters
-  * upper-case letters only at the beginning and after a special char
-  * the following special chars: -.'& (but not consecutive)
-  * digits only at the beginning and only separated by hyphen */
-
-S.Word.parse = s => {
-  let mode = "", offset = 0;
-
-  if (/\d/.test(s[0])) {
-    offset++;
-
-    for (let i = 1; i < s.length; i++) {
-      if (!/\d/.test(s[i])) {
-        if (s[i] === "."
-          || s[i] === "'"
-          || s[i] === "&") {
-            return Parser.Invalid({
-              value: s,
-              kind: "word",
-              reason: "#· sequence",
-            });
-        }
-
-        else break;
-      }
-
-      else if (i + 1 === s.length) return Parser.Invalid({
-        value: s,
-        kind: "word",
-        reason: "number word",
-      });
-
-      else offset++;
-    }
-  }
-
-  if (offset > 0 && s[offset] !== "-") return Parser.Invalid({
-    value: s,
-    kind: "word",
-    reason: "#L sequence",
-  });
-
-  if (s[offset] === "-") {
-    offset++;
-
-    if (s[offset] === "-"
-      || s[offset] === "."
-      || s[offset] === "'"
-      || s[offset] === "&") {
-        return Parser.Invalid({
-          value: s,
-          kind: "word",
-          reason: "·· sequence",
-        });
-    }
-  }
-
-  if (/\p{L}/v.test(s[offset])) {
-    for (let i = offset + 1; i < s.length; i++) {
-      if (/\p{Ll}/v.test(s[i])) mode = "";
-      
-      else if (/\p{Lu}/v.test(s[i])) {
-        if (i === 0) mode = "";
-
-        else if (mode === "") return Parser.Invalid({
-          value: s,
-          kind: "word",
-          reason: "aA sequence",
-        });
-
-        else mode = "";
-      }
-      
-      else if (/\d/.test(s[i])) return Parser.Invalid({
-        value: s,
-        kind: "word",
-        reason: "L# sequence",
-      });
-      
-      else if (s[i] === "-"
-        || s[i] === "."
-        || s[i] === "'"
-        || s[i] === "&") {
-          if (mode !== "") return Parser.Invalid({
-            value: s,
-            kind: "word",
-            reason: "·· sequence",
-          });
-
-          else mode = s[i];
-          continue;
-      }
-
-      else return Parser.Invalid({
-        value: s,
-        kind: "word",
-        reason: `invalid char "${s[i]}"`,
-      });
-    }
-
-    return Parser.Valid({
-      value: s,
-      kind: "word",
-    });
-  }
-
-  else return Parser.Invalid({
-    value: s,
-    kind: "word",
-    reason: `invalid char "${s[i]}"`,
-  });
-};
-
-
-/* Take a set of well-known abbreviations, trigrams from a general corpus and
-the right string context of the given word and determine whether it is an
-abbreviation. The combinator is not meant to detecting acronyms. */
-
-S.Word.parseAbbr = ({locale, abbrs, trigrams, context}) => abbr => {
-  const abbr2 = S.replaceChar(".", "") (abbr);
-
-  // well-known abbreviation
-
-  if (abbrs.has(abbr2)) return Parser.Valid({value: abbr, kind: "abbr"});
-
-  // check whether it is a normal, written out word
-
-  else {
-    const score = 0,
-      standAlonePeriods = R.countPattern(/(?<!\.)\.(?!\.)/g) (abbr),
-      totalPeriods = S.countChar(".") (abbr),
-      caps = R.countPattern(/\p{Lu}/gv) (abbr2),
-      firstCap = /^\p{Lu}/.test(abbr2);
-
-    const standAloneVowels = R.countPattern(RegExp(
-      `${R.classes.latin1.lcl.s}+|${R.classes.latin1.ucl.s}+`, "g")) (abbr2);
-
-    const vowels = R.countPattern(RegExp(`${R.classes.latin1.vowels.s}`, "g")) (abbr2);
-
-    // filter ellipsis
-
-    if (standAlonePeriods === 0 && totalPeriods > 0) return Parser.Invalid({
-      value: abbr, kind: "abbr", reason: "ellipsis"
-    });
-
-    // several stand-alone periods within a term
-
-    else if (standAlonePeriods > 1) return Parser.Maybe({
-      value: abbr, kind: "abbr", confidence: 1
-    });
-
-    // no vowels
-
-    else if (vowels === 0) return Parser.Maybe({
-      value: abbr, kind: "abbr", confidence: 1
-    });
-
-    // only vowels
-
-    else if (vowels === abbr2.length) return Parser.Maybe({
-      value: abbr, kind: "abbr", confidence: 1
-    });
-
-    // lower-case first letter followed by capitalized ones
-
-    else if (!firstCap && caps > 0) return Parser.Maybe({
-      value: abbr, kind: "abbr", confidence: 1
-    });
-
-    // context (followed by comma)
-
-    else if (context && /^ *,/.test(context)) return Parser.Maybe({
-      value: abbr, kind: "abbr", confidence: 1
-    });
-
-    // context (followed by lower-case word)
-
-    else if (context && /^ +\p{Ll}/v.test(context))return Parser.Maybe({
-      value: abbr, kind: "abbr", confidence: 1
-    });
-
-    else {
-
-      // score derived from the default abbr length
-
-      const lenScore = S[locale].avgWordLen - (abbr2.length);
-
-      // consider trigram deviation
-
-      // TODO
-
-      // score derived from upper-case letters (all-caps get low score)
-
-      const capScore = caps === abbr2.length ? 1 : caps;
-
-      // score derived from deviation against default vowel-consonant ratio
-
-      const vowelRatio = S[locale].vowelConsonantRatio
-        - (standAloneVowels / (abbr2.length - standAloneVowels));
-
-      const vowelRatioScore = vowelRatio > 0 ? vowelRatio * 10 : vowelRatio;
-
-      // score derived from last letter being a consonant
-
-      const finalConsonantScore = R.g(R.classes.latin1.vowels.s)
-        .test(abbr2[abbr2.length - 1]) ? 0 : 1;
-
-      const finalScore = Alg.expGrowth({maxInput: 10}) (
-        lenScore
-        + capScore
-        + vowelRatioScore
-        + finalConsonantScore);
-
-      return Parser.Maybe({
-        value: abbr, kind: "abbr", confidence: finalScore
-      });
-    }
-  }
-};
-
-
-/* Split compound nouns, verbs, adjectives, and numerals unsing a corpus of
-well-known words. */
-
-S.Word.splitCompoundWord = ({locale, pos, corpus}) => queryWord => {
-  const reconstructInfix = (prefix, infix, suffix, interfixes, elisions, decompositions) => {
-    if (interfixes.has(infix)) {
-      decompositions.push({
-        prefix: prefix.word,
-        infix: "",
-        suffix: suffix.word,
-        remainder: ""
-      });
-    }
-
-    else {
-      const infixes = [infix];
-
-      // remove left or right and left/right interfixes
-
-      for (const interfix of interfixes) {
-        infixes.forEach(infix2 => {
-          if(infix2.startsWith(interfix) && infix2.length > interfix.length) {
-            infixes.push(infix2.slice(interfix.length));
-
-            if(infix2.endsWith(interfix) && infix2.length > 2 * interfix.length)
-              infixes.push(infix2.slice(interfix.length, -interfix.length));
-          }
-
-          if(infix2.endsWith(interfix) && infix2.length > interfix.length)
-            infixes.push(infix2.slice(0, -interfix.length));
-        });
-      }
-
-      // add composita elision
-
-      infixes.forEach(infix2 => {
-        for (const elision of elisions) {
-          infixes.push(infix2 + elision);
-        }
-      });
-
-      // reconstruct infix
-
-      for (const infix2 of infixes) {
-        const infixCandidates = S.Retrieve.query({corpus}) (infix2);
-        let wellKnownInfix = false;
-
-        for (const infixCandidate of infixCandidates) {
-          const infixCandidate2 = S.fromNgram(corpus.bigrams[infixCandidate.index]),
-            infixEval = _eval.pipeAll(S.Diff.query(infix2) (infixCandidate2));
-
-          if (A.sum(infixEval[0].penalty) <= 1) {
-            decompositions.push({
-              prefix: prefix.word,
-              infix: infixCandidate2,
-              suffix: suffix.word,
-              remainder: ""
-            });
-            
-            wellKnownInfix = true;
-          }
-        }
-
-        if (!wellKnownInfix) {
-          decompositions.push({
-            prefix: prefix.word,
-            infix: "",
-            suffix: suffix.word,
-            remainder: infix
-          });
-        }
-      }
-    }
-  };
-
-  const _eval = new S.Diff.Eval(locale);
-
-  const prefixes = [], suffixes = [];
-
-  const candidates = S.Retrieve.query(
-    {corpus, lenDiff: [1.2, null]}) (queryWord);
-
-  // retrieve prefixes/suffixes
-
-  for (const candidate of candidates) {
-    for (let i = -2; i <= 2; i++) {
-      const corpusWord = S.fromNgram(corpus.bigrams[candidate.index]),
-        queryPrefix = queryWord.slice(0, corpusWord.length + i),
-        querySuffix = queryWord.slice(-(corpusWord.length + i)),
-        prefixEval = _eval.pipeAll(S.Diff.query(queryPrefix) (corpusWord)),
-        suffixEval = _eval.pipeAll(S.Diff.query(querySuffix) (corpusWord)),
-        prefixPenalty = prefixEval.length ? A.sum(prefixEval[0].penalty) : posInf,
-        suffixPenalty = suffixEval.length ? A.sum(suffixEval[0].penalty) : posInf;
-
-      if (prefixPenalty < 10) {
-        const offset = queryPrefix.length - corpusWord.length;
-        prefixes.push({word: corpusWord, offset});
-      }
-
-      if (suffixPenalty < 10) {
-        const offset = querySuffix.length - corpusWord.length;
-        suffixes.push({word: corpusWord, offset});
-      }
-    }
-  }
-
-  // derive infix from prefix/suffix pair
-
-  const decompositions = [];
-
-  if (prefixes.length ^ suffixes.length) {
-    if (prefixes.length) prefixes.forEach(prefix => {
-      decompositions.push({
-        prefix: prefix.word,
-        infix: "",
-        suffix: "",
-        remainder: queryWord.slice(prefix.word.length + prefix.offset)
-      });
-    });
-
-    else suffixes.forEach(suffix => {
-      decompositions.push({
-        prefix: "",
-        infix: "",
-        suffix: suffix.word,
-        remainder: queryWord.slice(0, -(suffix.word.length + suffix.offset))
-      });
-    });
-  }
-
-  else for (const prefix of prefixes) {
-    for (const suffix of suffixes) {
-      const prefixLen = prefix.word.length + prefix.offset,
-        suffixLen = suffix.word.length + suffix.offset;
-
-      if (prefixLen + suffixLen < queryWord.length) {
-        let infix = queryWord;
-
-        infix = infix.slice(prefixLen);
-        infix = infix.slice(0, -suffixLen);
-
-        // check for interfixes
-
-        if (pos === "noun") {
-          reconstructInfix(
-            prefix,
-            infix,
-            suffix,
-            _Set[locale].nominalInterfixes,
-            _Set[locale].compoundElisions,
-            decompositions);
-        }
-
-        else if (pos === "verb") {
-          reconstructInfix(
-            prefix,
-            infix,
-            suffix,
-            _Set[locale].verbalInterfixes,
-            _Set[locale].compoundElisions,
-            decompositions);
-        }
-
-        else if (pos === "adj") {
-          reconstructInfix(
-            prefix,
-            infix,
-            suffix,
-            _Set[locale].adjectivalInterfixes,
-            _Set[locale].compoundElisions,
-            decompositions);
-        }
-
-        else if (pos === "num") {
-          reconstructInfix(
-            prefix,
-            infix,
-            suffix,
-            _Set[locale].numeralInterfixes,
-            _Set[locale].compoundElisions,
-            decompositions);
-        }
-      }
-
-      else if (prefixLen + suffixLen === queryWord.length) {
-        decompositions.push({
-          prefix: prefix.word,
-          infix: "",
-          suffix: suffix.word,
-          remainder: ""
-        });
-      }
-
-      else {
-        decompositions.push({
-          prefix: prefix.word,
-          infix: "",
-          suffix: "",
-          remainder: queryWord.slice(prefixLen)
-        });
-
-        decompositions.push({
-          prefix: "",
-          infix: "",
-          suffix: suffix.word,
-          remainder: queryWord.slice(0, -suffixLen)
-        });
-      }
-    }
-  }
-
-  if (decompositions.length === 0) return decompositions;
-  else if (decompositions.length === 1) return decompositions;
-
-  // select result set
-
-  else {
-
-    // dedupe decompositions
-
-    const m = decompositions.reduce((acc, o) => {
-      const k = `${o.prefix}/${o.infix}/${o.suffix}`;
-      if (!acc.has(k)) acc.set(k, o);
-      return acc;
-    }, new Map);
-
-    const xs = Array.from(m).map(([, o]) => o);
-
-    const pair = A.partition(o => o.remainder.length === 0) (xs);
-
-    if (pair[0].length) return pair[0];
-    else return pair[1];
-  }
-};
-
-
-// for the time being, ignore imperative case
-
-S.Word.parseSentType = s => {
-  const last = s[s.length - 1];
-  let type = "";
-
-  if (last === ".") type = "declarative";
-  else if (/!{1,}$/.test(s)) type = "exclamatory";
-  else if (/[?!]{2,}$/.test(s)) type = "interrogative";
-  else if (last === "?") type = "interrogative";
-
-  else return Parser.Invalid({
-    value: s,
-    kind: "sentence type",
-    reason: "partial sentence",
-  });
-
-  return Parser.Valid({
-    value: s,
-    kind: "sentence type",
-    type,
-  });
-};
-
-
 //█████ Lemmatization █████████████████████████████████████████████████████████
 
 
@@ -12157,10 +12181,10 @@ adjectives and pronouns. Additionally, considers comparative and superlative
 forms for adjectives and adverbs. Use an appropriate dictionary of well-known
 words to select the valid lemma from candidate lists. */
 
-S.Word.Lemma = {};
+S.Lemma = {};
 
 
-S.Word.Lemma.noun = locale => noun => {
+S.Lemma.noun = locale => noun => {
   const candidates = [noun];
 
   for (const suffix of _Set[locale].nominalSuffixes)
@@ -12179,7 +12203,7 @@ S.Word.Lemma.noun = locale => noun => {
 };
 
 
-S.Word.Lemma.verb = locale => verb => {
+S.Lemma.verb = locale => verb => {
   const candidates = [verb];
 
   for (const prefix of _Set[locale].verbalPrefixes)
@@ -12210,7 +12234,7 @@ S.Word.Lemma.verb = locale => verb => {
 };
 
 
-S.Word.Lemma.adj = locale => adj => {
+S.Lemma.adj = locale => adj => {
   const candidates = [adj];
 
   for (const interfix of _Set[locale].adjectivalInterfixes) {
@@ -12254,7 +12278,7 @@ S.Word.Lemma.adj = locale => adj => {
 };
 
 
-S.Word.Lemma.adv = locale => adv => {
+S.Lemma.adv = locale => adv => {
   const candidates = [adv];
 
   // only comparative/superlative
@@ -12283,7 +12307,7 @@ S.Word.Lemma.adv = locale => adv => {
 };
 
 
-S.Word.Lemma.pron = locale => pron => {
+S.Lemma.pron = locale => pron => {
   const candidates = [pron];
 
   for (const suffix of _Set[locale].pronominalSuffixes)
