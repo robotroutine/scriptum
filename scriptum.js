@@ -2455,6 +2455,30 @@ A.histo = f => init => xs => {
 };
 
 
+//█████ Natural Language Processing ███████████████████████████████████████████
+
+
+// rerieve the co-occurrence of words in a sentence
+
+A.cooccur = words => {
+  const pairs = [], n = words.length;
+
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = i + 1; j < n; j++) {
+      const distance = j - i - 1;
+
+      pairs.push({
+        fst: words[i],
+        snd: words[j],
+        distance,
+      });
+    }
+  }
+
+  return pairs;
+};
+
+
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████ BOOLEAN ███████████████████████████████████
@@ -11888,7 +11912,7 @@ Object.defineProperty(S.Norm, "equivalence", {
 });
 
 
-S.Norm.latinise = ({inclAlpha}) => doc => {
+S.Norm.latinize = ({inclAlpha}) => doc => {
   let s = "";
 
   for (const c of doc) {
@@ -12049,7 +12073,10 @@ Sensitivity modes:
   • variant: normal
   • case: a !== A
   • accent: a === A, a !== ä
-  • base: a === Ä */
+  • base: a === Ä
+
+All listed sensitivity assume usage to be "sort". Comparisons are more strict
+with usage set to "search" (ae === Ä) */
 
 
 // collator
@@ -12060,19 +12087,37 @@ S.Ctor = {};
 // options
 
 
-S.Ctor.case = {
+S.Ctor.caseSort = {
+  usage: "sort",
+  sensitivity: "case"
+};
+
+
+S.Ctor.caseSearch = {
   usage: "search",
   sensitivity: "case"
 };
 
 
-S.Ctor.accent = {
+S.Ctor.accentSort = {
+  usage: "sort",
+  sensitivity: "accent"
+};
+
+
+S.Ctor.accentSearch = {
   usage: "search",
   sensitivity: "accent"
 };
 
 
-S.Ctor.base = {
+S.Ctor.baseSort = {
+  usage: "sort",
+  sensitivity: "base",
+};
+
+
+S.Ctor.baseSearch = {
   usage: "search",
   sensitivity: "base",
 };
@@ -12082,6 +12127,22 @@ S.Ctor.base = {
 
 S.Ctor.cmp = (locale, opt) =>
   new Intl.Collator(locale.slice(0, 2), opt).compare;
+
+
+// tries sort and search as usages to achieve equality
+
+S.Ctor.cmpBiased = (locale, opt) => {
+  const o = Object.assign({}, opt, {usage: "sort"}),
+    p = Object.assign({}, opt, {usage: "search"}),
+    ctor = new Intl.Collator(locale.slice(0, 2), o).compare,
+    ctor2 = new Intl.Collator(locale.slice(0, 2), p).compare;
+
+  return (x, y) => {
+    const signum = ctor(x, y);
+    if (signum === ordering.eq) return signum;
+    else return ctor2(x, y);
+  };
+};
 
 
 // pass key as option property k
