@@ -2458,7 +2458,8 @@ A.histo = f => init => xs => {
 //█████ Natural Language Processing ███████████████████████████████████████████
 
 
-// rerieve the co-occurrence of words in a sentence
+/* Rerieve non-/consecuitve co-occurrences of words within a sentence while
+preserving the original order. */
 
 A.cooccur = words => {
   const pairs = [], n = words.length;
@@ -6120,134 +6121,325 @@ Parser.bic = ({_throw = false}) => s => {
 //█████ String ████████████████████████████████████████████████████████████████
 
 
-/* Well-formed words may include the follwing character:
+/* Parse a regular word, i.e. a string that only contains UTF8 letters in either
+all lower-case or title-case. */
 
-  * lower-case letters
-  * upper-case letters only at the beginning and after a special char
-  * the following special chars: -.'& (but not consecutive)
-  * digits only at the beginning and only separated by hyphen */
-
-Parser.word = s => {
-  let mode = "", offset = 0;
-
-  if (/\d/.test(s[0])) {
-    offset++;
-
-    for (let i = 1; i < s.length; i++) {
-      if (!/\d/.test(s[i])) {
-        if (s[i] === "."
-          || s[i] === "'"
-          || s[i] === "&") {
-            return Parser.Invalid({
-              value: s,
-              kind: "word",
-              reason: "#· sequence",
-            });
-        }
-
-        else break;
-      }
-
-      else if (i + 1 === s.length) return Parser.Invalid({
-        value: s,
-        kind: "word",
-        reason: "number word",
-      });
-
-      else offset++;
-    }
-  }
-
-  if (offset > 0 && s[offset] !== "-") return Parser.Invalid({
-    value: s,
-    kind: "word",
-    reason: "#L sequence",
-  });
-
-  if (s[offset] === "-") {
-    offset++;
-
-    if (s[offset] === "-"
-      || s[offset] === "."
-      || s[offset] === "'"
-      || s[offset] === "&") {
-        return Parser.Invalid({
-          value: s,
-          kind: "word",
-          reason: "·· sequence",
-        });
-    }
-  }
-
-  if (/\p{L}/v.test(s[offset])) {
-    for (let i = offset + 1; i < s.length; i++) {
-      if (/\p{Ll}/v.test(s[i])) mode = "";
-      
-      else if (/\p{Lu}/v.test(s[i])) {
-        if (i === 0) mode = "";
-
-        else if (mode === "") return Parser.Invalid({
-          value: s,
-          kind: "word",
-          reason: "aA sequence",
-        });
-
-        else mode = "";
-      }
-      
-      else if (/\d/.test(s[i])) return Parser.Invalid({
-        value: s,
-        kind: "word",
-        reason: "L# sequence",
-      });
-      
-      else if (s[i] === "-"
-        || s[i] === "."
-        || s[i] === "'"
-        || s[i] === "&") {
-          if (mode !== "") return Parser.Invalid({
-            value: s,
-            kind: "word",
-            reason: "·· sequence",
-          });
-
-          else mode = s[i];
-          continue;
-      }
-
-      else return Parser.Invalid({
-        value: s,
-        kind: "word",
-        reason: `invalid char "${s[i]}"`,
-      });
-    }
-
-    return Parser.Valid({
+Parser.word = minLen => s => {
+  if (s.length < minLen) {
+    return Parser.Invalid({
       value: s,
-      kind: "word",
+      reason: `shorter than ${minLen}`,
+      kind: "regular word",
     });
   }
 
-  else return Parser.Invalid({
+  else if (/[^\p{L}]/v.test(s)) {
+    return Parser.Invalid({
+      value: s,
+      reason: "contains invalid characters",
+      kind: "regular word",
+    });
+  }
+
+  else if (/\p{Lu}/v.test(s.slice(1))) {
+    return Parser.Invalid({
+      value: s,
+      reason: "unexpected upper-case letter",
+      kind: "regular word",
+    });
+  }
+  
+  else return Parser.Valid({
     value: s,
-    kind: "word",
-    reason: `invalid char "${s[i]}"`,
+    kind: "regular word",
   });
 };
 
 
-/* Take a set of well-known abbreviations and the right string context of the
-given word and determine whether it is an abbreviation. The combinator is not
-meant to detecting acronyms. */
+// parse a hyphenated word (Foo-Bar)
+
+Parser.hyphenatedWord = s => {
+  if (/[^\p{L}\-]/v.test(s)) {
+    return Parser.Invalid({
+      value: s,
+      reason: "contains invalid characters",
+      kind: "hyphenated word",
+    });
+  }
+  
+  else if (!s.includes('-')) {
+    return Parser.Invalid({
+      value: s,
+      reason: "missing hyphen",
+      kind: "hyphenated word",
+    });
+  }
+
+  else if (s.startsWith('-')) {
+    return Parser.Invalid({
+      value: s,
+      reason: "starts with a hyphen",
+      kind: "hyphenated word",
+    });
+  }
+
+  else if (s.endsWith('-')) {
+    return Parser.Invalid({
+      value: s,
+      reason: "ends with a hyphen",
+      kind: "hyphenated word",
+    });
+  }
+
+  else if (s.includes('--')) {
+    return Parser.Invalid({
+      value: s,
+      reason: "consecutive hyphens",
+      kind: "hyphenated word",
+    });
+  }
+
+  const segments = s.split('-');
+
+  const rest = [];
+  let singleChars = 0;
+
+  for (const segment of segments) {
+    if (segment.length === 1) singleChars++;
+    else rest.push(segment);
+  }
+
+  if (singleChars > 1) {
+    return Parser.Invalid({
+      value: s,
+      reason: "contains several single-character segments",
+      kind: "hyphenated word",
+    });
+  }
+
+  // all other segments must be all lower-case or title-case
+
+  for (const segment of rest) {
+    if (/\p{Lu}/v.test(segment.slice(1))) {
+      return Parser.Invalid({
+        value: s,
+        reason: "unexpected upper-case character",
+        kind: "hyphenated word",
+      });
+    }
+  }
+
+  return Parser.Valid({
+    value: s,
+    kind: "hyphenated word",
+  });
+};
+
+
+// parse a hyphenated acronym (FOO-Bar)
+
+Parser.hyphenatedAcronym = s => {
+  if (/[^\p{L}\-]/v.test(s)) {
+    return Parser.Invalid({
+      value: s,
+      reason: "contains invalid characters",
+      kind: "hyphenated acronym",
+    });
+  }
+  
+  else if (!s.includes('-')) {
+    return Parser.Invalid({
+      value: s,
+      reason: "missing hyphen",
+      kind: "hyphenated acronym",
+    });
+  }
+
+  else if (s.startsWith('-')) {
+    return Parser.Invalid({
+      value: s,
+      reason: "starts with a hyphen",
+      kind: "hyphenated acronym",
+    });
+  }
+
+  else if (s.endsWith('-')) {
+    return Parser.Invalid({
+      value: s,
+      reason: "ends with a hyphen",
+      kind: "hyphenated acronym",
+    });
+  }
+
+  else if (s.includes('--')) {
+    return Parser.Invalid({
+      value: s,
+      reason: "consecutive hyphens",
+      kind: "hyphenated acronym",
+    });
+  }
+
+  const segments = s.split('-');
+
+  const rest = [];
+  let allCaps = null, singleChars = 0;
+
+  for (const segment of segments) {
+    if (segment.length === 1) singleChars++;
+    
+    if (/^\p{Lu}+$/v.test(segment)) {
+      if (allCaps) {
+        return Parser.Invalid({
+          value: s,
+          reason: "contains several acronyms",
+          kind: "hyphenated acronym",
+        });
+      }
+
+      else allCaps = segment;
+    }
+
+    else rest.push(segment);
+  }
+
+  if (!allCaps) {
+    return Parser.Invalid({
+      value: s,
+      reason: "missing acronym",
+      kind: "hyphenated acronym",
+    });
+  }
+
+  else if (singleChars > 1) {
+    return Parser.Invalid({
+      value: s,
+      reason: "contains several single-character segments",
+      kind: "hyphenated acronym",
+    });
+  }
+
+  // all other segments must be all lower-case or title-case
+
+  for (const segment of rest) {
+    if (/\p{Lu}/v.test(segment.slice(1))) {
+      return Parser.Invalid({
+        value: s,
+        reason: "unexpected upper-case character",
+        kind: "hyphenated acronym",
+      });
+    }
+  }
+
+  return Parser.Valid({
+    value: s,
+    kind: "hyphenated acronym",
+  });
+};
+
+
+// parse a hyphenated numerical term (3-times)
+
+Parser.hyphenatedNum = s =>  {
+  if (/[^\p{N}\p{L}\-]/v.test(s)) {
+    return Parser.Invalid({
+      value: s,
+      reason: "contains invalid characters",
+      kind: "hyphenated numerical term",
+    });
+  }
+
+  const segments = s.split('-');
+
+  if (segments.length === 1) {
+    return Parser.Invalid({
+      value: s,
+      reason: "missing hyphen",
+      kind: "hyphenated numerical term",
+    });
+  }
+
+  else if (segments.length > 2) {
+    return Parser.Invalid({
+      value: s,
+      reason: "too many hyphen",
+      kind: "hyphenated numerical term"
+    });
+  }
+  
+  const [numSegment, letSegment] = segments;
+
+  if (numSegment.length === 0 || letSegment.length === 0) {
+    return Parser.Invalid({
+      value: s,
+      reason: "unexpected hyphen",
+      kind: "hyphenated numerical term",
+    });
+  }
+  
+  else if (/\p{L}/v.test(numSegment)) {
+    return Parser.Invalid({
+      value: s,
+      reason: "unexpected letters within digit segment",
+      kind: "hyphenated numerical term"
+    });
+  }
+
+  else if (/\p{N}/v.test(letSegment)) {
+    return Parser.Invalid({
+      value: s,
+      reason: "unexpected digits within letter segment",
+      kind: "hyphenated numerical term",
+    });
+  }
+
+  else if (letSegment.length < 2) {
+    return Parser.Invalid({
+      value: s,
+      reason: "too short a letter segment",
+      kind: "hyphenated numerical term",
+    });
+  }
+
+  else if (/\p{Lu}/v.test(letSegment.slice(1))) {
+    return Parser.Invalid({
+      value: s,
+      reason: "unexpected upper-case letter",
+      kind: "hyphenated numerical term",
+    });
+  }
+
+  else return Parser.Valid({
+    value: s,
+    kind: "hyphenated numerical term",
+  });
+};
+
+
+/* Parse an abbreviation, i.e. a word that contains at least one period.
+
+abbrs: set of well-known abbreviations
+context: right context of the word
+
+Works with composite abbreviations like "Foo.-Bar.". Doesn't work with words
+that use upper-case letters instead of dots (mostly acronyms). */
 
 // TODO: consider trigram deviation from generic word corpus
 
 Parser.abbr = ({locale, abbrs, context}) => s => {
   const s2 = S.replaceChar(".", "") (s);
 
+  if (s2.length === s.length) return Parser.Invalid({
+    value: s,
+    kind: "abbr",
+    reason: "missing period",
+  });
+
   // well-known abbreviation
 
-  if (abbrs.has(s2)) return Parser.Valid({value: s, kind: "abbr"});
+  else if (abbrs.has(s2)) return Parser.Valid({
+    value: s,
+    kind: "abbr"
+  });
 
   // check whether it is a normal, written out word
 
@@ -6266,43 +6458,57 @@ Parser.abbr = ({locale, abbrs, context}) => s => {
     // filter ellipsis
 
     if (standAlonePeriods === 0 && totalPeriods > 0) return Parser.Invalid({
-      value: s, kind: "abbr", reason: "ellipsis"
+      value: s,
+      kind: "abbr",
+      reason: "ellipsis",
     });
 
     // several stand-alone periods within a term
 
     else if (standAlonePeriods > 1) return Parser.Maybe({
-      value: s, kind: "abbr", confidence: 1
+      value: s,
+      kind: "abbr",
+      confidence: 1,
     });
 
     // no vowels
 
     else if (vowels === 0) return Parser.Maybe({
-      value: s, kind: "abbr", confidence: 1
+      value: s,
+      kind: "abbr",
+      confidence: 1,
     });
 
     // only vowels
 
     else if (vowels === s2.length) return Parser.Maybe({
-      value: s, kind: "abbr", confidence: 1
+      value: s,
+      kind: "abbr",
+      confidence: 1,
     });
 
     // lower-case first letter followed by capitalized ones
 
     else if (!firstCap && caps > 0) return Parser.Maybe({
-      value: s, kind: "abbr", confidence: 1
+      value: s,
+      kind: "abbr",
+      confidence: 1,
     });
 
     // context (followed by comma)
 
     else if (context && /^ *,/.test(context)) return Parser.Maybe({
-      value: s, kind: "abbr", confidence: 1
+      value: s,
+      kind: "abbr",
+      confidence: 1,
     });
 
     // context (followed by lower-case word)
 
     else if (context && /^ +\p{Ll}/v.test(context))return Parser.Maybe({
-      value: s, kind: "abbr", confidence: 1
+      value: s,
+      kind: "abbr",
+      confidence: 1,
     });
 
     else {
@@ -6334,44 +6540,85 @@ Parser.abbr = ({locale, abbrs, context}) => s => {
         + finalConsonantScore);
 
       return Parser.Maybe({
-        value: s, kind: "abbr", confidence: finalScore
+        value: s,
+        kind: "abbr",
+        confidence: finalScore,
       });
     }
   }
 };
 
 
-// recognize UNHCR or R&D
+// parse an acronym like UNHCR or R&D
 
-Parser.acronym = s => {
-  if (s.search(/^\p{Lu}+$/v) !== notFound) return Parser.Valid({
+Parser.acronym = specialChars => s => {
+  if (!/^\p{Lu}/v.test(s)) {
+    return Parser.Invalid({
+      value: s,
+      reason: "missing upper-case letter at the beginning",
+      kind: "acronym",
+    });
+  }
+  
+  const lastChar = s.slice(-1);
+
+  if (specialChars.includes(lastChar)) {
+    return Parser.Invalid({
+      value: s,
+      reason: "special character at the end",
+      kind: "acronym",
+    });
+  }
+
+  const escaped = R.escape(specialChars);
+
+  if (R(`[${escaped}]{2,}`).test(s)) {
+    return Parser.Invalid({
+      value: s,
+      reason: "consecutive special chars",
+      kind: "acronym"
+    });
+  }
+
+  else if (!R.v(`^[\\p{L}\\p{N}${escaped}]+$`).test(s)) {
+    return Parser.Invalid({
+      value: s,
+      reason: "contains invalid characters",
+      kind: "acronym",
+    });
+  }
+
+  const rx = s.match(/\p{Lu}/gv);
+
+  if (rx.length < 2) {
+    return Parser.Invalid({
+      value: s,
+      reason: "less than 2 upper-case letters",
+      kind: "acronym",
+    });
+  }
+
+  else return Parser.Valid({
     value: s,
     kind: "acronym",
-  });
-
-  else if (s.search(/^\p{Lu}&\p{Lu}$/v) !== notFound) return Parser.Valid({
-    value: s,
-    kind: "acronym",
-  });
-
-  else if (s.search(/^\p{L}&\p{L}$/v) !== notFound) return Parser.Valid({
-    value: s,
-    kind: "acronym",
-  });
-
-  else return Parser.Invalid({
-    value: s,
-    kind: "acronym",
-    reason: "includes lower-case letters",
   });
 };
 
 
-// TODO: consider imperative mood
+// default special characters
 
-Parser.sentenceType = s => {
+Parser.acronym_ = Parser.acronym("&/");
+
+
+Parser.sentence = s => {
   const last = s[s.length - 1];
   let type = "";
+
+  if (S.countChar(" ") (s) === 0) Parser.Invalid({
+    value: s,
+    kind: "sentence type",
+    reason: "missing words",
+  });
 
   if (last === ".") type = "declarative";
   else if (/!{1,}$/.test(s)) type = "exclamatory";
@@ -6684,7 +6931,7 @@ R.countPattern = rx => s => Array.from(s.matchAll(rx)).length;
 R.dedupe = s => s.replaceAll(/(.)\1{1,}/g, "$1");
 
 
-R.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+R.escape = s => s.replaceAll(/[.*+?^${}()|[\]\\\/]/g, '\\$&');
 
 
 /* Take an object with properties holding regular expressions and apply each
@@ -12129,22 +12376,6 @@ S.Ctor.cmp = (locale, opt) =>
   new Intl.Collator(locale.slice(0, 2), opt).compare;
 
 
-// tries sort and search as usages to achieve equality
-
-S.Ctor.cmpBiased = (locale, opt) => {
-  const o = Object.assign({}, opt, {usage: "sort"}),
-    p = Object.assign({}, opt, {usage: "search"}),
-    ctor = new Intl.Collator(locale.slice(0, 2), o).compare,
-    ctor2 = new Intl.Collator(locale.slice(0, 2), p).compare;
-
-  return (x, y) => {
-    const signum = ctor(x, y);
-    if (signum === ordering.eq) return signum;
-    else return ctor2(x, y);
-  };
-};
-
-
 // pass key as option property k
 
 S.Ctor.cmpObj = (locale, opt) => (o, p) =>
@@ -12155,6 +12386,22 @@ S.Ctor.cmpObj = (locale, opt) => (o, p) =>
 
 S.Ctor.cmpWith = (locale, opt) => (o, p) =>
   new Intl.Collator(locale.slice(0, 2), opt).compare(...opt.f(o, p));
+
+
+// behave less strict in terms of equality than a Collator with base sensitivity
+
+S.Ctor.eq = locale => {
+  const o = {usage: "sort", sensitivity: "base"},
+    p = {usage: "search", sensitivity: "base"},
+    ctor = new Intl.Collator(locale.slice(0, 2), o).compare,
+    ctor2 = new Intl.Collator(locale.slice(0, 2), p).compare;
+
+  return (x, y) => {
+    const signum = ctor(x, y);
+    if (signum === ordering.eq) return signum;
+    else return ctor2(x, y);
+  };
+};
 
 
 //█████ Casing ████████████████████████████████████████████████████████████████
