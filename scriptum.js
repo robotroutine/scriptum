@@ -5530,12 +5530,11 @@ O.Get.any = (...getters) => o => k => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* This isn't yet another parser implementation but a type that is meant to
-replace ture/false validations suffering from boolean blindness. A parser takes
-unstructured data and tries to add structre to it. It returns structured data
-on success or the original data on error (or throws the error). Besides the
-valid/invalid dichotomy the type also can represent a maybe valid value where
-confidence quantifies the amount of indeterminism. */
+/* The parser type is meant to replace ture/false validations suffering from
+boolean blindness. A parser takes a value of a general type like string or
+number and adds meta information on success or provides reason on failure. The
+type can model a third state that represents a maybe successfully parsed value,
+where confidence is quantified as a number between 0 and 1. */
 
 
 export const Parser = {};
@@ -6593,7 +6592,7 @@ Parser.acronym = specialChars => s => {
   if (rx.length < 2) {
     return Parser.Invalid({
       value: s,
-      reason: "less than 2 upper-case letters",
+      reason: "contains less than 2 upper-case letters",
       kind: "acronym",
     });
   }
@@ -6608,6 +6607,107 @@ Parser.acronym = specialChars => s => {
 // default special characters
 
 Parser.acronym_ = Parser.acronym("&/");
+
+
+// parse a proper name like Foo, Foo-Bar, O'Foo, McFoo
+
+Parser.properName = prefixes => s => {
+  if (/[^\p{L}'\-]/v.test(s)) {
+    return Parser.Invalid({
+      value: s,
+      kind: "proper name",
+      reason: "contains invalid characters",
+    });
+  }
+
+  else if (!/\p{Lu}/v.test(s[0])) {
+    return Parser.Invalid({
+      value: s,
+      kind: "proper name",
+      reason: "first letter must be upper-case",
+    });
+  }
+  
+  else if (S.countChar("-") (s) > 1) {
+    return Parser.Invalid({
+      value: s,
+      kind: "proper name",
+      reason: "contains more than one hyphen",
+    });
+  }
+
+  else if (S.countChar("'") (s) > 1) {
+    return Parser.Invalid({
+      value: s,
+      kind: "proper name",
+      reason: "contains more than one apostrophe",
+    });
+  }
+
+  else if (s.startsWith("-") || s.startsWith("'")) {
+    return Parser.Invalid({
+      value: s,
+      kind: "proper name",
+      reason: "special characters at the beginning",
+    });
+  }
+
+  else if (s.endsWith("-") || s.endsWith("'")) {
+    return Parser.Invalid({
+      value: s,
+      kind: "proper name",
+      reason: "special characters at the end",
+    });
+  }
+
+  for (let i = 1; i < s.length; i++) {
+    const c = s[i], prev = s[i - 1];
+
+    if (c === "-" || c === "'") continue;
+
+    else if (prev === "-" || prev === "'") {
+      if (/\p{Ll}/v.test(c)) {
+        return Parser.Invalid({
+          value: s,
+          kind: "proper name",
+          reason: "unexpected lower-case letter after special character",
+        });
+      }
+    }
+
+    else if (/\p{Lu}/v.test(c)) {
+      const sub = s.substring(0, i);
+      let match = false;
+
+      for (const prefix of prefixes) {
+        if (sub.endsWith(prefix)) {
+          match = true;
+          break;
+        }
+      }
+
+      if (match === false) return Parser.Invalid({
+        value: s,
+        kind: "proper name",
+        reason: "unexpected upper-case letter",
+      });
+
+    }
+
+    else if (!/\p{Ll}/v.test(c)) {
+      return Parser.Invalid({
+        value: s,
+        kind: "proper name",
+        reason: `letter expected at ${i + 1}`,
+      });
+    }
+  }
+
+  return Parser.Valid({
+    value: s,
+    kind: "proper name",
+  });
+};
 
 
 Parser.sentence = s => {
