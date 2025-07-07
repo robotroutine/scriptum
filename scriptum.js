@@ -6338,7 +6338,7 @@ Parser.hyphenatedAcronym = s => {
 
 // parse a hyphenated numerical term (3-times)
 
-Parser.hyphenatedNum = s =>  {
+Parser.numericalTerm = s =>  {
   if (/[^\p{N}\p{L}\-]/v.test(s)) {
     return Parser.Invalid({
       value: s,
@@ -10117,6 +10117,50 @@ S.splitAscii = s => {
 
     return acc;
   }, [""]);
+};
+
+
+/* Tokenize a string.
+
+excl: exclude additional character classes or single characters from replacement
+rules: array of regex/replacement pairs for additional replacements
+
+Tokenize the following kinds of tokens:
+  • word (foo)
+  • hyphenated word (foo-bar)
+  • numerical term (3-foo)
+  • abbreviation (abbr.)
+  • acronym (UNHCR)
+  • hyphenated acronym (IT-solution)
+  • proper name (O'Bar) */
+
+S.tokenize = ({excl, rules}) => s => {
+  return This(s)
+    .map(s2 => s2.replace(R.gv(`[^\\p{L}\\d\\-.'&\\/${R.escape(excl)}]`), " "))
+
+    // remove apostrophes used for quoting
+
+    .map(s2 => s2.replaceAll(/(?<=^| )'+(?=\p{L})/gmv, " "))
+    .map(s2 => s2.replaceAll(/(?<=\p{L})'+(?= |$)/gmv, " "))
+
+    // execute additional rules
+
+    .map(s2 => {
+      for (const [rx, repl] of rules) s2 = s2.replaceAll(rule, repl);
+      return s2;
+    })
+
+    // normalize and replace new lines
+
+    .map(s2 => s2.replaceAll(/\r/g, ""))
+    .map(s2 => s2.replaceAll(/\n+/g, " "))
+
+    // delete redundant spaces
+
+    .map(s2 => s2.replaceAll(/ {2,}/g, " "))
+    .map(s2 => s2.trim())
+    .unref
+    .split(" ");
 };
 
 
