@@ -1,14 +1,19 @@
-/* 
- __   __   __     __  ___            
-/__` /  ` |__) | |__)  |  |  |  |\/| 
-.__/ \__, |  \ | |     |  \__/  |  | 
+/*____________________________________________________________________________________________________________
+ ______________________________________________________________________________________________________________
+  ___________________________________________/\\\_               ____/\\\_______________________________________      
+   __/\\\\\\\\\\_____/\\\\\\\\__/\\/\\\\\\\__\///_____/\\\\\\\\___/\\\\\\\\\\\__/\\\____/\\\____/\\\\\__/\\\\\___     
+    _\/\\\//////____/\\\//////__\/\\\/////\\\__/\\\__/\\\/////\\\_\////\\\////__\/\\\___\/\\\__/\\\///\\\\\///\\\_    
+     _\/\\\\\\\\\\__/\\\_________\/\\\___\///__\/\\\__/\\\     \\\____\/\\\______\/\\\___\/\\\_\/\\\_\//\\\__\/\\\_   
+      _\////////\\\_\//\\\________\/\\\_________\/\\\__/\\\     \\\____\/\\\_/\\__\/\\\___\/\\\_\/\\\__\/\\\__\/\\\_  
+       __/\\\\\\\\\\__\///\\\\\\\\_\/\\\_________\/\\\_\/\\\\\\\\\\_____\//\\\\\___\//\\\\\\\\\__\/\\\__\/\\\__\/\\\_ 
+        _\//////////_____\////////__\///__________\///__\/\\\//////_______\/////_____\/////////___\///___\///___\///__
+         ________________________________________________\/\\\_________________________________________________________
+          ________________________________________________\/\\\_________________________________________________________
+           ________________________________________________\/\\\_________________________________________________________
+            ________________________________________________\///__________________________________________________________
+             ______________________________________________________________________________________________________________
 
-
-lib: natural language processing using functional programming
-
-Focus on functional idioms, asynchronicity, iterators, arrays, strings, linear
-algebra, and regular expressions for effective natural language processing in
-Javascript. */
+scriptum - library for pattern detection and natural language processing */
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -4479,20 +4484,57 @@ Object.defineProperty(_Map.deDE, "nominalAlterations", {
 });
 
 
-Object.defineProperty(_Map.deDE, "nobleTitles", {
+Object.defineProperty(_Map, "iban", {
   get() {
     const m = new Map([
-      ["von", {pre: "", suf: ""}],
-      ["der", {pre: "von", suf: ""}],
-      ["zu", {pre: "", suf: ""}],
-      ["und", {pre: "von", suf: "zu"}],
-      ["zur", {pre: "", suf: ""}],
-      ["von der", {pre: "", suf: ""}],
-      ["von und zu", {pre: "", suf: ""}],
+      ["AL", {len: 28, bban: /^\d{8}[A-Z0-9]{16}$/}],
+      ["AD", {len: 24, bban: /^\d{8}[A-Z0-9]{12}$/}],
+      ["AT", {len: 20, bban: /^\d{16}$/}],
+      ["BE", {len: 16, bban: /^\d{12}$/}],
+      ["BA", {len: 20, bban: /^\d{16}$/}],
+      ["BG", {len: 22, bban: /^[A-Z]{4}\d{6}[A-Z0-9]{8}$/}],
+      ["HR", {len: 21, bban: /^\d{17}$/}],
+      ["CY", {len: 28, bban: /^\d{8}[A-Z0-9]{16}$/}],
+      ["CZ", {len: 24, bban: /^\d{20}$/}],
+      ["DK", {len: 18, bban: /^\d{14}$/}],
+      ["EE", {len: 20, bban: /^\d{16}$/}],
+      ["FI", {len: 18, bban: /^\d{14}$/}],
+      ["FR", {len: 27, bban: /^\d{10}[A-Z0-9]{11}\d{2}$/}],
+      ["DE", {len: 22, bban: /^\d{18}$/}],
+      ["GI", {len: 23, bban: /^[A-Z]{4}[A-Z0-9]{15}$/}],
+      ["GR", {len: 27, bban: /^\d{7}[A-Z0-9]{16}$/}],
+      ["HU", {len: 28, bban: /^\d{24}$/}],
+      ["IS", {len: 26, bban: /^\d{22}$/}],
+      ["IE", {len: 22, bban: /^[A-Z0-9]{4}\d{14}$/}],
+      ["IT", {len: 27, bban: /^[A-Z]{1}\d{10}[A-Z0-9]{12}$/}],
+      ["LV", {len: 21, bban: /^[A-Z]{4}[A-Z0-9]{13}$/}],
+      ["LI", {len: 21, bban: /^\d{5}[A-Z0-9]{12}$/}],
+      ["LT", {len: 20, bban: /^\d{16}$/}],
+      ["LU", {len: 20, bban: /^\d{3}[A-Z0-9]{13}$/}],
+      ["MT", {len: 31, bban: /^[A-Z]{4}\d{5}[A-Z0-9]{18}$/}],
+      ["MC", {len: 27, bban: /^\d{10}[A-Z0-9]{11}\d{2}$/}],
+      ["ME", {len: 22, bban: /^\d{18}$/}],
+      ["NL", {len: 18, bban: /^[A-Z]{4}\d{10}$/}],
+      ["NO", {len: 15, bban: /^\d{11}$/}],
+      ["PL", {len: 28, bban: /^\d{24}$/}],
+      ["PT", {len: 25, bban: /^\d{21}$/}],
+      ["RO", {len: 24, bban: /^[A-Z]{4}[A-Z0-9]{16}$/}],
+      ["SM", {len: 27, bban: /^[A-Z]{1}\d{10}[A-Z0-9]{12}$/}],
+      ["SA", {len: 24, bban: /^\d{2}[A-Z0-9]{18}$/}],
+      ["RS", {len: 22, bban: /^\d{18}$/}],
+      ["SK", {len: 24, bban: /^\d{20}$/}],
+      ["SI", {len: 19, bban: /^\d{15}$/}],
+      ["ES", {len: 24, bban: /^\d{20}$/}],
+      ["SE", {len: 24, bban: /^\d{20}$/}],
+      ["CH", {len: 21, bban: /^\d{5}[A-Z0-9]{12}$/}],
+      ["TN", {len: 24, bban: /^\d{20}$/}],
+      ["TR", {len: 26, bban: /^\d{5}[A-Z0-9]{17}$/}],
+      ["AE", {len: 23, bban: /^\d{19}$/}],
+      ["GB", {len: 22, bban: /^[A-Z]{4}\d{14}$/}],
     ]);
 
-    delete this.nobleTitles;
-    this.nobleTitles = m;
+    delete this.iban;
+    this.iban = m;
     return m;
   },
 
@@ -5565,21 +5607,20 @@ O.Get.any = (...getters) => o => k => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Parsers replace the dichotomy of true/false validation functions suffering
-from boolean blindness with structured parser results. A parser takes a value
-and returns a more structured value or additional meta information. The types
-can model the three states valid, invalid or maybe valid parser result. The
-last state quantifies the level of confidence that a parser result is valus as
-a number between 0 and 1. */
+/* Simple parsers that replace the true/false dichotomy of validation functions
+suffering from boolean blindness with structured parser results. A parser takes
+a value and augments it with additional meta information. The types can model
+the three states valid, invalid or maybe valid. The last state quantifies the
+level of confidence that a parser result is valus as a number between 0 and 1. */
 
 
 export const Parser = {};
 
 
-Parser.Valid = ({tokens, kind, ...rest}) => ({
+Parser.Valid = ({value, kind, ...rest}) => ({
   [$]: "Parser",
   [$$]: "Parser.Valid",
-  tokens,
+  value,
   kind,
   ...rest
 });
@@ -5605,7 +5646,60 @@ Parser.Maybe = ({value, kind, confidence, ...rest}) => ({
 });
 
 
-//█████ General ███████████████████████████████████████████████████████████████
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ COMBINATORS █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+// take two parsers but short circuit if the first fails
+
+Parser.and = f => g => x => {
+  const o = f(x);
+  if (o[$$] === "Parser.Valid") return g(o.value);
+  else return o;
+};
+
+
+// take many parsers but short circuit as soon as one fails
+
+Parser.all = (...fs) => x => {
+  let o = {value: x};
+
+  for (const f of fs) {
+    o = f(o.value);
+    if (x[$$] === "Parser.Invalid") return o;
+  }
+
+  return o;
+};
+
+
+// take two parsers but short circuit if the first succeeds
+
+Parser.or = f => g => x => {
+  const o = f(x);
+  if (o[$$] === "Parser.Valid") return o;
+  else return g(x);
+};
+
+
+// take many parsers but short circuit as soon as the first parser succeeds
+
+Parser.any = (...fs) => {
+  let o = {value: x};
+
+  for (const f of fs) {
+    o = f(o.value);
+    if (x[$$] === "Parser.Valid") return o;
+  }
+
+  return o;
+};
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ POLYMORPHIC █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
 
 Parser.satisfy = ({p, kind, reason, _throw = false}) => x => {
@@ -5766,7 +5860,9 @@ Parser.max = ({max, _throw = false}) => n => {
 };
 
 
-//█████ String ████████████████████████████████████████████████████████████████
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████ STRING ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
 
 Parser.pattern = ({rx, kind, reason, _throw = false}) => s => {
@@ -6076,59 +6172,97 @@ Parser.time = ({date = new Date("0000-01-01"), _throw = false}) => s => {
 };
 
 
-Parser.iban = ({locale, _throw = false}) => s => {
-  switch (locale) {
-    case "deDE": {
-      const codeLen = 22;
+// assume a whole string without spaces or other separators
 
-      const iban = s.toUpperCase(),
-        code = iban.match(/^([A-Z]{2})(\d{2})([A-Z\d]+)$/);
-
-      let digits;
-
-      if (!code || iban.length !== codeLen) {
-        if (_throw) throw new Err(`malformed iban "${s}"`);
-
-        else return Parser.Invalid({
-          value: s,
-          kind: "iban",
-          reason: "malformed iban",
-        });
-      }
-
-      digits = (code[3] + code[1] + code[2]).replace(/[A-Z]/g, letter => {
-        return letter.charCodeAt(0) - 55;
-      });
-
-      let checksum = digits.slice(0, 2),
-        fragment;
-
-      for (let offset = 2; offset < digits.length; offset += 7) {
-        fragment = String(checksum) + digits.substring(offset, offset + 7);
-        checksum = parseInt(fragment, 10) % 97;
-      }
-
-      if (checksum === 1) return Parser.Valid({
+Parser.iban = ({strict, _throw = false}) => s => {
+  if (!strict) {
+    if (s.match(/^([A-Z]{2})(\d{2})([A-Z\d]+)$/i)) {
+      return Parser.Valid({
         value: s,
         kind: "iban",
-      });
-
-      else if (_throw) throw new Err(`malformed iban "${s}"`);
-
-      else return Parser.Invalid({
-        value: s,
-        kind: "iban",
-        reason: "malformed iban",
       });
     }
 
-    default: throw new Err(`not supported locale "${locale}"`);
+    else return Parser.Invalid({
+      value: s,
+      kind: "iban",
+      reason: "malformed iban",
+    });
+  }
+
+  const iban = s.toUpperCase(),
+    locale = iban.substring(0, 2),
+    rules = _Map.iban.get(locale);
+
+  if (!rules) throw new Err(`unknown locale "${locale}"`);
+
+  else if (iban.length !== rules.len) {
+    if (_throw) throw new Err(`iban too short/long "${iban}"`);
+
+    else return Parser.Invalid({
+      value: s,
+      kind: "iban",
+      reason: "too short/long",
+    });
+  }
+
+  const bban = iban.substring(4);
+  if (!rules.bban.test(bban)) {
+    if (_throw) throw new Err(`invalid bban "${iban}"`);
+
+    else return Parser.Invalid({
+      value: s,
+      kind: "iban",
+      reason: "invalid bban",
+    });
+  }
+
+  const rearrangedIban = iban.substring(4) + iban.substring(0, 4);
+
+  const numericIbanString = Array.from(rearrangedIban).map(char => {
+    const charCode = char.charCodeAt(0);
+    if (charCode >= 65 && charCode <= 90) return charCode - 55;
+    return char;
+  }).join("");
+  
+  try {
+    const quantifiable = BigInt(numericIbanString);
+    
+    if (quantifiable % 97n === 1n) return Parser.Valid({
+      value: s,
+      kind: "iban",
+    });
+
+    else if (_throw) throw new Err("unexpected checksum");
+
+    else return Parser.Invalid({
+      value: s,
+      kind: "iban",
+      reason: "unexpected checksum",
+    });
+  }
+
+  catch (e) {
+    if (_throw) throw new Err("iban not quantifiable");
+
+    else return Parser.Invalid({
+      value: s,
+      kind: "iban",
+      reason: "not quantifiable",
+    });
   }
 };
 
 
-Parser.bic = ({_throw = false}) => s => {
-  if (/^([A-Z]{6}[A-Z2-9][A-NP-Z1-9])(X{3}|[A-WY-Z0-9][A-Z0-9]{2})?$/.test(s)) {
+Parser.bic = ({strict, _throw = false}) => s => {
+  if (!strict && /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/i) {
+    return Parser.Valid({
+      value: s,
+      kind: "bic",
+    });
+  }
+
+  else if (strict && /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(s)) {
     return Parser.Valid({
       value: s,
       kind: "bic",
@@ -6145,15 +6279,27 @@ Parser.bic = ({_throw = false}) => s => {
 };
 
 
-/* TODO:
-  * email
-  * phone (cellular, landline)
-  * po-box
-  * street
-*/
+Parser.email = s => {
+  const rx = new R(
+    /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/
+  );
+  
+  if (S.countChar("@") (s) > 0 && rx.test(s)) return Parser.Valid({
+    value: s,
+    kind: "email",
+  });
+  
+  else return Parser.Invalid({
+    value: s,
+    kind: "email",
+    reason: "malformed email",
+  });
+};
 
 
-//█████ String ████████████████████████████████████████████████████████████████
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ WORD-BASED ██████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
 
 /* Parse a regular word, i.e. a string that only contains UTF8 letters in either
@@ -6191,463 +6337,9 @@ Parser.word = minLen => s => {
 };
 
 
-// parse a hyphenated word (Foo-Bar)
-
-Parser.hyphenatedWord = s => {
-  if (/[^\p{L}\-]/v.test(s)) {
-    return Parser.Invalid({
-      value: s,
-      reason: "contains invalid characters",
-      kind: "hyphenated word",
-    });
-  }
-  
-  else if (!s.includes('-')) {
-    return Parser.Invalid({
-      value: s,
-      reason: "missing hyphen",
-      kind: "hyphenated word",
-    });
-  }
-
-  else if (s.startsWith('-')) {
-    return Parser.Invalid({
-      value: s,
-      reason: "starts with a hyphen",
-      kind: "hyphenated word",
-    });
-  }
-
-  else if (s.endsWith('-')) {
-    return Parser.Invalid({
-      value: s,
-      reason: "ends with a hyphen",
-      kind: "hyphenated word",
-    });
-  }
-
-  else if (s.includes('--')) {
-    return Parser.Invalid({
-      value: s,
-      reason: "consecutive hyphens",
-      kind: "hyphenated word",
-    });
-  }
-
-  const segments = s.split('-');
-
-  const rest = [];
-  let singleChars = 0;
-
-  for (const segment of segments) {
-    if (segment.length === 1) singleChars++;
-    else rest.push(segment);
-  }
-
-  if (singleChars > 1) {
-    return Parser.Invalid({
-      value: s,
-      reason: "contains several single-character segments",
-      kind: "hyphenated word",
-    });
-  }
-
-  // all other segments must be all lower-case or title-case
-
-  for (const segment of rest) {
-    if (/\p{Lu}/v.test(segment.slice(1))) {
-      return Parser.Invalid({
-        value: s,
-        reason: "unexpected upper-case character",
-        kind: "hyphenated word",
-      });
-    }
-  }
-
-  return Parser.Valid({
-    value: s,
-    kind: "hyphenated word",
-  });
-};
-
-
-// parse a hyphenated numerical term (3-times)
-
-Parser.numericalTerm = s =>  {
-  if (/[^\p{N}\p{L}\-]/v.test(s)) {
-    return Parser.Invalid({
-      value: s,
-      reason: "contains invalid characters",
-      kind: "hyphenated numerical term",
-    });
-  }
-
-  const segments = s.split('-');
-
-  if (segments.length === 1) {
-    return Parser.Invalid({
-      value: s,
-      reason: "missing hyphen",
-      kind: "hyphenated numerical term",
-    });
-  }
-
-  else if (segments.length > 2) {
-    return Parser.Invalid({
-      value: s,
-      reason: "too many hyphen",
-      kind: "hyphenated numerical term"
-    });
-  }
-  
-  const [numSegment, letSegment] = segments;
-
-  if (numSegment.length === 0 || letSegment.length === 0) {
-    return Parser.Invalid({
-      value: s,
-      reason: "unexpected hyphen",
-      kind: "hyphenated numerical term",
-    });
-  }
-  
-  else if (/\p{L}/v.test(numSegment)) {
-    return Parser.Invalid({
-      value: s,
-      reason: "unexpected letters within digit segment",
-      kind: "hyphenated numerical term"
-    });
-  }
-
-  else if (/\p{N}/v.test(letSegment)) {
-    return Parser.Invalid({
-      value: s,
-      reason: "unexpected digits within letter segment",
-      kind: "hyphenated numerical term",
-    });
-  }
-
-  else if (letSegment.length < 2) {
-    return Parser.Invalid({
-      value: s,
-      reason: "too short a letter segment",
-      kind: "hyphenated numerical term",
-    });
-  }
-
-  else if (/\p{Lu}/v.test(letSegment.slice(1))) {
-    return Parser.Invalid({
-      value: s,
-      reason: "unexpected upper-case letter",
-      kind: "hyphenated numerical term",
-    });
-  }
-
-  else return Parser.Valid({
-    value: s,
-    kind: "hyphenated numerical term",
-  });
-};
-
-
-/* Parse an abbreviation, i.e. a word that contains at least one period.
-
-abbrs: set of well-known abbreviations
-context: right context of the word
-
-Works with composite abbreviations like "Foo.-Bar.". Doesn't work with words
-that use upper-case letters instead of dots (mostly acronyms). */
-
-// TODO: consider trigram deviation from generic word corpus
-
-Parser.abbr = ({locale, abbrs, context}) => s => {
-  const s2 = S.replaceChar(".", "") (s);
-
-  if (s2.length === s.length) return Parser.Invalid({
-    value: s,
-    kind: "abbr",
-    reason: "missing period",
-  });
-
-  // well-known abbreviation
-
-  else if (abbrs.has(s2)) return Parser.Valid({
-    value: s,
-    kind: "abbr"
-  });
-
-  // check whether it is a normal, written out word
-
-  else {
-    const score = 0,
-      standAlonePeriods = R.countPattern(/(?<!\.)\.(?!\.)/g) (s),
-      totalPeriods = S.countChar(".") (s),
-      caps = R.countPattern(/\p{Lu}/gv) (s2),
-      firstCap = /^\p{Lu}/.test(s2);
-
-    const standAloneVowels = R.countPattern(RegExp(
-      `${R.classes.latin1.lcl.s}+|${R.classes.latin1.ucl.s}+`, "g")) (s2);
-
-    const vowels = R.countPattern(RegExp(`${R.classes.latin1.vowels.s}`, "g")) (s2);
-
-    // filter ellipsis
-
-    if (standAlonePeriods === 0 && totalPeriods > 0) return Parser.Invalid({
-      value: s,
-      kind: "abbr",
-      reason: "ellipsis",
-    });
-
-    // several stand-alone periods within a term
-
-    else if (standAlonePeriods > 1) return Parser.Maybe({
-      value: s,
-      kind: "abbr",
-      confidence: 1,
-    });
-
-    // no vowels
-
-    else if (vowels === 0) return Parser.Maybe({
-      value: s,
-      kind: "abbr",
-      confidence: 1,
-    });
-
-    // only vowels
-
-    else if (vowels === s2.length) return Parser.Maybe({
-      value: s,
-      kind: "abbr",
-      confidence: 1,
-    });
-
-    // lower-case first letter followed by capitalized ones
-
-    else if (!firstCap && caps > 0) return Parser.Maybe({
-      value: s,
-      kind: "abbr",
-      confidence: 1,
-    });
-
-    // context (followed by comma)
-
-    else if (context && /^ *,/.test(context)) return Parser.Maybe({
-      value: s,
-      kind: "abbr",
-      confidence: 1,
-    });
-
-    // context (followed by lower-case word)
-
-    else if (context && /^ +\p{Ll}/v.test(context))return Parser.Maybe({
-      value: s,
-      kind: "abbr",
-      confidence: 1,
-    });
-
-    else {
-
-      // score derived from the default abbreviation length
-
-      const lenScore = S[locale].avgWordLen - (s2.length);
-
-      // score derived from upper-case letters (all-caps get low score)
-
-      const capScore = caps === s2.length ? 1 : caps;
-
-      // score derived from deviation against default vowel-consonant ratio
-
-      const vowelRatio = S[locale].vowelConsonantRatio
-        - (standAloneVowels / (s2.length - standAloneVowels));
-
-      const vowelRatioScore = vowelRatio > 0 ? vowelRatio * 10 : vowelRatio;
-
-      // score derived from last letter being a consonant
-
-      const finalConsonantScore = R.g(R.classes.latin1.vowels.s)
-        .test(s2[s2.length - 1]) ? 0 : 1;
-
-      const finalScore = Alg.expGrowth({maxInput: 10}) (
-        lenScore
-        + capScore
-        + vowelRatioScore
-        + finalConsonantScore);
-
-      return Parser.Maybe({
-        value: s,
-        kind: "abbr",
-        confidence: finalScore,
-      });
-    }
-  }
-};
-
-
-// parse an acronym like UNHCR or R&D
-
-Parser.acronym = specialChars => s => {
-  if (!/^\p{Lu}/v.test(s)) {
-    return Parser.Invalid({
-      value: s,
-      reason: "missing upper-case letter at the beginning",
-      kind: "acronym",
-    });
-  }
-  
-  const lastChar = s.slice(-1);
-
-  if (specialChars.includes(lastChar)) {
-    return Parser.Invalid({
-      value: s,
-      reason: "special character at the end",
-      kind: "acronym",
-    });
-  }
-
-  const escaped = R.escape(specialChars);
-
-  if (R(`[${escaped}]{2,}`).test(s)) {
-    return Parser.Invalid({
-      value: s,
-      reason: "consecutive special chars",
-      kind: "acronym"
-    });
-  }
-
-  else if (!R.v(`^[\\p{L}\\p{N}${escaped}]+$`).test(s)) {
-    return Parser.Invalid({
-      value: s,
-      reason: "contains invalid characters",
-      kind: "acronym",
-    });
-  }
-
-  const rx = s.match(/\p{Lu}/gv);
-
-  if (rx.length < 2) {
-    return Parser.Invalid({
-      value: s,
-      reason: "contains less than 2 upper-case letters",
-      kind: "acronym",
-    });
-  }
-
-  else return Parser.Valid({
-    value: s,
-    kind: "acronym",
-  });
-};
-
-
-// default special characters
-
-Parser.acronym_ = Parser.acronym("&/");
-
-
-// parse a hyphenated acronym (FOO-Bar)
-
-Parser.hyphenatedAcronym = s => {
-  if (/[^\p{L}\-]/v.test(s)) {
-    return Parser.Invalid({
-      value: s,
-      reason: "contains invalid characters",
-      kind: "hyphenated acronym",
-    });
-  }
-  
-  else if (!s.includes('-')) {
-    return Parser.Invalid({
-      value: s,
-      reason: "missing hyphen",
-      kind: "hyphenated acronym",
-    });
-  }
-
-  else if (s.startsWith('-')) {
-    return Parser.Invalid({
-      value: s,
-      reason: "starts with a hyphen",
-      kind: "hyphenated acronym",
-    });
-  }
-
-  else if (s.endsWith('-')) {
-    return Parser.Invalid({
-      value: s,
-      reason: "ends with a hyphen",
-      kind: "hyphenated acronym",
-    });
-  }
-
-  else if (s.includes('--')) {
-    return Parser.Invalid({
-      value: s,
-      reason: "consecutive hyphens",
-      kind: "hyphenated acronym",
-    });
-  }
-
-  const segments = s.split('-');
-
-  const rest = [];
-  let allCaps = null, singleChars = 0;
-
-  for (const segment of segments) {
-    if (segment.length === 1) singleChars++;
-    
-    if (/^\p{Lu}+$/v.test(segment)) {
-      if (allCaps) {
-        return Parser.Invalid({
-          value: s,
-          reason: "contains several acronyms",
-          kind: "hyphenated acronym",
-        });
-      }
-
-      else allCaps = segment;
-    }
-
-    else rest.push(segment);
-  }
-
-  if (!allCaps) {
-    return Parser.Invalid({
-      value: s,
-      reason: "missing acronym",
-      kind: "hyphenated acronym",
-    });
-  }
-
-  else if (singleChars > 1) {
-    return Parser.Invalid({
-      value: s,
-      reason: "contains several single-character segments",
-      kind: "hyphenated acronym",
-    });
-  }
-
-  // all other segments must be all lower-case or title-case
-
-  for (const segment of rest) {
-    if (/\p{Lu}/v.test(segment.slice(1))) {
-      return Parser.Invalid({
-        value: s,
-        reason: "unexpected upper-case character",
-        kind: "hyphenated acronym",
-      });
-    }
-  }
-
-  return Parser.Valid({
-    value: s,
-    kind: "hyphenated acronym",
-  });
-};
-
-
 // parse a proper name like Foo, Foo-Bar, O'Foo, McFoo
 
-Parser.properName = (...prefixes) => s => {
+Parser.properName = s => {
   if (/[^\p{L}'\-]/v.test(s)) {
     return Parser.Invalid({
       value: s,
@@ -6706,26 +6398,16 @@ Parser.properName = (...prefixes) => s => {
         return Parser.Invalid({
           value: s,
           kind: "proper name",
-          reason: "unexpected lower-case letter after special character",
+          reason: `upper-case letter expected at ${i + 1}`,
         });
       }
     }
 
     else if (/\p{Lu}/v.test(c)) {
-      const sub = s.substring(0, i);
-      let match = false;
-
-      for (const prefix of prefixes) {
-        if (sub.endsWith(prefix)) {
-          match = true;
-          break;
-        }
-      }
-
-      if (match === false) return Parser.Invalid({
+      if (/\p{Lu}/v.test(s[i - 1])) return Parser.Invalid({
         value: s,
         kind: "proper name",
-        reason: "unexpected upper-case letter",
+        reason: `unexpected consecutive upper-case letter at ${i + 1}`,
       });
 
     }
@@ -6775,134 +6457,9 @@ Parser.sentence = s => {
 };
 
 
-//█████ Tokens ████████████████████████████████████████████████████████████████
-
-
-// assumes correct letter casing
-
-/*Parser.properNames = ({locale, inclNoble = false}) => tokens => {
-  const xs = [];
-  let buf = "", altered;
-
-  do {
-    altered = false;
-    xs.length = 0;
-
-    for (let i = 0; i < tokens.length; i++) {
-      const prev2 = i <= 1 ? "" : tokens[i - 2],
-        prev = i === 0 ? "" : tokens[i - 1],
-        curr = tokens[i],
-        next = i + 1 >= tokens.length ? "" : tokens[i + 1],
-        next2 = i + 2 >= tokens.length ? "" : tokens[i + 2];
-
-      // F. B.
-
-      if (/^\p{Lu}\p{Ll}*\.$/v.test(curr)
-        && next === " "
-        && /^\p{Lu}\p{Ll}*\.$/v.test(next2)) {
-          buf += curr + next + next2;
-          altered = true;
-          i += 2;
-      }
-
-      // F. Foo, F. B. Foo, F.B. Foo
-
-      else if (/^(?:\p{Lu}\p{Ll}*\. ?){1,}$/v.test(curr)
-        && next === " "
-        && /^\p{Lu}.+\p{Ll}$/v.test(next2)) {
-          buf += curr + next + next2;
-          altered = true;
-          i += 2;
-      }
-
-      // Foo Bar, Foo Bar Bat, Foo-Bar Bat, Foo Bar-Bat, Foo O'Bar
-
-      else if (/^\p{Lu}.*\p{Ll}$/v.test(curr)
-        && next === " "
-        && /^\p{Lu}.+\p{Ll}$/v.test(next2)) {
-          buf += curr + next + next2;
-          altered = true;
-          i += 2;
-      }
-
-      // Foo of Bar, F. of Bar
-
-      else if (inclNoble && _Map[locale].nobleTitles.has(curr)) {
-        const affixes = _Map[locale].nobleTitles.get(curr),
-          compos = [curr],
-          offset = [0, 0];
-
-        let valid = true;
-
-        if (affixes.pre) {
-          if (tokens[i - 1] === " "
-            && tokens[i - 2] === affixes.pre) {
-              compos.unshift(affixes.pre);
-              offset[0] -= 2;
-          }
-        }
-
-        if (affixes.suf) {
-          if (tokens[i + 1] === " "
-            && tokens[i + 2] === affixes.suf) {
-              compos.push(affixes.suf);
-              offset[1] += 2;
-          }
-        }
-
-        if (tokens[i + offset[0] - 1] !== " ") valid = false;
-        else if (tokens[i + offset[1] + 1] !== " ") valid = false;
-        else if (!/^\p{Lu}.*(?:\p{Ll}|\.)$/v.test(tokens[i + offset[0] - 2])) valid = false;
-        else if (!/^\p{Lu}.*\p{Ll}$/v.test(tokens[i + offset[1] + 2])) valid = false;
-          
-        if (valid) {
-          if (offset[0] < 0) {
-            xs.pop(); // remove space
-            xs.pop(); // remove prefix
-            buf += compos.join(" ");
-          }
-
-          else {
-            xs.pop(); // remove space
-            const last = xs.pop(); // remove prefix
-            buf += last + " " + compos.join(" ");
-          }
-
-          altered = true;
-          i += offset[1];
-        }
-
-        else if (buf !== "") {
-          xs.push(buf);
-          xs.push(curr);
-          buf = "";
-        }
-
-        else xs.push(curr);
-      }
-
-      else if (buf !== "") {
-        xs.push(buf);
-        xs.push(curr);
-        buf = "";
-      }
-
-      else xs.push(curr);
-    }
-
-    if (buf !== "") {
-      xs.push(buf);
-      buf = "";
-    }
-
-    tokens = xs.concat();
-  } while (altered);
-
-  return xs;
-};*/
-
-
-//█████ Number ████████████████████████████████████████████████████████████████
+/*█████████████████████████████████████████████████████████████████████████████
+███████████████████████████████████ NUMBER ████████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
 
 Parser.Num = {};
@@ -7053,7 +6610,9 @@ Parser.Num.maxPlaces = ({max, _throw = false}) => n => {
 };
 
 
-//█████ Object Types ██████████████████████████████████████████████████████████
+/*█████████████████████████████████████████████████████████████████████████████
+████████████████████████████████ OBJECT-BASED █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
 
 Parser.isMember = ({lookup, _throw = false}) => x => {
@@ -7081,55 +6640,6 @@ Parser.isNotMember = ({lookup, _throw = false}) => x => {
 
 
 Parser.unique = Parser.isNotMember;
-
-
-//█████ Combinators ███████████████████████████████████████████████████████████
-
-
-// take two parsers but short circuit if the first fails
-
-Parser.and = f => g => x => {
-  const o = f(x);
-  if (o[$$] === "Parser.Valid") return g(o.value);
-  else return o;
-};
-
-
-// take many parsers but short circuit as soon as one fails
-
-Parser.all = (...fs) => x => {
-  let o = {value: x};
-
-  for (const f of fs) {
-    o = f(o.value);
-    if (x[$$] === "Parser.Invalid") return o;
-  }
-
-  return o;
-};
-
-
-// take two parsers but short circuit if the first succeeds
-
-Parser.or = f => g => x => {
-  const o = f(x);
-  if (o[$$] === "Parser.Valid") return o;
-  else return g(x);
-};
-
-
-// take many parsers but short circuit as soon as the first parser succeeds
-
-Parser.any = (...fs) => {
-  let o = {value: x};
-
-  for (const f of fs) {
-    o = f(o.value);
-    if (x[$$] === "Parser.Valid") return o;
-  }
-
-  return o;
-};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -8908,17 +8418,17 @@ S.splitName = (...titles) => s => {
 
 // split merged words like FooBar into Foo and Bar
 
-S.splitMergedWord = (...exceptions) => s => {
+S.splitMergedWord = (...prefixes) => s => {
   const xs = s.split(/(?<=\p{Ll})(?=\p{Lu})/v);
 
   if (xs.length === 1) return xs;
 
-  else if (exceptions.length) {
+  else if (prefixes.length) {
     const ys = [];
 
     for (let i = 0; i < xs.length; i++) {
-      for (const exception of exceptions) {
-        if (R.v(`${R.preBound_}${R.escape(exception)}$`).test(xs[i])) {
+      for (const prefix of prefixes) {
+        if (R.v(`${R.preBound_}${R.escape(prefix)}$`).test(xs[i])) {
           if (i < xs.length - 1) {
             ys.push(xs[i] + xs[i + 1]);
             i++;
@@ -11237,19 +10747,19 @@ S.Ctor.eq = locale => {
 //█████ Casing ████████████████████████████████████████████████████████████████
 
 
-// convert a word into title case form while considering word components
+/* Convert a proper name into title-case form while considering special camel-
+case prefixes like MacIntosh. */
 
-S.capitalize = (...exceptions) => word => {
-  const lcWord = word.toLowerCase();
-
-  const word2 = lcWord.replace(/(^|['-\.])(\w)/gu, (match, separator, char) => {
-    return separator + char.toUpperCase();
+S.capitalize = (...prefixes) => word => {
+  const word2 = word.toLowerCase().replace(
+    /(^|['-])(\w)/gu, (match, separator, char) => {
+      return separator + char.toUpperCase();
   });
 
-  const is = exceptions.reduce((acc, exception) => {
-    const i = word2.search(R.v(`${R.preBound_}${exception}(?=\\p{L})`))
+  const is = prefixes.reduce((acc, prefix) => {
+    const i = word2.search(R.v(`${R.preBound_}${prefix}(?=\\p{L})`))
     if (i === notFound) return acc;
-    else return A.push(i + exception.length) (acc);
+    else return A.push(i + prefix.length) (acc);
   }, []);
 
   return is.reduce((acc, i) =>
@@ -11257,16 +10767,8 @@ S.capitalize = (...exceptions) => word => {
 };
 
 
-// convert allcaps into title case form while considering word components
-
-S.capitalizeAcronym = (...exceptions) => word => {
-  const casing = S.determineCasing(...exceptions) (word);
-  if (casing === "acronym") return S.capitalize(...exceptions);
-  else return word;
-};
-
-
-/* Possible casings:
+/* Determine the casing of a word while considering special camel-case
+prefixes. Possible casings are:
 
   • lower-case: foo
   • title-case: Foo
@@ -11274,7 +10776,7 @@ S.capitalizeAcronym = (...exceptions) => word => {
   • acronym: FOO
   • arbitrary-case: FOOBar */
 
-S.determineCasing = (...exceptions) => word => {
+S.determineCasing = (...prefixes) => word => {
   const lc = word.toLowerCase(),
     uc = word.toUpperCase();
 
@@ -11292,10 +10794,10 @@ S.determineCasing = (...exceptions) => word => {
         else if (word[i - 1] === "'") continue;
         
         else if (lc[i - 1] === word[i - 1]) {
-          const isException = exceptions.some(exception =>
-            word.slice(i - 2).startsWith(exception));
+          const isPrefix = prefixes.some(prefix =>
+            word.slice(i - 2).startsWith(prefix));
 
-          if (isException) continue;
+          if (isPrefix) continue;
           else guess = "camel-case";
         }
         
@@ -11457,7 +10959,7 @@ S.Lemma.pron = locale => pron => {
 
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
-████████████████████████████████ TOKENITATION █████████████████████████████████
+████████████████████████████████ TOKENIZATION █████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
@@ -11465,14 +10967,18 @@ S.Lemma.pron = locale => pron => {
 /* Tokenize and contexctualize string fragments to meaningful tokens by taking
 a list of fragmented tokens and compose them to more complex, meaningful tokens.
 Input is meant to be split into individual sentences or half-sentences and must
-be free of control characters. */
+not include control characters. */
 
 
 export const Token = {};
 
 
-// primitives
+/*█████████████████████████████████████████████████████████████████████████████
+█████████████████████████████████ PRIMITIVES ██████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
+
+// comes first
 
 Token.base = tokens => {
   const tokens2 = [];
@@ -11481,27 +10987,27 @@ Token.base = tokens => {
     const token = tokens[i];
 
     if (/\p{L}/v.test(token[0])) tokens2.push([{
-      token, class: "letter", context: "letter", index: i,
+      token, class: "letter", context: "n/a", index: i,
     }]);
 
     else if (/\p{N}/v.test(token[0])) tokens2.push([{
-      token, class: "number", context: "number", index: i,
+      token, class: "number", context: "n/a", index: i,
     }]);
 
     else if (/\p{P}/v.test(token[0])) tokens2.push([{
-      token, class: "punct", context: "punct", index: i,
+      token, class: "punct", context: "n/a", index: i,
     }]);
 
     else if (/\p{S}/v.test(token[0])) tokens2.push([{
-      token, class: "symbol", context: "symbol", index: i,
+      token, class: "symbol", context: "n/a", index: i,
     }]);
 
     else if (/\p{Z}/v.test(token[0])) tokens2.push([{
-      token, class: "space", context: "space", index: i,
+      token, class: "space", context: "n/a", index: i,
     }]);
 
     else if (/\p{C}/v.test(token[0])) tokens2.push([{
-      token, class: "ctrl", context: "ctrl", index: i,
+      token, class: "ctrl", context: "n/a", index: i,
     }]);
 
     else throw new Err(`unknown token "${token}"`);
@@ -11557,31 +11063,36 @@ Token.titleCase = tokens => {
 };
 
 
+// distinguish FooBar from fooBar
+
 Token.camelCase = tokens => {
   const tokens2 = [];
   
   for (const os of tokens) {
     tokens2.push(os.reduce((acc, o) => {
-      if (o.class === "letter"
-        && /\p{Ll}\p{Lu}/v.test(o.token)) {
-          return A.pushn(o.token.split(/(?<=\p{Ll})(?=\p{Lu})/v).map(token => {
-            if (/^\p{Ll}+$/v.test(token)){
-              return {
-                token: token,
-                class: o.class,
-                context: "cC",
-                index: o.index,
-              };
-            }
+      let offset = 0;
 
-            else return {
-              token: token,
-              class: o.class,
-              context: "Cc",
-              index: o.index,
-            };
+      if (o.class === "letter" && /\p{Ll}\p{Lu}/v.test(o.token)) {
+        return A.pushn(o.token.split(/(?<=\p{Ll})(?=\p{Lu})/v).map(s => {
+          let p;
 
-          })) (acc);
+          if (s[0].toLowerCase() === s[0]) p = {
+            token: s,
+            class: o.class,
+            context: "cc",
+            index: o.index + offset,
+          };
+
+          else p = {
+            token: s,
+            class: o.class,
+            context: "Cc",
+            index: o.index + offset,
+          };
+
+          offset += s.length;
+          return p;
+        })) (acc);
       }
 
       else return A.push(o) (acc);
@@ -11610,7 +11121,7 @@ Token.allCaps = tokens => {
           else return {
             token: o.token,
             class: o.class,
-            context: "uc",
+            context: "ac",
             index: o.index,
           };
       }
@@ -11646,10 +11157,10 @@ Token.digit = tokens => {
 };
 
 
-// operators
+/*█████████████████████████████████████████████████████████████████████████████
+██████████████████████████████████ OPERATORS ██████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
 
-
-// Foo.-Bar. (hyphenated abbreviations)
 
 Token.hyphen = tokens => {
   const tokens2 = [];
@@ -11662,25 +11173,12 @@ Token.hyphen = tokens => {
       next2 = i + 2 >= tokens.length ? null : tokens[i + 2] [0];
 
     if (curr.length !== 1 || curr[0].token !== "-") tokens2.push(curr);
-
-    else if (prev === null) {
-      if (next.class !== "space") {
-        tokens2.push([
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "hyphen",
-            index: curr[0].index,
-          },
-
-          ...tokens[i + 1],
-        ]);
-      }
-
-      else tokens2.push(curr);
-    }
+    else if (prev === null) tokens2.push(curr);
 
     else if (next === null) {
+
+      // foo-
+
       if (prev.class === "letter") {
         tokens2.push([
           ...tokens[i - 1],
@@ -11694,23 +11192,13 @@ Token.hyphen = tokens => {
         ]);
       }
 
-      else if (prev.class !== "space") {
-        tokens2.push([
-          ...tokens[i - 1],
-
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "hyphen",
-            index: curr[0].index,
-          },
-        ]);
-      }
-
       else tokens2.push(curr);
     }
 
     else {
+
+      // Foo-Bar
+
       if (prev.class === "letter" && next.class === "letter") {
         tokens2.push([
           ...tokens[i - 1],
@@ -11726,6 +11214,8 @@ Token.hyphen = tokens => {
         ]);
       }
 
+      // 3-times
+
       else if (prev.class === "number" && next.class === "letter") {
         tokens2.push([
           ...tokens[i - 1],
@@ -11733,7 +11223,7 @@ Token.hyphen = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "numerical",
+            context: "numerical-term",
             index: curr[0].index,
           },
 
@@ -11741,22 +11231,14 @@ Token.hyphen = tokens => {
         ]);
       }
 
-      else if (prev.class === "letter" && next.class === "number") {
-        tokens2.push([
-          ...tokens[i - 1],
-          ...tokens[i],
-          ...tokens[i + 1],
-        ]);
-      }
-
-      // supplementary hyphen in prefix position (foobar and -baz)
+      // foo-bar and -baz
 
       else if (prev.class === "space" && next.class === "letter") {
         tokens2.push([
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "supplementary",
+            context: "dangling-term",
             index: curr[0].index,
           },
 
@@ -11764,7 +11246,7 @@ Token.hyphen = tokens => {
         ]);
       }
 
-      // supplementary hyphen in suffix position (foo- and barbaz)
+      // foo- and bar-baz
 
       else if (prev.class === "letter" && next.class === "space") {
         tokens2.push([
@@ -11773,11 +11255,13 @@ Token.hyphen = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "supplementary",
+            context: "dangling-term",
             index: curr[0].index,
           },
         ]);
       }
+
+      // 1-10
 
       else if (prev.context === "digit" && next.context === "digit") {
         tokens2.push([
@@ -11794,41 +11278,19 @@ Token.hyphen = tokens => {
         ]);
       }
 
+      // -10
+
       else if (prev.class === "space" && next.class === "number") {
         tokens2.push([
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "minus",
+            context: "negative-sign",
             index: curr[0].index,
           },
 
           ...tokens[i + 1],
         ]);
-      }
-
-      else if (prev.context === "digit" && next.class === "space") {
-        tokens2.push([
-          ...tokens[i - 1],
-          ...tokens[i],
-        ]);
-      }
-
-      else if (prev.class === "letter"
-        && next.class === "ctrl"
-        && /\r?\n/.test(next.token)) {
-          tokens2.push([
-            ...tokens[i - 1],
-
-            {
-              token: curr[0].token,
-              class: curr[0].class,
-              context: "word-wrap",
-              index: curr[0].index,
-            },
-
-            ...tokens[i + 1],
-          ]);
       }
 
       else tokens2.push(curr);
@@ -11839,7 +11301,7 @@ Token.hyphen = tokens => {
 };
 
 
-Token.period = tokens => {
+Token.point = tokens => {
   const tokens2 = [];
 
   for (let i = 0; i < tokens.length; i++) {
@@ -11870,19 +11332,6 @@ Token.period = tokens => {
         }
 
         else tokens2.push(curr);
-      }
-
-      else if (next.class !== "space") {
-        tokens2.push([
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "point",
-            index: curr[0].index,
-          },
-
-          ...tokens[i + 1],
-        ]);
       }
 
       else tokens2.push(curr);
@@ -11946,6 +11395,21 @@ Token.period = tokens => {
         ]);
       }
 
+      // foo..bar or 123..bar or foo..123
+
+      else if (prev.class !== "space" && next.class !== "space") {
+        tokens2.push([
+          ...tokens[i - 1],
+
+          {
+            token: curr[0].token,
+            class: curr[0].class,
+            context: "ellipse",
+            index: curr[0].index,
+          },
+        ]);
+      }
+
       // foo.._ or 123.._ (with space)
 
       else if (prev.class !== "space" && next.class === "space") {
@@ -11983,14 +11447,33 @@ Token.period = tokens => {
 
       // e.g.
 
-      if (prev.class === "letter" && next.class === "letter") {
+      if (prev.class === "letter"
+        && next.class === "letter"
+        && next2.token === ".") {
+          tokens2.push([
+            ...tokens[i - 1],
+
+            {
+              token: curr[0].token,
+              class: curr[0].class,
+              context: "abbreviation",
+              index: curr[0].index,
+            },
+
+            ...tokens[i + 1],
+          ]);
+      }
+
+      // example.com
+
+      else if (prev.class === "letter" && next.class === "letter") {
         tokens2.push([
           ...tokens[i - 1],
 
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "abbreviation",
+            context: "connector",
             index: curr[0].index,
           },
 
@@ -11998,11 +11481,8 @@ Token.period = tokens => {
         ]);
       }
 
-      /* foo. or 123. (abbreviation)
+      // foo. (always abbreviation because we assume sub-sentence context)
       
-      Assumes that a single sentence ist the largest structure passed to this
-      function. */
-
       else if (prev.class === "letter" && next.class === "space") {
         tokens2.push([
           ...tokens[i - 1],
@@ -12011,19 +11491,6 @@ Token.period = tokens => {
             token: curr[0].token,
             class: curr[0].class,
             context: "abbreviation",
-            index: curr[0].index,
-          },
-        ]);
-      }
-
-      else if (prev.class !== "space" && next.class === "space") {
-        tokens2.push([
-          ...tokens[i - 1],
-
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "point",
             index: curr[0].index,
           },
         ]);
@@ -12038,7 +11505,7 @@ Token.period = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "decimal",
+            context: "decimal-separator",
             index: curr[0].index,
           },
 
@@ -12065,50 +11532,48 @@ Token.apo = tokens => {
       next2 = i + 2 >= tokens.length ? null : tokens[i + 2] [0];
 
     if (curr.length !== 1 || curr[0].token !== "'") tokens2.push(curr);
-
-    else if (prev === null) {
-      
-      // 'foo (colloquial abbreviation)
-
-      if (next.class === "letter") {
-        tokens2.push([
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "colloquial",
-            index: curr[0].index,
-          },
-
-          ...tokens[i + 1],
-        ]);
-      }
-
-      else tokens2.push(curr);
-    }
-
-    else if (next === null) {
-
-      // foo' (colloquial abbreviation)
-
-      if (prev.class === "letter") {
-        tokens2.push([
-          ...tokens[i - 1],
-
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "possessive",
-            index: curr[0].index,
-          },
-        ]);
-      }
-
-      else tokens2.push(curr);
-    }
+    else if (prev === null) tokens2.push(curr);
+    else if (next === null) tokens2.push(curr);
 
     else {
 
-      // Foo'Bar (O'Hara) or Foo'bar (Newton's)
+      // Foo's
+
+      if (prev.class === "letter"
+        && next.class === "letter"
+        && next.token === "s") {
+          tokens2.push([
+            ...tokens[i - 1],
+
+            {
+              token: curr[0].token,
+              class: curr[0].class,
+              context: "possession",
+              index: curr[0].index,
+            },
+
+            ...tokens[i + 1],
+          ]);
+      }
+
+      // Bas'
+
+      else if (prev.class === "letter"
+        && next.class === "space"
+        && prev.token[prev.token.length - 1] === "s") {
+          tokens2.push([
+            ...tokens[i - 1],
+
+            {
+              token: curr[0].token,
+              class: curr[0].class,
+              context: "possession",
+              index: curr[0].index,
+            },
+          ]);
+      }
+
+      // O'Hara or int'l
 
       if (prev.class === "letter" && next.class === "letter") {
         tokens2.push([
@@ -12117,7 +11582,7 @@ Token.apo = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "patronymic",
+            context: "contraction",
             index: curr[0].index,
           },
 
@@ -12125,22 +11590,24 @@ Token.apo = tokens => {
         ]);
       }
 
-      // 'foo (colloquial abbreviation)
+      // 'foo
 
-      else if (prev.class === "space" && next.class === "letter") {
-        tokens2.push([
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "colloquial",
-            index: curr[0].index,
-          },
+      else if (prev.class === "space"
+        && next.class === "letter"
+        && next.context === "lc") {
+          tokens2.push([
+            {
+              token: curr[0].token,
+              class: curr[0].class,
+              context: "contraction",
+              index: curr[0].index,
+            },
 
-          ...tokens[i + 1],
-        ]);
+            ...tokens[i + 1],
+          ]);
       }
 
-      // foo' (colloquial abbreviation)
+      // foo'
 
       else if (prev.class === "letter" && next.class === "space") {
         tokens2.push([
@@ -12149,7 +11616,7 @@ Token.apo = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "possessive",
+            context: "contraction",
             index: curr[0].index,
           },
         ]);
@@ -12262,7 +11729,7 @@ Token.slash = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "per",
+            context: "rate",
             index: curr[0].index,
           },
 
@@ -12291,26 +11758,7 @@ Token.comma = tokens => {
     if (curr.length !== 1 || curr[0].token !== ",") tokens2.push(curr);
 
     else if (prev === null) tokens2.push(curr);
-    
-    else if (next === null) {
-
-      // foo, (subdivision)
-
-      if (prev.class !== "space") {
-        tokens2.push([
-          ...tokens[i - 1],
-
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "subdivision",
-            index: curr[0].index,
-          },
-        ]);
-      }
-
-      else tokens2.push(curr);
-    }
+    else if (next === null) tokens2.push(curr);
 
     else {
 
@@ -12318,8 +11766,6 @@ Token.comma = tokens => {
 
       if (prev.class !== "space" && next.class === "space") {
         tokens2.push([
-          ...tokens[i - 1],
-
           {
             token: curr[0].token,
             class: curr[0].class,
@@ -12338,7 +11784,7 @@ Token.comma = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "decimal",
+            context: "decimal-separator",
             index: curr[0].index,
           },
 
@@ -12366,7 +11812,26 @@ Token.colon = tokens => {
 
     if (curr.length !== 1 || curr[0].token !== ":") tokens2.push(curr);
     else if (prev === null) tokens2.push(curr);
-    else if (next === null) tokens2.push(curr);
+    
+    else if (next === null) {
+
+      // Foo:
+
+      if (prev.class !== "space") {
+        tokens2.push([
+          ...tokens[i - 1],
+
+          {
+            token: curr[0].token,
+            class: curr[0].class,
+            context: "introductory",
+            index: curr[0].index,
+          },
+        ]);
+      }
+
+      else tokens2.push(curr);
+    }
     
     else {
 
@@ -12385,7 +11850,7 @@ Token.colon = tokens => {
         ]);
       }
 
-      // Lehrer:innen (gender notation)
+      // Lehrer:innen
 
       else if (prev.class === "letter" && next.class === "letter") {
         tokens2.push([
@@ -12468,6 +11933,7 @@ Token.quote = tokens => {
         && (next.class === "space"
         || next.token === "."
         || next.token === ","
+        || next.token === ";"
         || next.token === ":")) {
           tokens2.push([
             ...tokens[i - 1],
@@ -12503,7 +11969,26 @@ Token.percent = tokens => {
 
     if (curr.length !== 1 || curr[0].token !== "%") tokens2.push(curr);
     else if (prev === null) tokens2.push(curr);
-    else if (next === null) tokens2.push(curr);
+
+    else if (next === null) {
+
+      // 100%
+
+      if (prev.context === "digit") {
+        tokens2.push([
+          ...tokens[i - 1],
+
+          {
+            token: curr[0].token,
+            class: curr[0].class,
+            context: "percent",
+            index: curr[0].index,
+          },
+        ]);
+      }
+
+      else tokens2.push(curr);
+    }
 
     else {
 
@@ -12546,7 +12031,7 @@ Token.amp = tokens => {
 
     else {
 
-      // Foo&Bar or F&B
+      // F&B
 
       if (prev.class === "letter"
         && next.class === "letter"
@@ -12565,6 +12050,8 @@ Token.amp = tokens => {
             ...tokens[i + 1],
           ]);
       }
+
+      // Foo&Bar
 
       else if (prev.class === "letter" && next.class === "letter") {
         tokens2.push([
@@ -12649,6 +12136,7 @@ Token.currency = tokens => {
         && (next.class === "space"
         || next.token === "."
         || next.token === ","
+        || next.token === ";"
         || next.token === ":")) {
           tokens2.push([
             ...tokens[i - 1],
@@ -12696,28 +12184,8 @@ Token.plus = tokens => {
       next2 = i + 2 >= tokens.length ? null : tokens[i + 2] [0];
 
     if (curr.length !== 1 || curr[0].token !== "+") tokens2.push(curr);
-
-    else if (prev === null) {
-
-      // +100
-
-      if (next.context === "digit") {
-        tokens2.push([
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "emphasis",
-            index: curr[0].index,
-          },
-
-          ...tokens[i + 1],
-        ]);
-      }
-    }
-
-    else if (next === null) {
-
-    }
+    else if (prev === null) tokens2.push(curr);
+    else if (next === null) tokens2.push(curr);
 
     else {
 
@@ -12747,7 +12215,7 @@ Token.plus = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "enumeration",
+            context: "conjunction",
             index: curr[0].index,
           },
 
@@ -12755,7 +12223,7 @@ Token.plus = tokens => {
         ]);
       }
 
-      // +100
+      // +10
 
       else if (prev.class === "space" && next.context === "digit") {
         tokens2.push([
@@ -12768,6 +12236,26 @@ Token.plus = tokens => {
 
           ...tokens[i + 1],
         ]);
+      }
+
+      // 10+
+
+      else if (prev.context === "digit"
+        && (next.class === "space"
+        || next.token === "."
+        || next.token === ","
+        || next.token === ";"
+        || next.token === ":")) {
+          tokens2.push([
+            {
+              token: curr[0].token,
+              class: curr[0].class,
+              context: "quantifier",
+              index: curr[0].index,
+            },
+
+            ...tokens[i + 1],
+          ]);
       }
 
       else tokens2.push(curr);
@@ -12820,6 +12308,7 @@ Token.dotDash = tokens => {
         && (next.class === "space"
         || next.token === "."
         || next.token === ","
+        || next.token === ";"
         || next.token === ":")) {
           tokens2.push([
             ...tokens[i - 1],
@@ -12900,6 +12389,7 @@ Token.commaDash = tokens => {
         && (next.class === "space"
         || next.token === "."
         || next.token === ","
+        || next.token === ";"
         || next.token === ":")) {
           tokens2.push([
             ...tokens[i - 1],
@@ -12949,6 +12439,7 @@ Token.degree = tokens => {
         && (next.class === "space"
         || next.token === "."
         || next.token === ","
+        || next.token === ";"
         || next.token === ":")) {
           tokens2.push([
             ...tokens[i - 1],
@@ -13024,9 +12515,29 @@ Token.asterisk = tokens => {
 
     else {
 
-      // Lehrer*innen
+      // foo* or foo**
 
       if (prev.class === "letter"
+        && (next.class === "space"
+        || next.token === "."
+        || next.token === ","
+        || next.token === ";"
+        || next.token === ":")) {
+          tokens2.push([
+            ...tokens[i - 1],
+
+            {
+              token: curr[0].token,
+              class: curr[0].class,
+              context: "footnote",
+              index: curr[0].index,
+            },
+          ]);
+      }
+
+      // Lehrer*innen
+
+      else if (prev.class === "letter"
         && next.class === "letter"
         && curr.token.length === 1) {
           tokens2.push([
@@ -13040,25 +12551,6 @@ Token.asterisk = tokens => {
             },
 
             ...tokens[i + 1],
-          ]);
-      }
-
-      // foo* or foo**
-
-      else if (prev.class === "letter"
-        && (next.class === "space"
-        || next.token === "."
-        || next.token === ","
-        || next.token === ":")) {
-          tokens2.push([
-            ...tokens[i - 1],
-
-            {
-              token: curr[0].token,
-              class: curr[0].class,
-              context: "footnote",
-              index: curr[0].index,
-            },
           ]);
       }
 
@@ -13211,7 +12703,7 @@ Token.hash = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "numerical",
+            context: "ordinality",
             index: curr[0].index,
           },
 
@@ -13307,6 +12799,7 @@ Token.parenthesis = tokens => {
         && (next.class === "space"
         || next.token === "."
         || next.token === ","
+        || next.token === ";"
         || next.token === ":")) {
           tokens2.push([
             ...tokens[i - 1],
@@ -13363,27 +12856,7 @@ Token.exclamation = tokens => {
       }
     }
 
-    else {
-
-      // foo!
-
-      if (prev.class !== "space" && next.class === "space") {
-        tokens2.push([
-          ...tokens[i - 1],
-
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "exclamation",
-            index: curr[0].index,
-          },
-
-          ...tokens[i + 1],
-        ]);
-      }
-
-      else tokens2.push(curr);
-    }
+    else tokens2.push(curr);
   }
 
   return tokens2;
@@ -13421,25 +12894,7 @@ Token.question = tokens => {
       }
     }
 
-    else {
-
-      // foo!
-
-      if (prev.class !== "space" && next.class === "space") {
-        tokens2.push([
-          ...tokens[i - 1],
-
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "question",
-            index: curr[0].index,
-          },
-        ]);
-      }
-
-      else tokens2.push(curr);
-    }
+    else tokens2.push(curr);
   }
 
   return tokens2;
@@ -13477,25 +12932,7 @@ Token.interrobang = tokens => {
       }
     }
 
-    else {
-
-      // foo!?
-
-      if (prev.class !== "space" && next.class === "space") {
-        tokens2.push([
-          ...tokens[i - 1],
-
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "interrobang",
-            index: curr[0].index,
-          },
-        ]);
-      }
-
-      else tokens2.push(curr);
-    }
+    else tokens2.push(curr);
   }
 
   return tokens2;
@@ -13514,12 +12951,24 @@ Token.semicolon = tokens => {
 
     if (curr.length !== 1 || curr[0].token !== ";") tokens2.push(curr);
 
-    else if (prev === null) {
-
-    }
+    else if (prev === null) tokens2.push(curr);
 
     else if (next === null) {
 
+      // foo bar;
+
+      if (prev.class === "letter") {
+        tokens2.push([
+          {
+            token: curr[0].token,
+            class: curr[0].class,
+            context: "subdivision",
+            index: curr[0].index,
+          },
+        ]);
+      }
+
+      else tokens2.push(curr);
     }
 
     else {
@@ -13528,16 +12977,12 @@ Token.semicolon = tokens => {
 
       if (prev.class === "letter" && next.class === "space") {
         tokens2.push([
-          ...tokens[i - 1],
-
           {
             token: curr[0].token,
             class: curr[0].class,
             context: "subdivision",
             index: curr[0].index,
           },
-
-          ...tokens[i + 1],
         ]);
       }
 
@@ -13572,7 +13017,7 @@ Token.tilde = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "patronymic",
+            context: "approximation",
             index: curr[0].index,
           },
 
@@ -13588,14 +13033,18 @@ Token.tilde = tokens => {
 };
 
 
-// consolidation
+//█████ Consolidation █████████████████████████████████████████████████████████
 
+
+// comes last
 
 Token.consolidate = tokens => {
   let altered;
 
   do {
     altered = false;
+
+    // merge consecutive or overlapping indices
 
     for (let i = tokens.length - 1; i >= 0; i--) {
       const prev = i - 1 < 0 ? null : tokens[i - 1],
@@ -13610,7 +13059,11 @@ Token.consolidate = tokens => {
         if (prev[0].class === "space") continue;
         else if (curr[0].class === "space") continue;
 
-        // merge consecutive or overlapping indices
+        else if (prev[0].class === "punct"
+          && prev[0].context === "subdivision") continue;
+
+        else if (curr[0].class === "punct"
+          && curr[0].context === "subdivision") continue;
 
         else if (curr[0].index - last.index <= 1) {
           tokens[i - 1] = A.unionWith(o => o.index) (prev) (curr);
@@ -13628,7 +13081,8 @@ Token.consolidate = tokens => {
 };
 
 
-// default composition
+//█████ Composition ███████████████████████████████████████████████████████████
+
 
 Token.pipeAll = pipes(
 Token.base,
@@ -13638,7 +13092,7 @@ Token.camelCase,
 Token.allCaps,
 Token.digit,
 Token.hyphen,
-Token.period,
+Token.point,
 Token.apo,
 Token.slash,
 Token.comma,
@@ -13661,8 +13115,469 @@ Token.exclamation,
 Token.question,
 Token.interrobang,
 Token.semicolon,
-Token.tilde
-);
+Token.tilde,
+Token.consolidate);
+
+
+/*█████████████████████████████████████████████████████████████████████████████
+████████████████████████████████ HIGHER-ORDER █████████████████████████████████
+███████████████████████████████████████████████████████████████████████████████*/
+
+
+/* Higher-order tokenizer are meant to be applied to composite patterns whereas
+combinators of the parser namespace deal with atomic ones. */
+
+
+// Foo-Bar
+
+Token.hyphenatedWord = ({maxCompos}) => tokens => {
+  const acc = [];
+
+  main: for (let i = 0; i < tokens.length; i++) {
+    const group = tokens[i];
+
+    if (group.length / 2 > maxCompos) continue;
+    else if (group.length % 2 === 0) continue;
+
+    for (let j = 0; j < group.length; j++) {
+      const token = group[j];
+
+      if ((j + 1) % 2 === 0) {
+        if (token.class !== "punct") continue main;
+        else if (token.context !== "hyphenation") continue main;
+      }
+
+      else {
+        if (token.class !== "letter") continue main;
+        else if (token.context !== "tc") continue main;
+      }
+    }
+
+    acc.push(group);
+  }
+
+  return acc;
+};
+
+
+/* Find coherent proper name patterns within a sequence of tokens. Assumes
+correct letter casing. Allowed casings are title case (Foo), camel case (FooBar)
+and lower case (foo) provided they are member of `infixes`.
+
+prefixes: salutations and noble titles at the beginning of the name
+infixes: name extensions in the middle of the name */
+
+Token.properNames = ({prefixes, infixes}) => tokens => {
+  const acc = [], buf = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const group = tokens[i];
+
+    // elementary
+
+    if (group.length === 1) {
+      if (group[0].class === "letter") {
+        if (group[0].context === "tc") {
+
+          // prefix extension
+
+          if (prefixes.has(group[0].token)) {
+            if (buf.length === 0
+              || buf[buf.length - 1].kind === "prefix")
+                buf.push({compo: group, kind: "prefix"});
+
+            else {
+              if (buf.length > 1) acc.push(buf);
+              buf.length = 0;
+            }
+          }
+  
+          // name component
+
+          else buf.push({compo: group, kind: "compo"});
+        }
+
+        else if (group[0].context === "lc") {
+  
+          // infix extension
+
+          if (infixes.has(group[0].token)) {
+            if (buf.length === 0
+              || i + 1 === tokens.length
+              || tokens[i + 1] [0].class !== "space") {
+                if (buf.length > 1) acc.push(buf);
+                buf.length = 0;
+            }
+              
+            else buf.push({compo: group, kind: "infix"});
+          }
+          
+          else {
+            if (buf.length > 1) acc.push(buf);
+            buf.length = 0;
+          }
+        }
+
+        else if (group.context === "Cc") {
+          if (namePrefixes.has(group[0].token)) buf.push({compo: group, kind: "compo"});
+
+          else {
+            if (buf.length > 1) acc.push(buf);
+            buf.length = 0;
+          }
+        }
+
+        else {
+          if (buf.length > 1) acc.push(buf);
+          buf.length = 0;
+        }
+      }
+
+      else if (group[0].class === "space")
+        buf.push({compo: group, kind: "separator"});
+
+      else if (group[0].class === "punct") {
+        if (group[0].context === "subdivision")
+          buf.push({compo: group, kind: "separator"});
+
+        else {
+          if (buf.length > 1) acc.push(buf);
+          buf.length = 0;
+        }
+      }
+
+      else {
+        if (buf.length > 1) acc.push(buf);
+        buf.length = 0;
+      }
+    }
+
+    else if (group.length === 2) {
+
+      // composite (McFoo)
+
+      if (group[0].class === "letter" && group[0].context === "Cc")
+        buf.push({compo: group, kind: "compo"});
+
+      // composite (F.)
+
+      else if (group[0].class === "letter" && group[0].context === "initial"
+        && group[1].class === "punct" && group[1].context === "abbreviation")
+          buf.push({compo: group, kind: "compo"});
+
+      else {
+        if (buf.length > 1) acc.push(buf);
+        buf.length = 0;
+      }
+    }
+
+    // composite (Foo-Bar)
+
+    else if (group.length === 3) {
+      if (group[1].class === "punct" && group[1].context === "hyphenation")
+        buf.push({compo: group, kind: "compo"});
+
+      // O'Foo
+
+      else if (group[1].class === "punct" && group[1].context === "contraction")
+        buf.push({compo: group, kind: "compo"});
+
+      else {
+        if (buf.length > 1) acc.push(buf);
+        buf.length = 0;
+      }
+    }
+
+    else if (group.length === 4) {
+
+      // composite (Foo-McBar)
+
+      if (group[1].class === "punct" && group[1].context === "hyphenation"
+        && group[2].class === "letter" && group[2].context === "Cc")
+          buf.push({compo: group, kind: "compo"});
+
+      // composite (McFoo-Bar)
+
+      else if (group[0].class === "letter" && group[0].context === "Cc"
+        && group[2].class === "punct" && group[2].context === "hyphenation")
+          buf.push({compo: group, kind: "compo"});
+
+      // composite (F.-B.)
+
+      else if (group[1].class === "punct" && group[1].context === "hyphenation"
+        && group[3].class === "punct" && group[3].context === "abbreviation")
+          buf.push({compo: group, kind: "compo"});
+
+      else {
+        if (buf.length > 1) acc.push(buf);
+        buf.length = 0;
+      }
+    }
+
+    else if (group.length === 5) {
+
+      // O'Foo-Bar
+
+      if (group[1].class === "punct" && group[1].context === "hyphenation"
+        && group[3].class === "punct" && group[3].context === "contraction")
+          buf.push({compo: group, kind: "compo"});
+
+      else {
+        if (buf.length > 1) acc.push(buf);
+        buf.length = 0;
+      }
+    }
+
+    else {
+      if (buf.length > 1) acc.push(buf);
+      buf.length = 0;
+    }
+  }
+
+  if (buf.length > 1) acc.push(buf);
+  return acc;
+};
+
+
+// 3-times
+
+Token.numericalTerm = tokens => {
+  const acc = [];
+
+  main: for (let i = 0; i < tokens.length; i++) {
+    const group = tokens[i];
+
+    if (group.length / 2 > 2) continue;
+    else if (group.length % 2 === 0) continue;
+
+    for (let j = 0; j < group.length; j++) {
+      const token = group[j];
+
+      if ((j + 1) % 2 === 0) {
+        if (token.class !== "punct") continue main;
+        else if (token.context !== "numerical-term") continue main;
+      }
+
+      else if (j === 0) {
+        if (token.class !== "number") continue main;
+        else if (token.context !== "digit") continue main;
+      }
+
+      else {
+        if (token.class !== "letter") continue main;
+        else if (token.context !== "tc") continue main;
+      }
+    }
+
+    acc.push(group);
+  }
+
+  return acc;
+};
+
+
+// etc., i.e., Ph.D.
+
+Token.abbr = tokens => {
+  const acc = [];
+
+  main: for (let i = 0; i < tokens.length; i++) {
+    const group = tokens[i];
+
+    if (group.length < 2) continue;
+
+    else if (group[0].class !== "letter"
+      || group[0].context === "ac")
+        continue;
+
+    else if (group[1].class !== "punct"
+      || group[1].context !== "abbreviation")
+        continue;
+
+    else if (group[group.length - 1].class !== "punct"
+      || group[group.length - 1].context !== "abbreviation")
+        continue main;
+
+    for (let j = 1; j < group.length - 1; j++) {
+      const token = group[j];
+
+      if (token.class === "letter") {
+        if (token.context === "tc") continue;
+        else if (token.context === "Cc") continue;
+        else if (token.context === "cc") continue;
+        else if (token.context === "initial") continue;
+        else continue main;
+      }
+  
+      else if (token.class === "punct"
+        && token.context === "abbreviation")
+          continue;
+      
+      else continue main;
+    }
+
+    acc.push(group);
+  }
+
+  return acc;
+};
+
+
+// Foo.-Bar.
+
+Token.hyphenatedAbbr = tokens => {
+  const acc = [];
+
+  main: for (let i = 0; i < tokens.length; i++) {
+    const group = tokens[i];
+
+    if (group.length < 3) continue;
+
+    else if (group[0].class !== "letter"
+      || group[0].context === "ac")
+        continue;
+
+    else if (group[1].class !== "punct"
+      || group[1].context !== "hyphenation")
+        continue;
+
+    else if (group[group.length - 1].class !== "punct"
+      || group[group.length - 1].context !== "abbreviation")
+        continue main;
+
+    for (let j = 1; j < group.length - 1; j++) {
+      const token = group[j];
+
+      if (token.class === "letter") {
+        if (token.context === "tc") continue;
+        else if (token.context === "Cc") continue;
+        else if (token.context === "cc") continue;
+        else if (token.context === "initial") continue;
+        else continue main;
+      }
+  
+      else if (token.class === "punct"
+        && token.context === "hyphenation")
+          continue;
+
+      else if (token.class === "punct"
+        && token.context === "abbreviation")
+          continue;
+      
+      else continue main;
+    }
+
+    acc.push(group);
+  }
+
+  return acc;
+};
+
+
+// ASAP, R&D, N/A
+
+Token.acronym = tokens => {
+  const acc = [];
+
+  main: for (let i = 0; i < tokens.length; i++) {debugger;
+    const group = tokens[i];
+    let hasAllCaps = false;
+
+    if (group.length === 1) {
+      if (group[0].class !== "letter"
+        || group[0].context !== "ac")
+          continue;
+
+      else acc.push(group);
+    }
+
+    else if (group.length === 3) {
+      if (group[0].class !== "letter"
+        || (group[0].context !== "ac"
+        && group[0].context !== "initial"))
+          continue;
+
+      else if (group[1].class !== "punct"
+        || group[1].context !== "abbreviation")
+          continue;
+
+      else if (group[2].class !== "letter"
+        || (group[2].context !== "ac"
+        && group[2].context !== "initial"))
+          continue;
+
+      else acc.push(group);
+    }
+
+    else continue;
+  }
+
+  return acc;
+};
+
+
+// IT-solution
+
+Token.hyphenatedAcronym = ({maxCompos}) => tokens => {
+  const acc = [];
+
+  main: for (let i = 0; i < tokens.length; i++) {
+    const group = tokens[i];
+    let hasCaps = false, hasOthers = false;
+
+    if (group.length / 2 > maxCompos) continue;
+    else if (group.length % 2 === 0) continue;
+
+    for (let j = 0; j < group.length; j++) {
+      const token = group[j];
+
+      if ((j + 1) % 2 === 0) {
+        if (token.class !== "punct") continue main;
+        else if (token.context !== "hyphenation") continue main;
+      }
+
+      else {
+        if (token.class !== "letter") continue main;
+
+        else if (token.context === "ac"
+          || token.context === "initial") hasCaps = true;
+
+        else hasOthers = true;
+      }
+    }
+
+    if (hasCaps && hasOthers) acc.push(group);
+  }
+
+  return acc;
+};
+
+
+Token.street = tokens => {
+  // TODO
+  // Berliner Straße 43
+  // Berliner Str. 43
+  // Berliner Allee 43
+  // Hauptstraße 43
+  // Hauptstr. 43
+  // Hauptstr. 43a
+  // Hauptstr. 43 a
+  // Hauptstr. 43a-c
+  // Hauptstr. 43-44
+};
+
+
+Token.iban = tokens => {
+  // TODO
+  // CH12 3456 7890 0000
+  // CH12-3456-7890-0000
+};
+
+
+Token.phoneNo = tokens => {
+  // TODO
+  // special chars: - () / " " +
+};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
