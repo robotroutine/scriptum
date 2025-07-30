@@ -9,9 +9,8 @@
         _\//////////_____\////////__\///__________\///__\/\\\//////_______\/////_____\/////////___\///___\///___\///__
          ________________________________________________\/\\\_________________________________________________________
           ________________________________________________\/\\\_________________________________________________________
-           ________________________________________________\/\\\_________________________________________________________
-            ________________________________________________\///__________________________________________________________
-             ______________________________________________________________________________________________________________
+           ________________________________________________\///__________________________________________________________
+            ______________________________________________________________________________________________________________
 
 scriptum - library for pattern detection and natural language processing */
 
@@ -6305,28 +6304,28 @@ Parser.email = s => {
 /* Parse a regular word, i.e. a string that only contains UTF8 letters in either
 all lower-case or title-case. */
 
-Parser.word = minLen => s => {
+Parser.word = ({minLen}) => s => {
   if (s.length < minLen) {
     return Parser.Invalid({
       value: s,
-      reason: `shorter than ${minLen}`,
       kind: "regular word",
+      reason: `shorter than ${minLen}`,
     });
   }
 
   else if (/[^\p{L}]/v.test(s)) {
     return Parser.Invalid({
       value: s,
-      reason: "contains invalid characters",
       kind: "regular word",
+      reason: "contains invalid characters",
     });
   }
 
   else if (/\p{Lu}/v.test(s.slice(1))) {
     return Parser.Invalid({
       value: s,
-      reason: "unexpected upper-case letter",
       kind: "regular word",
+      reason: "unexpected upper-case letter",
     });
   }
   
@@ -6339,8 +6338,16 @@ Parser.word = minLen => s => {
 
 // parse a proper name like Foo, Foo-Bar, O'Foo, McFoo
 
-Parser.properName = s => {
-  if (/[^\p{L}'\-]/v.test(s)) {
+Parser.properName = ({minLen}) => s => {
+  if (s.length < minLen) {
+    return Parser.Invalid({
+      value: s,
+      kind: "proper name",
+      reason: `shorter than ${minLen}`,
+    });
+  }
+
+  else if (/[^\p{L}'\-]/v.test(s)) {
     return Parser.Invalid({
       value: s,
       kind: "proper name",
@@ -11162,6 +11169,93 @@ Token.digit = tokens => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
+Token.space = tokens => {
+  const tokens2 = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const prev2 = i <= 1 ? null : A.last(tokens[i - 2]),
+      prev = i === 0 ? null : A.last(tokens[i - 1]),
+      curr = tokens[i],
+      next = i + 1 >= tokens.length ? null : tokens[i + 1] [0],
+      next2 = i + 2 >= tokens.length ? null : tokens[i + 2] [0];
+
+    if (curr[0].token !== " ") tokens2.push(curr);
+    else if (prev === null) tokens2.push(curr);
+    else if (next === null) tokens2.push(curr);
+
+    else {
+      if (prev.class === "number"
+        && prev.context === "digit"
+        && next.class === "letter") {
+
+          // 123 ABC
+
+          if (next.context === "initial" || next.context === "ac") {
+            tokens2.push([
+              ...tokens[i - 1],
+
+              {
+                token: curr[0].token,
+                class: curr[0].class,
+                context: "separator",
+                index: curr[0].index,
+              },
+
+              ...tokens[i + 1],
+            ]);
+          }
+
+          else tokens2.push(curr);
+      }
+
+      // ABC 123
+
+      else if (prev.class === "letter"
+        && next.class === "number"
+        && next.context === "digit") {
+          if (prev.context === "initial" || prev.context === "ac") {
+            tokens2.push([
+              ...tokens[i - 1],
+
+              {
+                token: curr[0].token,
+                class: curr[0].class,
+                context: "separator",
+                index: curr[0].index,
+              },
+
+              ...tokens[i + 1],
+            ]);
+          }
+
+          else tokens2.push(curr);
+      }
+
+      // 123 456
+
+      if (prev.class === "digit" && next.class === "digit") {
+        tokens2.push([
+          ...tokens[i - 1],
+
+          {
+            token: curr[0].token,
+            class: curr[0].class,
+            context: "separator",
+            index: curr[0].index,
+          },
+
+          ...tokens[i + 1],
+        ]);
+      }
+
+      else tokens2.push(curr);
+    }
+  }
+
+  return tokens2;
+};
+
+
 Token.hyphen = tokens => {
   const tokens2 = [];
 
@@ -11214,21 +11308,68 @@ Token.hyphen = tokens => {
         ]);
       }
 
-      // 3-times
+      else if (prev.class === "number"
+        && prev.context === "digit"
+        && next.class === "letter") {
 
-      else if (prev.class === "number" && next.class === "letter") {
-        tokens2.push([
-          ...tokens[i - 1],
+          // 3-times
 
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "numerical-term",
-            index: curr[0].index,
-          },
+          if (next.context === "lc") {
+            tokens2.push([
+              ...tokens[i - 1],
 
-          ...tokens[i + 1],
-        ]);
+              {
+                token: curr[0].token,
+                class: curr[0].class,
+                context: "numerical-term",
+                index: curr[0].index,
+              },
+
+              ...tokens[i + 1],
+            ]);
+          }
+
+          // 123-ABC
+
+          else if (next.context === "initial" || next.context === "ac") {
+            tokens2.push([
+              ...tokens[i - 1],
+
+              {
+                token: curr[0].token,
+                class: curr[0].class,
+                context: "separator",
+                index: curr[0].index,
+              },
+
+              ...tokens[i + 1],
+            ]);
+          }
+
+          else tokens2.push(curr);
+      }
+
+      // ABC-123
+
+      else if (prev.class === "letter"
+        && next.class === "number"
+        && next.context === "digit") {
+          if (prev.context === "initial" || prev.context === "ac") {
+            tokens2.push([
+              ...tokens[i - 1],
+
+              {
+                token: curr[0].token,
+                class: curr[0].class,
+                context: "separator",
+                index: curr[0].index,
+              },
+
+              ...tokens[i + 1],
+            ]);
+          }
+
+          else tokens2.push(curr);
       }
 
       // foo-bar and -baz
@@ -11264,18 +11405,37 @@ Token.hyphen = tokens => {
       // 1-10
 
       else if (prev.context === "digit" && next.context === "digit") {
-        tokens2.push([
-          ...tokens[i - 1],
+        if (Number(curr[0].token) - Number(next.token) > 0 
+          && curr[0].token[0] !== "0"
+          && next.token[0] !== "0") {
+            tokens2.push([
+              ...tokens[i - 1],
 
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "range",
-            index: curr[0].index,
-          },
+              {
+                token: curr[0].token,
+                class: curr[0].class,
+                context: "range",
+                index: curr[0].index,
+              },
 
-          ...tokens[i + 1],
-        ]);
+              ...tokens[i + 1],
+            ]);
+        }
+
+        else {
+          tokens2.push([
+            ...tokens[i - 1],
+
+            {
+              token: curr[0].token,
+              class: curr[0].class,
+              context: "separator",
+              index: curr[0].index,
+            },
+
+            ...tokens[i + 1],
+          ]);
+        }
       }
 
       // -10
@@ -11358,21 +11518,19 @@ Token.point = tokens => {
         else tokens2.push(curr);
       }
 
-      // eg. or 123.
+      // eg. (abbreviation because we assume sub-sentence context)
 
-      else if (prev.class !== "space") {
-        tokens2.push([
-          ...tokens[i - 1],
+      else if (prev.class === "letter") tokens2.push([
+        ...tokens[i - 1],
 
-          {
-            token: curr[0].token,
-            class: curr[0].class,
-            context: "period",
-            index: curr[0].index,
-          },
-        ]);
-      }
-
+        {
+          token: curr[0].token,
+          class: curr[0].class,
+          context: "abbreviation",
+          index: curr[0].index,
+        },
+      ]);
+        
       else tokens2.push(curr);
     }
 
@@ -11473,7 +11631,7 @@ Token.point = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "connector",
+            context: "grouping",
             index: curr[0].index,
           },
 
@@ -11481,7 +11639,7 @@ Token.point = tokens => {
         ]);
       }
 
-      // foo. (always abbreviation because we assume sub-sentence context)
+      // foo. (abbreviation because we assume sub-sentence context)
       
       else if (prev.class === "letter" && next.class === "space") {
         tokens2.push([
@@ -11678,7 +11836,7 @@ Token.slash = tokens => {
             {
               token: curr[0].token,
               class: curr[0].class,
-              context: "abbreviation",
+              context: "abbreviation2",
               index: curr[0].index,
             },
 
@@ -11697,7 +11855,7 @@ Token.slash = tokens => {
             {
               token: curr[0].token,
               class: curr[0].class,
-              context: "abbreviation",
+              context: "abbreviation2",
               index: curr[0].index,
             },
           ]);
@@ -12043,7 +12201,7 @@ Token.amp = tokens => {
             {
               token: curr[0].token,
               class: curr[0].class,
-              context: "abbreviation",
+              context: "abbreviation3",
               index: curr[0].index,
             },
 
@@ -12331,7 +12489,7 @@ Token.dotDash = tokens => {
           {
             token: curr[0].token,
             class: curr[0].class,
-            context: "hyphenation",
+            context: "hyphenation2",
             index: curr[0].index,
           },
 
@@ -13044,37 +13202,122 @@ Token.consolidate = tokens => {
   do {
     altered = false;
 
-    // merge consecutive or overlapping indices
+    // merge consecutive, overlapping, or nested indices
 
     for (let i = tokens.length - 1; i >= 0; i--) {
       const prev = i - 1 < 0 ? null : tokens[i - 1],
-        curr = tokens[i],
-        next = i + 1 >= tokens.length ? null : tokens[i + 1];
-
-      const last = prev === null ? null : A.last(prev);
+        curr = tokens[i];
 
       if (prev === null) continue;
 
       else {
-        if (prev[0].class === "space") continue;
-        else if (curr[0].class === "space") continue;
+        const prevFirst = prev[0].index,
+          prevLast = prev[prev.length - 1].index,
+          currFirst = curr[0].index,
+          currLast = curr[curr.length - 1].index;
 
-        else if (prev[0].class === "punct"
-          && prev[0].context === "subdivision") continue;
+        // overlapping or nested
 
-        else if (curr[0].class === "punct"
-          && curr[0].context === "subdivision") continue;
+        if (currFirst <= prevLast) {
 
-        else if (curr[0].index - last.index <= 1) {
-          tokens[i - 1] = A.unionWith(o => o.index) (prev) (curr);
-          tokens.splice(i, 1);
-          altered = true;
+          // curr nested in prev
+
+          if (currLast <= prevLast) {
+            tokens.splice(i, 1);
+            altered = true;
+          }
+
+          // prev nested in curr
+
+          else if (prevFirst >= currFirst) {
+            tokens[i - 1] = tokens[i];
+            tokens.splice(i, 1);
+            altered = true;
+          }
+
+          // overlapping
+
+          else {
+            const o = prev.find(p => (p.class === "punct"
+              || p.class === "space")
+              && (p.context === "separator"
+              || !/\p{Z}/v.test(p.token)));
+
+            const o2 = curr.find(p => (p.class === "punct"
+              || p.class === "space")
+              && (p.context === "separator"
+              || !/\p{Z}/v.test(p.token)));
+
+            // edge case: different separators
+
+            if (o !== undefined && o2 !== undefined && o.token !== o2.token) {
+
+              // hyphen has precedence over space
+
+              if (o2.token === "-") {debugger;
+                const pre = [],
+                  xs = A.difflWith(p => p.index) (prev) (curr),
+                  post = [];
+
+                if (xs[0].class === "space") pre.push(xs.shift());
+
+                else if (xs[xs.length - 1].class === "space"
+                  || (xs[xs.length - 1].class === "punct"
+                  && xs[xs.length - 1].context === "subdivision"))
+                    post.push(xs.pop());
+
+                if (pre.length) {
+                  if (post.length) tokens.splice(i - 1, 1, pre, xs, post);
+                  else tokens.splice(i - 1, 1, pre, xs);
+                }
+
+                else tokens.splice(i - 1, 1, xs, post);
+
+                altered = true;
+                continue;
+              }
+
+              else {
+                const xs = A.difflWith(p => p.index) (curr) (prev)
+                  .filter(p => tokens.find(ys => ys.includes(p)) === undefined)
+                  .map(p => [p]);
+
+                tokens.splice(i, 1, ...xs);
+                altered = true;
+              }
+            }
+
+            // default case
+
+            else {
+              tokens[i - 1] = A.unionWith(o => o.index) (prev) (curr);
+              altered = true;
+            }
+          }
         }
 
-        else continue;
+        // consecutive
+
+        else if (currFirst - prevLast === 1) {
+          if (prev[0].class === "space") continue;
+          else if (curr[0].class === "space") continue;
+
+          else if (prev[0].class === "punct"
+            && prev[0].context === "subdivision") continue;
+
+          else if (curr[0].class === "punct"
+            && curr[0].context === "subdivision") continue;
+
+          // merging
+
+          else {
+            tokens[i - 1] = A.unionWith(o => o.index) (prev) (curr);
+            tokens.splice(i, 1);
+            altered = true;
+          }
+        }
       }
     }
-    
   } while (altered);
 
   return tokens;
@@ -13084,13 +13327,14 @@ Token.consolidate = tokens => {
 //█████ Composition ███████████████████████████████████████████████████████████
 
 
-Token.pipeAll = pipes(
+Token.tokenizeAll = pipes(
 Token.base,
 Token.lowerCase,
 Token.titleCase,
 Token.camelCase,
 Token.allCaps,
 Token.digit,
+Token.space,
 Token.hyphen,
 Token.point,
 Token.apo,
@@ -13124,19 +13368,20 @@ Token.consolidate);
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-/* Higher-order tokenizer are meant to be applied to composite patterns whereas
-combinators of the parser namespace deal with atomic ones. */
+/* Higher-order tokenizers filter composite patterns from lists of grouped
+tokens. */
 
 
-// Foo-Bar
+// Foo-Bar, Foo-bar, foo-bar
 
-Token.hyphenatedWord = ({maxCompos}) => tokens => {
+Token.hyphenatedWords = ({maxCompos}) => tokens => {
   const acc = [];
 
   main: for (let i = 0; i < tokens.length; i++) {
     const group = tokens[i];
 
-    if (group.length / 2 > maxCompos) continue;
+    if (group.length < 3) continue;
+    else if (group.length / 2 > maxCompos) continue;
     else if (group.length % 2 === 0) continue;
 
     for (let j = 0; j < group.length; j++) {
@@ -13149,26 +13394,24 @@ Token.hyphenatedWord = ({maxCompos}) => tokens => {
 
       else {
         if (token.class !== "letter") continue main;
-        else if (token.context !== "tc") continue main;
+        
+        else if (token.context !== "tc"
+          && token.context !== "lc") continue main;
       }
     }
 
-    acc.push(group);
+    acc.push({i, group});
   }
 
   return acc;
 };
 
 
-/* Find coherent proper name patterns within a sequence of tokens. Assumes
-correct letter casing. Allowed casings are title case (Foo), camel case (FooBar)
-and lower case (foo) provided they are member of `infixes`.
-
-prefixes: salutations and noble titles at the beginning of the name
-infixes: name extensions in the middle of the name */
+// filter proper names
 
 Token.properNames = ({prefixes, infixes}) => tokens => {
-  const acc = [], buf = [];
+  const acc = [];
+  let buf = [];
 
   for (let i = 0; i < tokens.length; i++) {
     const group = tokens[i];
@@ -13179,76 +13422,76 @@ Token.properNames = ({prefixes, infixes}) => tokens => {
       if (group[0].class === "letter") {
         if (group[0].context === "tc") {
 
-          // prefix extension
+          // prefix extension (e.g. salutation, title)
 
           if (prefixes.has(group[0].token)) {
             if (buf.length === 0
               || buf[buf.length - 1].kind === "prefix")
-                buf.push({compo: group, kind: "prefix"});
+                buf.push({compo: group, kind: "prefix", i});
 
             else {
               if (buf.length > 1) acc.push(buf);
-              buf.length = 0;
+              buf = [];
             }
           }
   
           // name component
 
-          else buf.push({compo: group, kind: "compo"});
+          else buf.push({compo: group, kind: "compo", i});
         }
 
         else if (group[0].context === "lc") {
   
-          // infix extension
+          // infix extension (name prepositions like "von", "van")
 
           if (infixes.has(group[0].token)) {
             if (buf.length === 0
               || i + 1 === tokens.length
               || tokens[i + 1] [0].class !== "space") {
                 if (buf.length > 1) acc.push(buf);
-                buf.length = 0;
+                buf = [];
             }
               
-            else buf.push({compo: group, kind: "infix"});
+            else buf.push({compo: group, kind: "infix", i});
           }
           
           else {
             if (buf.length > 1) acc.push(buf);
-            buf.length = 0;
+            buf = [];
           }
         }
 
         else if (group.context === "Cc") {
-          if (namePrefixes.has(group[0].token)) buf.push({compo: group, kind: "compo"});
+          if (namePrefixes.has(group[0].token)) buf.push({compo: group, kind: "compo", i});
 
           else {
             if (buf.length > 1) acc.push(buf);
-            buf.length = 0;
+            buf = [];
           }
         }
 
         else {
           if (buf.length > 1) acc.push(buf);
-          buf.length = 0;
+          buf = [];
         }
       }
 
       else if (group[0].class === "space")
-        buf.push({compo: group, kind: "separator"});
+        buf.push({compo: group, kind: "separator", i});
 
       else if (group[0].class === "punct") {
         if (group[0].context === "subdivision")
-          buf.push({compo: group, kind: "separator"});
+          buf.push({compo: group, kind: "separator", i});
 
         else {
           if (buf.length > 1) acc.push(buf);
-          buf.length = 0;
+          buf = [];
         }
       }
 
       else {
         if (buf.length > 1) acc.push(buf);
-        buf.length = 0;
+        buf = [];
       }
     }
 
@@ -13257,17 +13500,17 @@ Token.properNames = ({prefixes, infixes}) => tokens => {
       // composite (McFoo)
 
       if (group[0].class === "letter" && group[0].context === "Cc")
-        buf.push({compo: group, kind: "compo"});
+        buf.push({compo: group, kind: "compo", i});
 
       // composite (F.)
 
       else if (group[0].class === "letter" && group[0].context === "initial"
         && group[1].class === "punct" && group[1].context === "abbreviation")
-          buf.push({compo: group, kind: "compo"});
+          buf.push({compo: group, kind: "compo", i});
 
       else {
         if (buf.length > 1) acc.push(buf);
-        buf.length = 0;
+        buf = [];
       }
     }
 
@@ -13275,16 +13518,16 @@ Token.properNames = ({prefixes, infixes}) => tokens => {
 
     else if (group.length === 3) {
       if (group[1].class === "punct" && group[1].context === "hyphenation")
-        buf.push({compo: group, kind: "compo"});
+        buf.push({compo: group, kind: "compo", i});
 
       // O'Foo
 
       else if (group[1].class === "punct" && group[1].context === "contraction")
-        buf.push({compo: group, kind: "compo"});
+        buf.push({compo: group, kind: "compo", i});
 
       else {
         if (buf.length > 1) acc.push(buf);
-        buf.length = 0;
+        buf = [];
       }
     }
 
@@ -13294,23 +13537,23 @@ Token.properNames = ({prefixes, infixes}) => tokens => {
 
       if (group[1].class === "punct" && group[1].context === "hyphenation"
         && group[2].class === "letter" && group[2].context === "Cc")
-          buf.push({compo: group, kind: "compo"});
+          buf.push({compo: group, kind: "compo", i});
 
       // composite (McFoo-Bar)
 
       else if (group[0].class === "letter" && group[0].context === "Cc"
         && group[2].class === "punct" && group[2].context === "hyphenation")
-          buf.push({compo: group, kind: "compo"});
+          buf.push({compo: group, kind: "compo", i});
 
       // composite (F.-B.)
 
-      else if (group[1].class === "punct" && group[1].context === "hyphenation"
+      else if (group[1].class === "punct" && group[1].context === "hyphenation2"
         && group[3].class === "punct" && group[3].context === "abbreviation")
-          buf.push({compo: group, kind: "compo"});
+          buf.push({compo: group, kind: "compo", i});
 
       else {
         if (buf.length > 1) acc.push(buf);
-        buf.length = 0;
+        buf = [];
       }
     }
 
@@ -13320,17 +13563,21 @@ Token.properNames = ({prefixes, infixes}) => tokens => {
 
       if (group[1].class === "punct" && group[1].context === "hyphenation"
         && group[3].class === "punct" && group[3].context === "contraction")
-          buf.push({compo: group, kind: "compo"});
+          buf.push({compo: group, kind: "compo", i});
+
+      else if (group[1].class === "punct" && group[1].context === "contraction"
+        && group[3].class === "punct" && group[3].context === "hyphenation")
+          buf.push({compo: group, kind: "compo", i});
 
       else {
         if (buf.length > 1) acc.push(buf);
-        buf.length = 0;
+        buf = [];
       }
     }
 
     else {
       if (buf.length > 1) acc.push(buf);
-      buf.length = 0;
+      buf = [];
     }
   }
 
@@ -13339,37 +13586,46 @@ Token.properNames = ({prefixes, infixes}) => tokens => {
 };
 
 
-// 3-times
+// 3-times, 3D-effect, V8-engine
 
-Token.numericalTerm = tokens => {
+Token.numericalTerms = ({maxCompos}) => tokens => {
   const acc = [];
 
   main: for (let i = 0; i < tokens.length; i++) {
     const group = tokens[i];
+    let numCompos = 0, hasNumTerm = false, hasWord = false;
 
-    if (group.length / 2 > 2) continue;
-    else if (group.length % 2 === 0) continue;
+    if (group.length < 3) continue;
 
     for (let j = 0; j < group.length; j++) {
       const token = group[j];
 
-      if ((j + 1) % 2 === 0) {
-        if (token.class !== "punct") continue main;
-        else if (token.context !== "numerical-term") continue main;
-      }
+      if (token.class === "number"
+        && token.context !== "digit") continue main;
 
-      else if (j === 0) {
-        if (token.class !== "number") continue main;
-        else if (token.context !== "digit") continue main;
-      }
+      else if (token.class === "letter"
+        && token.context !== "tc"
+        && token.context !== "lc"
+        && token.context !== "initial") continue main;
 
-      else {
-        if (token.class !== "letter") continue main;
-        else if (token.context !== "tc") continue main;
+      else if (token.class === "punct"
+        && token.context !== "numerical-term"
+        && token.context !== "hyphenation") continue main;
+
+      else if (token.class !== "number"
+        && token.class !== "letter"
+        && token.class !== "punct") continue main;
+
+      else if (token.class === "number") hasNumTerm = true;
+
+      else if (token.class === "letter") {
+        hasWord = true;
+        numCompos++;
       }
     }
 
-    acc.push(group);
+    if (hasNumTerm && hasWord && numCompos <= maxCompos)
+      acc.push(group);
   }
 
   return acc;
@@ -13378,7 +13634,7 @@ Token.numericalTerm = tokens => {
 
 // etc., i.e., Ph.D.
 
-Token.abbr = tokens => {
+Token.abbrs = tokens => {
   const acc = [];
 
   main: for (let i = 0; i < tokens.length; i++) {
@@ -13387,12 +13643,7 @@ Token.abbr = tokens => {
     if (group.length < 2) continue;
 
     else if (group[0].class !== "letter"
-      || group[0].context === "ac")
-        continue;
-
-    else if (group[1].class !== "punct"
-      || group[1].context !== "abbreviation")
-        continue;
+      || group[0].context === "ac") continue;
 
     else if (group[group.length - 1].class !== "punct"
       || group[group.length - 1].context !== "abbreviation")
@@ -13401,19 +13652,14 @@ Token.abbr = tokens => {
     for (let j = 1; j < group.length - 1; j++) {
       const token = group[j];
 
-      if (token.class === "letter") {
-        if (token.context === "tc") continue;
-        else if (token.context === "Cc") continue;
-        else if (token.context === "cc") continue;
-        else if (token.context === "initial") continue;
-        else continue main;
-      }
+      if (token.class === "letter"
+        && token.context === "ac") continue main;
   
       else if (token.class === "punct"
-        && token.context === "abbreviation")
-          continue;
-      
-      else continue main;
+        && token.context !== "abbreviation") continue main;
+
+      else if (token.class !== "letter"
+        && token.class !== "punct") continue main;
     }
 
     acc.push(group);
@@ -13425,21 +13671,18 @@ Token.abbr = tokens => {
 
 // Foo.-Bar.
 
-Token.hyphenatedAbbr = tokens => {
+Token.hyphenatedAbbrs = ({maxCompos}) => tokens => {
   const acc = [];
 
   main: for (let i = 0; i < tokens.length; i++) {
     const group = tokens[i];
 
-    if (group.length < 3) continue;
+    if (group.length < 4) continue;
+    else if (group.length / 2 > maxCompos) continue;
+    else if (group.length % 2 === 1) continue;
 
     else if (group[0].class !== "letter"
-      || group[0].context === "ac")
-        continue;
-
-    else if (group[1].class !== "punct"
-      || group[1].context !== "hyphenation")
-        continue;
+      || group[0].context === "ac") continue;
 
     else if (group[group.length - 1].class !== "punct"
       || group[group.length - 1].context !== "abbreviation")
@@ -13448,23 +13691,15 @@ Token.hyphenatedAbbr = tokens => {
     for (let j = 1; j < group.length - 1; j++) {
       const token = group[j];
 
-      if (token.class === "letter") {
-        if (token.context === "tc") continue;
-        else if (token.context === "Cc") continue;
-        else if (token.context === "cc") continue;
-        else if (token.context === "initial") continue;
-        else continue main;
-      }
+      if (token.class === "letter"
+        && token.context === "ac") continue main;
   
       else if (token.class === "punct"
-        && token.context === "hyphenation")
-          continue;
+        && token.context !== "abbreviation"
+        && token.context !== "hyphenation2") continue main;
 
-      else if (token.class === "punct"
-        && token.context === "abbreviation")
-          continue;
-      
-      else continue main;
+      else if (token.class !== "letter"
+        && token.class !== "punct") continue main;
     }
 
     acc.push(group);
@@ -13476,19 +13711,18 @@ Token.hyphenatedAbbr = tokens => {
 
 // ASAP, R&D, N/A
 
-Token.acronym = tokens => {
+Token.acronyms = tokens => {
   const acc = [];
 
-  main: for (let i = 0; i < tokens.length; i++) {debugger;
+  main: for (let i = 0; i < tokens.length; i++) {
     const group = tokens[i];
-    let hasAllCaps = false;
 
     if (group.length === 1) {
       if (group[0].class !== "letter"
         || group[0].context !== "ac")
           continue;
 
-      else acc.push(group);
+      else acc.push({i, group});
     }
 
     else if (group.length === 3) {
@@ -13498,7 +13732,8 @@ Token.acronym = tokens => {
           continue;
 
       else if (group[1].class !== "punct"
-        || group[1].context !== "abbreviation")
+        || (group[1].context !== "abbreviation2"
+        && group[1].context !== "abbreviation3"))
           continue;
 
       else if (group[2].class !== "letter"
@@ -13506,7 +13741,7 @@ Token.acronym = tokens => {
         && group[2].context !== "initial"))
           continue;
 
-      else acc.push(group);
+      else acc.push({i, group});
     }
 
     else continue;
@@ -13518,12 +13753,12 @@ Token.acronym = tokens => {
 
 // IT-solution
 
-Token.hyphenatedAcronym = ({maxCompos}) => tokens => {
+Token.hyphenatedAcronyms = ({maxCompos}) => tokens => {
   const acc = [];
 
   main: for (let i = 0; i < tokens.length; i++) {
     const group = tokens[i];
-    let hasCaps = false, hasOthers = false;
+    let hasAllCaps = false, hasWords = false;
 
     if (group.length / 2 > maxCompos) continue;
     else if (group.length % 2 === 0) continue;
@@ -13540,20 +13775,20 @@ Token.hyphenatedAcronym = ({maxCompos}) => tokens => {
         if (token.class !== "letter") continue main;
 
         else if (token.context === "ac"
-          || token.context === "initial") hasCaps = true;
+          || token.context === "initial") hasAllCaps = true;
 
-        else hasOthers = true;
+        else hasWords = true;
       }
     }
 
-    if (hasCaps && hasOthers) acc.push(group);
+    if (hasAllCaps && hasWords) acc.push({i, group});
   }
 
   return acc;
 };
 
 
-Token.street = tokens => {
+Token.streets = tokens => {
   // TODO
   // Berliner Straße 43
   // Berliner Str. 43
@@ -13567,14 +13802,7 @@ Token.street = tokens => {
 };
 
 
-Token.iban = tokens => {
-  // TODO
-  // CH12 3456 7890 0000
-  // CH12-3456-7890-0000
-};
-
-
-Token.phoneNo = tokens => {
+Token.phoneNos = tokens => {
   // TODO
   // special chars: - () / " " +
 };
