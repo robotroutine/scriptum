@@ -1,15 +1,15 @@
 /*                                                                                                            
                                                                                                                
-                                             /\\\                    /\\\                                             
-     /\\\\\\\\\\     /\\\\\\\\  /\\/\\\\\\\  \///     /\\\\\\\\   /\\\\\\\\\\\  /\\\    /\\\    /\\\\\  /\\\\\        
-     \/\\\//////    /\\\//////  \/\\\/////\\\  /\\\  /\\\/////\\\ \////\\\////  \/\\\   \/\\\  /\\\///\\\\\///\\\     
-      \/\\\\\\\\\\  /\\\         \/\\\   \///  \/\\\  /\\\     \\\    \/\\\      \/\\\   \/\\\ \/\\\ \//\\\  \/\\\    
-       \////////\\\ \//\\\        \/\\\         \/\\\  /\\\     \\\    \/\\\ /\\  \/\\\   \/\\\ \/\\\  \/\\\  \/\\\   
-         /\\\\\\\\\\  \///\\\\\\\\ \/\\\         \/\\\ \/\\\\\\\\\\     \//\\\\\   \//\\\\\\\\\  \/\\\  \/\\\  \/\\\  
-         \//////////     \////////  \///          \///  \/\\\//////       \/////     \/////////   \///   \///   \///  
-                                                         \/\\\                                                         
-                                                          \/\\\                                                         
-                                                           \///                                                          
+                                         /\\\                    /\\\                                             
+ /\\\\\\\\\\     /\\\\\\\\  /\\/\\\\\\\  \///     /\\\\\\\\   /\\\\\\\\\\\  /\\\    /\\\    /\\\\\  /\\\\\        
+ \/\\\//////    /\\\//////  \/\\\/////\\\  /\\\  /\\\/////\\\ \////\\\////  \/\\\   \/\\\  /\\\///\\\\\///\\\     
+  \/\\\\\\\\\\  /\\\         \/\\\   \///  \/\\\ \/\\\     \\\    \/\\\      \/\\\   \/\\\ \/\\\ \//\\\  \/\\\    
+   \////////\\\ \//\\\        \/\\\         \/\\\ \/\\\     \\\    \/\\\ /\\  \/\\\   \/\\\ \/\\\  \/\\\  \/\\\   
+     /\\\\\\\\\\  \///\\\\\\\\ \/\\\         \/\\\ \/\\\\\\\\\\     \//\\\\\   \//\\\\\\\\\  \/\\\  \/\\\  \/\\\  
+     \//////////     \////////  \///          \///  \/\\\//////       \/////     \/////////   \///   \///   \///  
+                                                     \/\\\                                                         
+                                                      \/\\\                                                         
+                                                       \///                                                          
                                                                                                                           
 
 scriptum - library for pattern detection and natural language processing */
@@ -5703,47 +5703,41 @@ Parser.any = (...fs) => {
 
 Parser.value = x => {
   const kind = "non-sentinal value";
-  let o;
 
-  if (x === undefined) o = Parser.Invalid({
+  if (x === undefined) return Parser.Invalid({
     value: x, kind, reason: "undefined"
   });
   
-  else if (x === null) o = Parser.Invalid({
+  else if (x === null) return Parser.Invalid({
     value: x, kind, reason: "null"
   });
 
-  else if (x !== x) o = Parser.Invalid({
+  else if (x !== x) return Parser.Invalid({
     value: x, kind, reason: "not a number"
   });
 
-  else if (isNaN(x)) o = Parser.Invalid({
+  else if (isNaN(x)) return Parser.Invalid({
     value: x, kind, reason: "not a date"
   });
 
   else if (typeof x === "number") {
-    if (!Number.isFinite(x)) o = Parser.Invalid({
+    if (!Number.isFinite(x)) return Parser.Invalid({
       value: x, kind, reason: "infinite number"
     });
 
-    else if (!Number.isSafeInteger(x)) o = Parser.Invalid({
+    else if (!Number.isSafeInteger(x)) return Parser.Invalid({
       value: x, kind, reason: "unsafe integer"
     });
 
-    else o = Parser.Valid({value: x, kind});
+    else return Parser.Valid({value: x, kind});
   }
 
-  else o = Parser.Valid({value: x, kind});
-
-  if (o[$$] === "Parser.Valid") return o;
-  else if (_throw) throw new Err(o.reason);
-  else return o;
+  else return Parser.Valid({value: x, kind});
 };
 
 
 Parser.empty = x => {
-  const tag = intro(x), assum = "empty value",
-    kind = "empty value";
+  const tag = intro(x), kind = "empty value";
 
   switch (tag) {
     case "Array": {
@@ -5806,9 +5800,7 @@ Parser.empty = x => {
     default: throw new Err(`unexpected type "${tag}"`);
   }
 
-  if (_throw) throw new Err("non-empty value");
-
-  else return Parser.Valid({
+  return Parser.Invalid({
     value: x,
     kind,
     reason: "non-empty value",
@@ -6012,40 +6004,34 @@ Parser.sentence = s => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-Parser.num = ({_throw = false}) => n => {
-  let o;
-
-  if (typeof n !== "number") o = Parser.Invalid({
+Parser.num = n => {
+  if (typeof n !== "number") return Parser.Invalid({
     value: n,
     kind: "number",
     reason: "not of type number",
   });
 
-  if (!Number.isFinite(n)) o = Parser.Invalid({
+  if (!Number.isFinite(n)) return Parser.Invalid({
     value: n,
     kind: "number",
     reason: "infinite number",
   });
 
-  if (!Number.isSafeInteger(n)) o = Parser.Invalid({
+  if (!Number.isSafeInteger(n)) return Parser.Invalid({
     value: n,
     kind: "number",
     reason: "number out of range",
   });
 
-  else o = Parser.Valid({
+  else return Parser.Valid({
     value: n,
     kind: "number",
     reason: "not of type number",
   });
-
-  if (o[$$] === "Parser.Valid") return o;
-  else if (_throw) throw new Err(o.reason);
-  else return o;
 };
 
 
-Parser.int = ({_throw = false}) => n => {
+Parser.int = n => {
   const o = Parser.num(n);
 
   if (o[$$] === "Parser.Valid") {
@@ -6054,8 +6040,6 @@ Parser.int = ({_throw = false}) => n => {
       kind: "integer",
     });
     
-    else if (_throw) throw new Err(`decimal number "${s}"`);
-
     else return Parser.Invalid({
       value: n,
       kind: "integer",
@@ -6067,7 +6051,7 @@ Parser.int = ({_throw = false}) => n => {
 };
 
 
-Parser.nat = ({_throw = false}) => n => {
+Parser.nat = n => {
   const o = Parser.int(n);
 
   if (o[$$] === "Parser.Valid") {
@@ -6082,8 +6066,6 @@ Parser.nat = ({_throw = false}) => n => {
       kind: "natrual number",
     });
     
-    else if (_throw) throw new Err(`negative number "${s}"`);
-
     else return Parser.Invalid({
       value: n,
       kind: "natrual number",
@@ -6095,7 +6077,7 @@ Parser.nat = ({_throw = false}) => n => {
 };
 
 
-Parser.neg = ({_throw = false}) => n => {
+Parser.neg = n => {
   const o = Parser.num(n);
 
   if (o[$$] === "Parser.Valid") {
@@ -6103,8 +6085,6 @@ Parser.neg = ({_throw = false}) => n => {
       value: n,
       kind: "negative number",
     });
-
-    else if (_throw) throw new Err(`positive number "${s}"`);
 
     else return Parser.Invalid({
       value: n,
@@ -6119,15 +6099,13 @@ Parser.neg = ({_throw = false}) => n => {
 
 // minimal decimal places
 
-Parser.minPlaces = ({min, _throw = false}) => n => {
+Parser.minPlaces = min => n => {
   const [, dec] = String(n).split(/\./);
   
   if (dec.length >= min) return Parser.Valid({
     value: n,
     kind: "min precision",
   });
-
-  else if (_throw) throw new Err(`below threshold "${s}"`);
 
   else return Parser.Invalid({
     value: n,
@@ -6139,15 +6117,13 @@ Parser.minPlaces = ({min, _throw = false}) => n => {
 
 // maximal decimal places
 
-Parser.maxPlaces = ({max, _throw = false}) => n => {
+Parser.maxPlaces = max => n => {
   const [, dec] = String(n).split(/\./);
   
   if (dec.length >= min) return Parser.Valid({
     value: n,
     kind: "max precision",
   });
-
-  else if (_throw) throw new Err(`above threshold "${s}"`);
 
   else return Parser.Invalid({
     value: n,
@@ -6162,39 +6138,37 @@ Parser.maxPlaces = ({max, _throw = false}) => n => {
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-Parser.numStr = ({locale, strict = false, _throw = false}) => s => {
-  let xs;
+/* The passed regular expression must provide the following named groups:
 
-  switch (locale) {
-    case "iso": xs = R.iso.nums; break;
-    case "deDE": xs = R.i18n.deDE.nums; break;
-    default: throw new Err(`unknown locale "${locale}"`);
-  }
+  * signPre (- of -123.45)
+  * signSuf (+ of 123.45+)
+  * int (123 of 123.45)
+  * frac (45 of 123.45) */
 
-  for (const rx of xs) {
+Parser.numStr = (...rs) => s => {
+  for (const rx of rs) {
     if (rx.test(s)) {
       const o = s.match(rx);
 
-      const presign = o.groups.sign === undefined
-        ? "" : o.groups.sign;
+      if (o.groups.signPre && o.groups.signSuf) return Parser.Invalid({
+        value: s,
+        kind: "number string",
+        reason: "redundant signs",
+      });
 
-      const postsign = o.groups.postsign === undefined
-        ? "" : o.groups.postsign;
+      const sign = o.groups.signPre ? o.groups.signPre
+        : o.groups.signSuf ? o.groups.signSuf
+        : "";
 
-      const sign = presign ? presign : postsign,
-        int = o.groups.int.replaceAll(/[^\d]/g, "");
+      const int = o.groups.int.replaceAll(/[^\d]/g, ""),
+        frac = o.groups.frac ? o.groups.frac : "";
 
-      const frac = o.groups.frac === undefined
-        ? "" : o.groups.frac;
-
-      if (strict && int[0] === "0") {
-        if (_throw) throw new Err(`leading zero "${s}"`);
-
-        else return Parser.Invalid({
-          value: s,
-          kind: "number string",
-          reason: "leading zero",
-        });
+      if (int[0] === "0" && int.length > 1) {
+          return Parser.Invalid({
+            value: s,
+            kind: "number string",
+            reason: "unexpected leading zero",
+          });
       }
 
       else return Parser.Valid({
@@ -6205,9 +6179,7 @@ Parser.numStr = ({locale, strict = false, _throw = false}) => s => {
     }
   }
 
-  if (_throw) throw new Err(`invalid number string: "${s}"`);
-
-  else return Parser.Invalid({
+  return Parser.Invalid({
     value: s,
     kind: "number string",
     reason: "malformed number string",
@@ -6217,7 +6189,7 @@ Parser.numStr = ({locale, strict = false, _throw = false}) => s => {
 
 // parse natural number string
 
-Parser.natStr = ({inclZero, _throw = false}) => s => {
+Parser.natStr = inclZero => s => {
   if (inclZero && /^\d+$/.test(s)) return Parser.Valid({
     value: Number(s),
     kind: "natural number",
@@ -6230,8 +6202,6 @@ Parser.natStr = ({inclZero, _throw = false}) => s => {
     original: s,
   });
 
-  else if (_throw) throw new Err(`malformed natural number "${s}"`);
-
   else return Parser.Invalid({
     value: s,
     kind: "natural number",
@@ -6240,224 +6210,126 @@ Parser.natStr = ({inclZero, _throw = false}) => s => {
 };
 
 
-// parse decimal number string (without scientific notation)
-
-Parser.decStr = ({places: [from, to = from], decSep = ".", thdSep = "", _throw = false}) => s => {
-  const kind = "decimal number string";
-  let s2 = s, sign = "", o;
-
-  if (s.search("e") !== notFound) o = Parser.Invalid({
-    value: s,
-    kind,
-    reason: "scientific notation",
-  });
-
-  else if (s[0] === "+" || s[0] === "-") {
-    sign = s[0];
-    s2 = s2.slice(1);
-  }
-
-  else {
-    const [int, dec, ...rest] = s2.split(decSep),
-      segments = thdSep ? int.split(thdSep) : [int];
-
-    if (dec.length === 0) o = Parser.Invalid({
-      value: s,
-      kind,
-      reason: "decimal point missing",
-    });
-
-    else if (rest.length > 0) o = Parser.Invalid({
-      value: s,
-      kind,
-      reason: "several decimal points",
-    });
-
-    if (segments.some(seg => !/^\d+$/.test(seg))) o = Parser.Invalid({
-      value: s,
-      kind,
-      reason: "malformed integer component",
-    });
-
-    else if (segments.slice(1).some(seg => seg.length !== 3)) o = Parser.Invalid({
-      value: s,
-      kind,
-      reason: "malformed integer segment",
-    });
-
-    else if (segments[0] [0] === "0") o = Parser.Invalid({
-      value: s,
-      kind,
-      reason: "unexpected leading zero",
-    });
-
-    else if (!/^\d+$/.test(dec)) o = Parser.Invalid({
-      value: s,
-      kind,
-      reason: "malformed decimal component",
-    });
-
-    else if (dec.length < from || dec.length > to) o = Parser.Invalid({
-      value: s,
-      kind,
-      reason: "wrong decimal places",
-    });
-
-    else o = Parser.Valid({
-      value: Number(sign + segments.join("") + decSep + dec),
-      kind,
-      original: s,
-    });
-  }
-
-  if (o[$$] === "Parser.Valid") return o;
-  else if (_throw) throw new Err(o.reason);
-  else return o;
-};
-
-
 /*█████████████████████████████████████████████████████████████████████████████
 ███████████████████████████████ NOMINAL NUMBER ████████████████████████████████
 ███████████████████████████████████████████████████████████████████████████████*/
 
 
-// parse date string
+/* The passed regular expression must provide the following named groups:
 
-Parser.date = ({locale, century = 20, _throw = false}) => s => {
-  let xs, p;
+  * d (31 of 2000-12-31)
+  * m (12 of 2000-12-31)
+  * y (2000 of 2000-12-31) */
 
-  switch (locale) {
-    case "iso": xs = R.iso.dates; break;
-    case "deDE": xs = R.i18n.deDE.dates; break;
-    default: throw new Err(`unknown locale "${locale}"`);
-  }
-
-  for (const rx of xs) {
+Parser.date = ({rs, century = 20}) => s => {
+  for (const rx of rs) {
     if (rx.test(s)) {
       const o = s.match(rx);
 
-      o.groups.y = o.groups.y.length === 2
+      const y = Number(o.groups.y.length === 2
         ? century + o.groups.y
-        : o.groups.y;
+        : o.groups.y);
 
-      const y = Number(o.groups.y),
-        m = Number(o.groups.m),
+      const m = Number(o.groups.m),
         d = Number(o.groups.d);
 
-      if (m < 1 || m > 12) {
-        p = Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid month",
-        });
-      }
+      if (m < 1 || m > 12) return Parser.Invalid({
+        value: s,
+        kind: "date string",
+        reason: "invalid month",
+      });
 
       else if (d < 1 || d > 31 || d > D.lastDayOfMonth(y) (m)) {
-        p = Parser.Invalid({
+        return Parser.Invalid({
           value: s,
           kind: "date string",
           reason: "invalid day",
         });
       }
 
-      else p = Parser.Valid({
+      else return Parser.Valid({
         value: new Date(Date.parse(
           `${o.groups.y}-${o.groups.m}-${o.groups.d}`)),
 
         kind: "date string",
         original: s,
       });
-
-      if (p[$$] === "Parser.Valid") return p;
-      else if (_throw) throw new Err(p.reason);
-      else return p;
     }
   }
 
-  if (_throw) throw new Err(`unknown date string "${s}"`);
-
-  else return Parser.Invalid({
+  return Parser.Invalid({
     value: s,
     kind: "date string",
-    reason: "unknown date string",
+    reason: "malformed date string",
   });
 };
 
 
-// parse time string and add it to the provided date object
+/* The passed regular expression must provide the following named groups:
 
-Parser.time = ({date = new Date("0000-01-01"), _throw = false}) => s => {
-  let p;
+  * h (12 of 12:59:30.123+/-01:00)
+  * m (59 of 12:59:30.123+/-01:00)
+  * s (30 of 12:59:30.123+/-01:00)
+  * ms (123 of 12:59:30.123+/-01:00)
+  * tz (+/- of 12:59:30.123+/-01:00)
+  * tzh (01 of 12:59:30.123+/-01:00)
+  * tzm (00 of 12:59:30.123+/-01:00) */
 
-  for (const rx of R.iso.times) {
+Parser.time = ({rs, date = new Date("0000-01-01")}) => s => {
+  for (const rx of rs) {
     if (rx.test(s)) {
       const o = s.match(rx),
         h = Number(o.groups.h),
         m = Number(o.groups.m),
-        s_ = o.groups.s ? Number(o.groups.s) : 0,
+        sec = o.groups.s ? Number(o.groups.s) : 0,
         ms = o.groups.ms ? Number(o.groups.ms) : 0,
+        tz = o.groups.tz ? o.groups.tz : "",
         tzh = o.groups.tzh ? Number(o.groups.tzh) : 0,
         tzm = o.groups.tzm ? Number(o.groups.tzm) : 0;
 
-      if (h > 23) {
-        p = Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid hours",
-        });
-      }
+      if (h > 23) return Parser.Invalid({
+        value: s,
+        kind: "date string",
+        reason: "invalid hours",
+      });
           
-      else if (m > 59) {
-        p = Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid minutes",
-        });
-      }
+      else if (m > 59) return Parser.Invalid({
+        value: s,
+        kind: "date string",
+        reason: "invalid minutes",
+      });
 
-      else if (s_ > 59) {
-        p = Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid seconds",
-        });
-      }
+      else if (sec > 59) return Parser.Invalid({
+        value: s,
+        kind: "date string",
+        reason: "invalid seconds",
+      });
 
-      else if (tzh > 23) {
-        p = Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid timezone hours",
-        });
-      }
+      else if (tzh > 23) return Parser.Invalid({
+        value: s,
+        kind: "date string",
+        reason: "invalid timezone hours",
+      });
 
-      else if (tzm > 59) {
-        p = Parser.Invalid({
-          value: s,
-          kind: "date string",
-          reason: "invalid timezone minutes",
-        });
-      }
+      else if (tzm > 59) return Parser.Invalid({
+        value: s,
+        kind: "date string",
+        reason: "invalid timezone minutes",
+      });
 
-      else {
-        date.setHours(h, m, s_, ms);
+      else {debugger;
+        date.setHours(h, m, sec, ms);
         
-        p = Parser.Valid({
+        return Parser.Valid({
           value: date,
           kind: "time string",
           original: s,
         });
       }
-
-      if (p[$$] === "Parser.Valid") return p;
-      else if (_throw) throw new Err(p.reason);
-      else return p;
     }
   }
 
-  if (_throw) throw new Err(`unknown time string "${s}"`);
-
-  else return Parser.Invalid({
+  return Parser.Invalid({
     value: s,
     kind: "time string",
     reason: "unknown time string",
@@ -6679,36 +6551,45 @@ Parser.streetNo = s => {
 };
 
 
-/*█████████████████████████████████████████████████████████████████████████████
-████████████████████████████████ OBJECT-BASED █████████████████████████████████
-███████████████████████████████████████████████████████████████████████████████*/
+/* The confidence that the input string is a password is calculated by taking
+character class repetition and dimensions into account. Dimensions determine
+how many of the four distinct character classes occur in the input string.
+Repetition determines how many distinct segments of each character class occur
+in the input string. The algo assumes an average repetition of 2 per character
+class resulting in the following formula for the peak confidence that is later
+used as the divisor to normalize the result:
+  
+  average-repetition * max-dimnesions = (2 * 4) * 4 = 32 */
 
+Parser.password = s => {
+  const features = {
+    lc: 0,
+    uc: 0,
+    num: 0,
+    special: 0,
+  };
 
-Parser.isMember = ({lookup, _throw = false}) => x => {
-  if (lookup.has(x)) return Parser.Valid({value: x, kind: "member"});
-  else if (_throw) throw new Err("non-member");
+  features.lc = R.countPattern(/\p{Ll}+/gv) (s);
+  features.uc = R.countPattern(/\p{Lu}+/gv) (s);
+  features.num = R.countPattern(/\d+/g) (s);
+  features.special = R.countPattern(/(?:\p{P}|\p{S})+/gv) (s);
 
-  else return Parser.Inalid({
-    value: x,
-    kind: "member",
-    reason: "non-member",
+  const sum = features.lc
+    + features.uc
+    + features.num
+    + features.special;
+
+  const dims = Number(features.lc > 0)
+    + Number(features.uc > 0)
+    + Number(features.num > 0)
+    + Number(features.special > 0);
+
+  return Parser.Maybe({
+    value: s,
+    kind: "password",
+    confidence: Math.min((sum * dims) / 32, 1),
   });
 };
-
-
-Parser.isNotMember = ({lookup, _throw = false}) => x => {
-  if (!lookup.has(x)) return Parser.Valid({value: x, kind: "non-member"});
-  else if (_throw) throw new Err("member");
-
-  else return Parser.Inalid({
-    value: x,
-    kind: "non-member",
-    reason: "member",
-  });
-};
-
-
-Parser.unique = Parser.isNotMember;
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -6819,14 +6700,15 @@ R.iso = {
     /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})$/, // 12:00:00.123
     /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)Z$/, // 12:00:00Z (UTC)
     /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})Z$/, // 12:00:00.123Z (UTC)
-    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)(?:\+|\-)(?<tzh>\d\d):(?<tzm>\d\d)$/, // 12:00:00+/-01:00 (time zone)
-    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})(?:\+|\-)(?<tzh>\d\d):(?<tzm>\d\d)$/, // 12:00:00.123+/-01:00 (time zone)
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)(?<tz>\+|\-)(?<tzh>\d\d):(?<tzm>\d\d)$/, // 12:00:00+/-01:00 (time zone)
+    /^(?<h>\d\d):(?<m>\d\d):(?<s>\d\d)\.(?<ms>\d{3})(?<tz>\+|\-)(?<tzh>\d\d):(?<tzm>\d\d)$/, // 12:00:00.123+/-01:00 (time zone)
   ],
 
   nums: [
     /^(?<int>0|(?:[1-9]\d*))$/, // natural numbers
-    /^(?<sign>\+|\-)?(?<int>[1-9]\d*)$/, // integers
-    /^(?<sign>\+|\-)?(?<int>\d+)\.(?<frac>\d+)$/, // 1234.567
+    /^(?<signPre>\+|\-)?(?<int>[1-9]\d*)$/, // integers
+    /^(?<signPre>\+|\-)?(?<int>\d+)\.(?<frac>\d+)$/, // decimal numbers
+    /^(?<signPre>\+|\-)?(?<int>\d+)(?:\.(?<frac>\d+))?$/, // optional decimal numbers
   ],
 };
 
@@ -6845,8 +6727,10 @@ R.i18n = {
     // time is equal to iso formats and thus skipped
 
     nums : [
-      /^(?<sign>\+|\-)?(?<int>\d+),(?<frac>\d+)(?<postsign>\+|\-)?$/, // 1234,567
-      /^(?<sign>\+|\-)?(?<int>\d+(?:\.\d{3})*),(?<frac>\d+)(?<postsign>\+|\-)?$/, // 1.234,567
+      /^(?<signPre>\+|\-)?(?<int>\d+),(?<frac>\d+)(?<signSuf>\+|\-)?$/, // decimal numbers
+      /^(?<signPre>\+|\-)?(?<int>\d+(?:\.\d{3})*),(?<frac>\d+)(?<signSuf>\+|\-)?$/, // decimal numbers with grouping
+      /^(?<signPre>\+|\-)?(?<int>\d+)(?:,(?<frac>\d+))?(?<signSuf>\+|\-)?$/, // optional decimal numbers
+      /^(?<signPre>\+|\-)?(?<int>\d+(?:\.\d{3})*)(?:,(?<frac>\d+))?(?<signSuf>\+|\-)?$/, // optional decimal numbers with grouping
     ],
   }
 };
