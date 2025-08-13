@@ -2113,37 +2113,10 @@ A.splitAt = p => xs => {
 };
 
 
-A.ngram = ({size, padding = null, overlap = false}) => xs => {
-  const ys = [];
-
-  for (let i = 0; i < xs.length; overlap ? i++ : i += size) {
-    if (i + size > xs.length) {
-      if (!overlap) {
-        const clipping = i + size - xs.length;
-
-        ys.push(xs.slice(i, i + size - clipping)
-          .concat(Array(clipping).fill(padding)));
-      }
-    }
-    
-    else ys.push(xs.slice(i, i + size));
-  }
-
-  return ys;
-};
+//█████ Subsets/-sequences ████████████████████████████████████████████████████
 
 
-A.bigram = A.ngram({size: 2, overlap: true});
-
-
-A.trigram = A.ngram({size: 3, overlap: true});
-
-
-//█████ Combinations, Subsets, Subsequences ███████████████████████████████████
-
-
-/* Group all overlapping, consecutive elements of a predefined length
-(subsequencing)*/
+// group all overlapping, consecutive elements of a predefined length
 
 A.consec = len => xs => {
   const ys = [];
@@ -2157,58 +2130,11 @@ A.consec = len => xs => {
 };
 
 
-/* Group all overlapping, consecutive elements within a predefined range
-(subsequencing). */
+// group all overlapping, consecutive elements within a predefined range
 
 A.consecs = ({min, max}) => xs => {
   let ys = [];
   for (let i = min; i <= max; i++) ys = ys.concat(A.consec(i) (xs));
-  return ys;
-};
-
-
-A.powerset = ({min, max}) => xs => {
-  let xss = [[]];
-
-  for (const x of xs) {
-    const yss = [];
-
-    for (const ys of xss) yss.push(ys.concat(x));
-    xss.push.apply(xss, yss);
-    xss = xss.filter(s => s.length <= max);
-  }
-
-  return xss.filter(ys => ys.length >= min && ys.length <= max);
-};
-
-
-// powerset with pruning for numbers
-
-A.powersetNum = ({ min, max, sumThreshold }) => xs => {
-  let os = [{subset: [], sum: 0}],
-    ys = [];
-
-  if (min <= 0 && max >= 0 && 0 <= sumThreshold) ys.push([]);
-
-  for (const x of xs) {
-    const bound = os.length;
-
-    for (let i = 0; i < bound; i++) {
-      const o = os[i],
-        {subset, sum} = o,
-        len = subset.length + 1,
-        sum2 = sum + x;
-
-      if (len > max) continue; // prune
-      else if (sum2 > sumThreshold) continue; // prune
-
-      const subset2 = subset.concat(x);
-
-      os.push({subset: subset2, sum: sum2});
-      if (len >= min) ys.push(subset2);
-    }
-  }
-
   return ys;
 };
 
@@ -2245,15 +2171,185 @@ A.perms = xs => {
 };
 
 
-// transposition
+// brute force power set
 
-A.transpose = xss => {
-  return xss.reduce((acc, xs) => {
-    return xs.map((x, i) => {
-      const ys = acc[i] || [];
-      return (ys.push(x), ys);
-    });
-  }, []);
+A.powerset = ({min, max}) => xs => {
+  let xss = [[]];
+
+  for (const x of xs) {
+    const yss = [];
+
+    for (const ys of xss) yss.push(ys.concat(x));
+    xss.push.apply(xss, yss);
+    xss = xss.filter(s => s.length <= max);
+  }
+
+  return xss.filter(ys => ys.length >= min && ys.length <= max);
+};
+
+
+// powerset with upper-bound pruning
+
+A.powersetPruned = ({ min, max, sumThreshold }) => xs => {
+  let os = [{subset: [], sum: 0}],
+    ys = [];
+
+  if (min <= 0 && max >= 0 && 0 <= sumThreshold) ys.push([]);
+
+  for (const x of xs) {
+    const bound = os.length;
+
+    for (let i = 0; i < bound; i++) {
+      const o = os[i],
+        {subset, sum} = o,
+        len = subset.length + 1,
+        sum2 = sum + x;
+
+      if (len > max) continue; // prune
+      else if (sum2 > sumThreshold) continue; // prune
+
+      const subset2 = subset.concat(x);
+
+      os.push({subset: subset2, sum: sum2});
+      if (len >= min) ys.push(subset2);
+    }
+  }
+
+  return ys;
+};
+
+
+/* Find subsets of an array of objects whose sum match a targetAmount. Use `key`
+to access the amounts property of each objects. Amounts are encoded as positive
+decimal numbers with fixed decimal places defined by `decPlaces`. If the algorithm
+is greedy, it stops at the first match, otherwise it accumulates all matching
+subsets. */
+
+const subsetDP = ({targetAmount, key, decPlaces, isGreedy = 2}) => os =>{
+  const multiplier = 10 ** decPlaces,
+    scaledTarget = Math.round(targetAmount * multiplier);
+
+  if (scaledTarget === 0) return [[]];
+  else if (scaledTarget < 0) return [];
+
+  const items = os.map(obj => {
+    const amount = obj[key];
+    if (typeof amount !== "number" || isNaN(amount))
+      return {original: obj, scaledAmount: 0};
+
+    return {
+      original: obj,
+      scaledAmount: Math.round(amount * multiplier),
+    };
+  }).filter(item => item.scaledAmount > 0);
+
+  const dp = Array(scaledTarget + 1).fill(null).map(() => []);
+
+  dp[0] = [[]];
+
+  for (const item of items) {
+    const {original, scaledAmount} = item;
+
+    for (let j = scaledTarget; j >= scaledAmount; j--) {
+      if (dp[j - scaledAmount].length > 0) {
+        for (const subset of dp[j - scaledAmount]) {
+          const newSubset = [...subset, original];
+
+          if (isGreedy && j === scaledTarget) return [newSubset];
+          else dp[j].push(newSubset);
+        }
+      }
+    }
+  }
+
+  if (isGreedy) return [];
+  else return dp[scaledTarget];
+};
+
+
+// like `subsetDP` but relies on backtracking
+
+const subsetBT = ({targetAmount, key, decPlaces, isGreedy = false}) => os => {
+  const multiplier = 10 ** decPlaces,
+    scaledTarget = Math.round(targetAmount * multiplier);
+
+  if (scaledTarget === 0) return [[]];
+  else if (scaledTarget < 0) return [];
+
+  let items = os.map(obj => {
+    const amount = obj[key];
+    return {
+      original: obj,
+      scaledAmount: Math.round(amount * multiplier),
+    };
+  }).filter(item => item.scaledAmount > 0 && item.scaledAmount <= scaledTarget);
+
+  items.sort((a, b) => b.scaledAmount - a.scaledAmount);
+
+  const suffixSums = new Array(items.length).fill(0),
+    results = [],
+    memo = {};
+
+  suffixSums[items.length - 1] = items[items.length - 1]?.scaledAmount || 0;
+
+  for (let i = items.length - 2; i >= 0; i--)
+    suffixSums[i] = suffixSums[i + 1] + items[i].scaledAmount;
+
+  const backtrack = (startIndex, currSum, currPath) => {
+
+    // sum exceeds target prunung
+
+    if (currSum > scaledTarget) return;
+
+    const memoKey = `${startIndex}-${currSum}`;
+
+    // memorized path pruning
+
+    if (memo[memoKey] === false) return;
+
+    // base case: valid subset
+
+    else if (currSum === scaledTarget) {
+      results.push([...currPath]);
+      return;
+    }
+
+    const initialResultCount = results.length;
+
+    for (let i = startIndex; i < items.length; i++) {
+      const item = items[i],
+        newSum = currSum + item.scaledAmount;
+      
+      // skip duplicate number pruning
+
+      if (i > startIndex && item.scaledAmount === items[i - 1].scaledAmount) {
+        continue;
+      }
+      
+      // insufficient remaining sum pruning
+
+      if (currSum + suffixSums[i] < scaledTarget) break;
+      
+      // recursive case
+
+      if (newSum <= scaledTarget) {
+        currPath.push(item.original);
+        backtrack(i + 1, newSum, currPath);
+        currPath.pop();
+
+        // greedy pruning
+
+        if (isGreedy && results.length > 0) return;
+      }
+    }
+
+    if (results.length === initialResultCount) memo[memoKey] = false;
+  };
+
+  backtrack(0, 0, []);
+
+  if (isGreedy) return results.length > 0 ? [results[0]] : [];
+  else return results;
 };
 
 
@@ -2494,7 +2590,33 @@ A.histo = f => init => xs => {
 };
 
 
-//█████ Natural Language Processing ███████████████████████████████████████████
+//█████ Linguistic ████████████████████████████████████████████████████████████
+
+
+A.ngram = ({size, padding = null, overlap = false}) => xs => {
+  const ys = [];
+
+  for (let i = 0; i < xs.length; overlap ? i++ : i += size) {
+    if (i + size > xs.length) {
+      if (!overlap) {
+        const clipping = i + size - xs.length;
+
+        ys.push(xs.slice(i, i + size - clipping)
+          .concat(Array(clipping).fill(padding)));
+      }
+    }
+    
+    else ys.push(xs.slice(i, i + size));
+  }
+
+  return ys;
+};
+
+
+A.bigram = A.ngram({size: 2, overlap: true});
+
+
+A.trigram = A.ngram({size: 3, overlap: true});
 
 
 /* Rerieve non-/consecuitve co-occurrences of words within a sentence while
@@ -5693,6 +5815,18 @@ Parser.any = (...fs) => {
   }
 
   return o;
+};
+
+
+// throws an invalid parser or a maybe parser with too little confidence
+
+Parser.throw = minConf => o => {
+  if (o[$$] === "Parser.Invalid") throw new Err(o.reason);
+
+  else if (o[$$] === "Parser.Maybe"
+    && minConf > o.confidence) throw new Err("too little confidence");
+
+  else return o;
 };
 
 
@@ -14428,108 +14562,22 @@ Alg.asympGrowth = ({maxInput, slope = 5}) => x => {
 };
 
 
-//█████ Vectors ███████████████████████████████████████████████████████████████
+//█████ Matrix ████████████████████████████████████████████████████████████████
 
 
-Alg.dotProduct = (xs, ys) => {
-  if (xs.length !== ys.length) throw new Err("diverging dimensions");
+// transposition
 
-  let n = 0;
-  for (let i = 0; i < xs.length; i++) n += xs[i] * ys[i];
-  return n;
+Alg.transpose = xss => {
+  return xss.reduce((acc, xs) => {
+    return xs.map((x, i) => {
+      const ys = acc[i] || [];
+      return (ys.push(x), ys);
+    });
+  }, []);
 };
 
 
-Alg.cosine = (xs, ys) => {
-  if (xs.length !== ys.length) throw new Err("diverging dimensions");
-  else if (xs.length === 0) return 0;
 
-  let n = 0, n2 = 0, n3 = 0;
-
-  for (let i = 0; i < xs.length; i++) {
-    n += xs[i] * ys[i];
-    n2 += xs[i] * xs[i];
-    n3 += ys[i] * ys[i];
-  }
-  
-  return n / (Math.sqrt(n2) * Math.sqrt(n3));
-};
-
-
-Alg.euclidean = (xs, ys) => {
-  if (xs.length !== ys.length) throw new Err("diverging dimensions");
-  else if (xs.length === 0) return 0;
-
-  let n = 0;
-
-  for (let i = 0; i < xs.length; i++) {
-    const diff = xs[i] - ys[i];
-    n += diff * diff;
-  }
-
-  return Math.sqrt(n);
-};
-
-
-Alg.euclidean2 = (xs, ys) => {
-  if (xs.length !== ys.length) throw new Err("diverging dimensions");
-  else if (xs.length === 0) return 0;
-
-  let n = 0;
-
-  for (let i = 0; i < xs.length; i++) {
-    const diff = xs[i] - ys[i];
-    n += diff * diff;
-  }
-
-  return n;
-};
-
-
-Alg.manhattan = (xs, ys) => {
-  if (xs.length !== ys.length) throw new Err("same length expected");
-  else if (xs.length === 0) return 0;
-
-  let n = 0;
-  for (let i = 0; i < xs.length; i++) n += Math.abs(xs[i] - ys[i]);
-  return n;
-};
-
-
-//█████ Co-Occurrence █████████████████████████████████████████████████████████
-
-
-/* Logarithmic likelihood ratio: find candidates for significant co-occurrences
-(filtering). */
-
-Alg.llr = (k1, n1, k2, n2) => {
-  const k = k1 + k2,
-    n = n1 + n2,
-    p1 = k1 / n1,
-    p2 = k2 / n2,
-    p = k / n,
-    entropy1 = xLogY(k1, p1) + xLogY(n1 - k1, 1 - p1),
-    entropy2 = xLogY(k2, p2) + xLogY(n2 - k2, 1 - p2),
-    entropy12 = xLogY(k, p) + xLogY(n - k, 1 - p);
-
-  return 2 * ((entropy1 + entropy2) - entropy12);
-};
-
-
-/* Positive poitwise mutual information: rank candidates with significant
-co-occurrences (ranking). */
-
-Alg.ppmi = (countX, countY, countXY, total_events) => {
-  if (countXY === 0) return 0;
-  else if (countX === 0 || countY === 0 || total_events === 0) return 0;
-
-  const ratioX = countX / total_events,
-    ratioY = countY / total_events,
-    ratioXY = countXY / total_events,
-    pmi = Alg.log2(ratioXY / (ratioX * ratioY));
-
-  return Math.max(0, pmi);
-};
 
 
 /*█████████████████████████████████████████████████████████████████████████████
@@ -14819,12 +14867,12 @@ Node.FS_.stat = path => Cont((res, rej) =>
 
 
 Node.FS_.collectFiles = ({dirs: {maxDepth, blacklist = new Set(), whitelist = new Set()}, files: {types = new Set(), patterns = []}}) => rootPath => {
-  return function go(acc, currentPath, depth) {
+  return function go(acc, currPath, depth) {
     if (depth > maxDepth) return Cont.of();
 
-    return Cont.chain(Node.FS_.scanDir({withFileTypes: true}) (currentPath)) (os => {
+    return Cont.chain(Node.FS_.scanDir({withFileTypes: true}) (currPath)) (os => {
       const xs = os.map(o => {
-        const fullPath = Node.Path.join(currentPath, o.name),
+        const fullPath = Node.Path.join(currPath, o.name),
           relativePath = Node.Path.relative(rootPath, fullPath);
 
         if (o.isFile()) {
